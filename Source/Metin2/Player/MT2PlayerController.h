@@ -93,6 +93,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void AddInfoChatLine(const FString& Message);
 	friend class FMT2NotificationRoutingTest;
+	friend class FMT2DevilTowerMessagesTest;
 	void AddPlayerChatLine(const FString& Message);
 
 	void RequestPartyInvite(AMT2PlayerCharacter* TargetPlayer);
@@ -115,6 +116,7 @@ public:
 	void DisconnectForServerMaintenance(const FString& Message);
 	void SendSystemChatMessage(const FString& Message);
 	void SendAdminCommandMessage(const FString& Message);
+	void SendDungeonChatMessage(const FText& Message);
 	void SendFullMapNpcSnapshot();
 	const TArray<FMT2FullMapNpcMarker>& GetFullMapNpcMarkers() const { return FullMapNpcMarkers; }
 	FSimpleMulticastDelegate OnFullMapNpcMarkersChanged;
@@ -188,6 +190,8 @@ protected:
 	void ClientSystemChatMessage(const FString& Message);
 	UFUNCTION(Client, Reliable)
 	void ClientAdminCommandMessage(const FString& Message);
+	UFUNCTION(Client, Reliable)
+	void ClientDungeonChatMessage(const FText& Message);
 
 	void HandleAccountSessionRevoked(const FString& SessionOrAccountId, const FString& Reason);
 

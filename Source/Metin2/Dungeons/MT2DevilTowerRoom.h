@@ -16,6 +16,10 @@ public:
 protected:
 	virtual void OnEncounterCompleted() override;
 private:
+	friend class FMT2DevilTowerMessagesTest;
+	FText GetObjectiveMessage() const;
+	FText GetCompletionMessage() const;
+	void NotifyPlayer(AMT2PlayerState* Player, const FText& Message) const;
 	void QueueAdvance();
 	FTimerHandle StartTimer, AdvanceTimer;
 };

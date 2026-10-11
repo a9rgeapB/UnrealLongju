@@ -19,6 +19,12 @@
 #include "Quests/MT2QuestExpression.h"
 #include "UObject/StrongObjectPtr.h"
 #include "TimerManager.h"
+#include "Player/MT2PlayerController.h"
+#include "UI/MT2ChatWidget.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/ScrollBox.h"
+#include "Components/TextBlock.h"
+#include "Engine/LocalPlayer.h"
 
 namespace MT2DungeonFixture
 {
@@ -218,6 +224,48 @@ bool FMT2DevilTowerOpeningTest::RunTest(const FString&)
 	TestTrue(TEXT("Third floor starts"), Third->GetPhase() == EMT2DungeonRoomPhase::Active);
 	Third->CompleteEncounter(); Rig.TimerTick(5.f);
 	TestEqual(TEXT("Unconfigured later stages cannot silently teleport players"), Rig.World->GetSubsystem<UMT2DungeonSubsystem>()->GetPlayerRoom(B), static_cast<AMT2DungeonRoom*>(Third));
+	return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2DevilTowerMessagesTest, "Metin2.Dungeons.DevilTowerMessages",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2DevilTowerMessagesTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+	World->InitializeActorsForPlay(FURL());
+	auto* Room = World->SpawnActor<AMT2DevilTowerRoom>(); Room->RoomId = TEXT("DevilTower.Floor1"); Room->DispatchBeginPlay();
+	TArray<AMT2PlayerState*> Players; TArray<UMT2ChatWidget*> Widgets;
+	for (int32 I = 0; I < 3; ++I)
+	{
+		auto* Controller = World->SpawnActor<AMT2PlayerController>();
+		Controller->Player = NewObject<ULocalPlayer>(GEngine);
+		auto* Player = World->SpawnActor<AMT2PlayerState>(); Controller->SetPlayerState(Player);
+		auto* Pawn = World->SpawnActor<APawn>(); auto* Root = NewObject<USceneComponent>(Pawn);
+		Pawn->SetRootComponent(Root); Root->RegisterComponent(); Controller->Possess(Pawn);
+		auto* Widget = NewObject<UMT2ChatWidget>(Controller); Widget->WidgetTree = NewObject<UWidgetTree>(Widget);
+		Widget->HistoryBox = Widget->WidgetTree->ConstructWidget<UScrollBox>();
+		Widget->RewardHistoryBox = Widget->WidgetTree->ConstructWidget<UScrollBox>();
+		Controller->ChatWidget = Widget; Players.Add(Player); Widgets.Add(Widget);
+	}
+	TestTrue(TEXT("First entrant admitted"), Room->JoinPlayer(Players[0]));
+	Room->JoinPlayer(Players[0]);
+	TestEqual(TEXT("Repeated overlap does not repeat objective"), Widgets[0]->HistoryBox->GetChildrenCount(), 1);
+	++GFrameCounter; World->GetTimerManager().Tick(.01f);
+	TestTrue(TEXT("Late entrant admitted to active stage"), Room->JoinPlayer(Players[1]));
+	TestEqual(TEXT("Late entrant gets current objective"), Widgets[1]->HistoryBox->GetChildrenCount(), 1);
+	Room->CompleteEncounter(); Room->CompleteEncounter();
+	for (int32 I = 0; I < 2; ++I)
+	{
+		TestEqual(TEXT("Each participant gets one completion notice"), Widgets[I]->HistoryBox->GetChildrenCount(), 2);
+		TestEqual(TEXT("Dungeon messages never enter info/loot log"), Widgets[I]->RewardHistoryBox->GetChildrenCount(), 0);
+	}
+	TestEqual(TEXT("Nonparticipant does not get broadcast"), Widgets[2]->HistoryBox->GetChildrenCount(), 0);
+	Room->JoinPlayer(Players[2]);
+	TestEqual(TEXT("Completed-stage arrival gets current completion state"), Widgets[2]->HistoryBox->GetChildrenCount(), 1);
+	if (Widgets[2]->HistoryBox->GetChildrenCount() == 1)
+		TestEqual(TEXT("Completed arrival does not receive a stale objective"), Cast<UTextBlock>(Widgets[2]->HistoryBox->GetChildAt(0))->GetText().ToString(), Room->GetCompletionMessage().ToString());
+	for (int32 Floor = 1; Floor <= 3; ++Floor) { Room->Floor = Floor; TestFalse(TEXT("Every implemented floor has an objective"), Room->GetObjectiveMessage().IsEmpty()); }
+	World->EndPlay(EEndPlayReason::Quit); GEngine->DestroyWorldContext(World); World->DestroyWorld(false);
 	return true;
 }
 #endif

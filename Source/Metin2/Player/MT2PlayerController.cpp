@@ -1057,6 +1057,18 @@ void AMT2PlayerController::SendAdminCommandMessage(const FString& Message)
 	if (HasAuthority()) ClientAdminCommandMessage(Message);
 }
 
+void AMT2PlayerController::SendDungeonChatMessage(const FText& Message)
+{
+	if (HasAuthority() && !Message.IsEmpty()) ClientDungeonChatMessage(Message);
+}
+
+void AMT2PlayerController::ClientDungeonChatMessage_Implementation(const FText& Message)
+{
+	TArray<FString> Lines;
+	Message.ToString().Replace(TEXT("[ENTER]"), TEXT("\n")).ParseIntoArrayLines(Lines, false);
+	for (const FString& Line : Lines) if (!Line.IsEmpty()) AddPlayerChatLine(Line);
+}
+
 void AMT2PlayerController::PrepareForServerMaintenance(const FString& Message)
 {
 	if (HasAuthority()) ClientServerMaintenanceMessage(Message);

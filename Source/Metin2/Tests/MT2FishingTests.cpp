@@ -273,6 +273,9 @@ bool FMT2NotificationRoutingTest::RunTest(const FString&)
 	Controller->ClientAdminCommandMessage_Implementation(TEXT("[OK] Command completed\nCommand details"));
 	TestEqual(TEXT("Admin command feedback enters chat"), Widget->HistoryBox->GetChildrenCount(), 4);
 	TestEqual(TEXT("Admin command feedback never enters info log"), Widget->RewardHistoryBox->GetChildrenCount(), 3);
+	Controller->ClientDungeonChatMessage_Implementation(FText::FromString(TEXT("Stage objective[ENTER]Stage completed")));
+	TestEqual(TEXT("Multiline dungeon notices enter chat log"), Widget->HistoryBox->GetChildrenCount(), 6);
+	TestEqual(TEXT("Dungeon notices do not enter info log"), Widget->RewardHistoryBox->GetChildrenCount(), 3);
 	for (int32 Index = 0; Index < 20; ++Index) { Controller->AddInfoChatLine(TEXT("Notification")); }
 	TestEqual(TEXT("Notification history remains bounded"), Widget->RewardHistoryBox->GetChildrenCount(), 8);
 	Widget->HistoryVisibleUntil = 0; Widget->RewardVisibleUntil = 10;

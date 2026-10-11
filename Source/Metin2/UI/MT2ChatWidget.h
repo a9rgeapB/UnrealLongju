@@ -67,6 +67,7 @@ protected:
 
 private:
 	friend class FMT2NotificationRoutingTest;
+	friend class FMT2DevilTowerMessagesTest;
 	void CloseInput();
 	void KeepHistoryVisible();
 	void UpdateHistoryVisibility(double Now);

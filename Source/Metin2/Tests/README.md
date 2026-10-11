@@ -1,5 +1,7 @@
 # Metin2 automation tests
 
+`Metin2.Dungeons.DevilTowerMessages` checks entry/late-entry objectives, duplicate-admission suppression, per-participant completion, outsider exclusion and completed-stage arrival. `Metin2.UI.NotificationRouting` also verifies that multiline dungeon messages use chat history rather than the info/loot history.
+
 `MT2HeldAttackTests.cpp` covers melee through overlap-only dungeon volumes versus solid walls, held-attack fallback without animation callbacks, retries across an activation blocker, and preservation/release of keyboard intent during automatic target changes. Packaged input, stun/knockback recovery and network prediction still require gameplay validation.
 
 `MT2DungeonTests.cpp` covers `Metin2.Dungeons`: shared-stage membership, idempotent starts and enemy registration, door state, shared countdowns, completion entitlements, same-world stage advance, empty-only resets, timeout/pawn/room teardown, living-objective despawn failure, invalid spawn rejection and `pc.in_dungeon()` integration. The Devil Tower opening test also covers automatic admission/start, untimed stages, elimination and room-owned transitions surviving a participant disconnect. Fixtures do not validate packaged client replication or the complete Devil Tower quest. See [shared dungeon stages](../../../Docs/Dungeons.md) for authoring and outstanding integration work.
