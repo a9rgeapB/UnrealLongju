@@ -25,6 +25,10 @@
 #include "Components/ScrollBox.h"
 #include "Components/TextBlock.h"
 #include "Engine/LocalPlayer.h"
+#include "Mobs/MT2MobTypes.h"
+#include "Items/MT2InventoryComponent.h"
+#include "Items/MT2ItemTemplate.h"
+#include "Quests/MT2QuestManagerComponent.h"
 
 namespace MT2DungeonFixture
 {
@@ -266,6 +270,145 @@ bool FMT2DevilTowerMessagesTest::RunTest(const FString&)
 		TestEqual(TEXT("Completed arrival does not receive a stale objective"), Cast<UTextBlock>(Widgets[2]->HistoryBox->GetChildAt(0))->GetText().ToString(), Room->GetCompletionMessage().ToString());
 	for (int32 Floor = 1; Floor <= 3; ++Floor) { Room->Floor = Floor; TestFalse(TEXT("Every implemented floor has an objective"), Room->GetObjectiveMessage().IsEmpty()); }
 	World->EndPlay(EEndPlayReason::Quit); GEngine->DestroyWorldContext(World); World->DestroyWorld(false);
+	return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2DevilTowerPuzzlesTest, "Metin2.Dungeons.DevilTowerPuzzles",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2DevilTowerPuzzlesTest::RunTest(const FString&)
+{
+	const auto SetVnum = [](AMT2Mob* Mob, int32 Vnum)
+	{ FMT2MobDefinition Definition; Definition.Vnum = Vnum; Mob->ConfigureFromDefinition(Definition); };
+	{
+		MT2DungeonFixture::FRig Rig;
+		auto* Room = Cast<AMT2DevilTowerRoom>(Rig.Room(TEXT("puzzle"), FVector::ZeroVector, AMT2DevilTowerRoom::StaticClass()));
+		Room->Floor = 4;
+		auto* Player = Rig.Player(TEXT("stone-player")); Room->JoinPlayer(Player); Rig.TimerTick(.01f);
+		auto* Fake = Rig.Mob(FVector(300,0,0)); auto* Real = Rig.Mob(FVector(-300,0,0));
+		Room->RegisterEnemy(Fake); Room->RegisterEnemy(Real);
+		Room->FakeStones.Add(Fake); Room->RealStone = Real; Room->bPuzzleStarted = true;
+		Fake->GetHealthComponent()->SetHealth(49.f); Room->CheckFakeStones();
+		TestTrue(TEXT("Fake stone purged below half health"), Fake->IsActorBeingDestroyed());
+		TestTrue(TEXT("Intentional fake purge cannot fail or complete puzzle"), Room->GetPhase() == EMT2DungeonRoomPhase::Active);
+		Real->GetHealthComponent()->SetHealth(0.f);
+		TestTrue(TEXT("Real kill waits for room-owned ten-second update"), Room->GetPhase() == EMT2DungeonRoomPhase::Active);
+		Room->CheckFakeStones();
+		TestTrue(TEXT("Real stone completes puzzle without elimination bypass"), Room->GetPhase() == EMT2DungeonRoomPhase::Completed);
+		Room->LeavePlayer(Player);
+		TestTrue(TEXT("Empty puzzle resets"), Room->ResetWhenEmpty());
+		TestFalse(TEXT("Reset clears puzzle state"), Room->bPuzzleStarted);
+	}
+	{
+		MT2DungeonFixture::FRig Rig;
+		auto* Room = Cast<AMT2DevilTowerRoom>(Rig.Room(TEXT("seals"), FVector::ZeroVector, AMT2DevilTowerRoom::StaticClass()));
+		Room->Floor = 5;
+		auto* Player = Rig.Player(TEXT("seal-player"), FVector::ZeroVector, true);
+		auto* Pawn = CastChecked<AMT2PlayerCharacter>(Player->GetPawn());
+		Pawn->GetHealthComponent()->SetHealth(Pawn->GetHealthComponent()->GetMaxHealth());
+		Room->JoinPlayer(Player); Rig.TimerTick(.01f);
+		TestTrue(TEXT("Seal stage starts a twenty-minute deadline"), Room->GetSecondsRemaining() > 1199.);
+		auto* Inventory = Pawn->GetInventoryComponent();
+		if (!TestTrue(TEXT("Key templates usable"), Inventory->AddItemByVnum(50084, 5))) return false;
+		auto* Soldier = Rig.Mob(FVector(500,0,0)); SetVnum(Soldier, 1062); Room->RegisterEnemy(Soldier);
+		Soldier->GetHealthComponent()->SetHealth(0.f);
+		TestEqual(TEXT("One death counts once independent of damage-credit recipients"), Room->Kills, 1);
+		TestTrue(TEXT("Elimination cannot bypass seals"), Room->GetPhase() == EMT2DungeonRoomPhase::Active);
+		for (int32 Index = 0; Index < 5; ++Index)
+		{
+			auto* Seal = Rig.Mob(FVector(200,0,0)); SetVnum(Seal, 20073); Room->Supports.Add(Seal);
+			const int32 Slot = Inventory->GetSlots().IndexOfByPredicate([](const auto& Item) { return Item.Vnum == 50084 && !Item.IsEmpty(); });
+			TestTrue(TEXT("Valid nearby seal consumes one key"), Room->HandleItem(Player, Slot, Seal));
+			TestFalse(TEXT("Destroyed seal cannot consume another key"), Room->HandleItem(Player, Slot, Seal));
+		}
+		TestEqual(TEXT("Exactly five keys consumed"), Inventory->CountItemByVnum(50084), 0);
+		TestTrue(TEXT("Fifth seal completes shared stage"), Room->GetPhase() == EMT2DungeonRoomPhase::Completed);
+		TestFalse(TEXT("Completion cancels regeneration"), Rig.World->GetTimerManager().TimerExists(Room->RegenTimer));
+		TestFalse(TEXT("Completion cancels warning timers"), Rig.World->GetTimerManager().TimerExists(Room->WarningTimer));
+	}
+	{
+		MT2DungeonFixture::FRig Rig;
+		auto* Room = Cast<AMT2DevilTowerRoom>(Rig.Room(TEXT("maps"), FVector::ZeroVector, AMT2DevilTowerRoom::StaticClass()));
+		Room->Floor = 7;
+		auto* Player = Rig.Player(TEXT("map-player"), FVector::ZeroVector, true);
+		auto* Pawn = CastChecked<AMT2PlayerCharacter>(Player->GetPawn());
+		Pawn->GetHealthComponent()->SetHealth(Pawn->GetHealthComponent()->GetMaxHealth());
+		Room->JoinPlayer(Player); Rig.TimerTick(.01f);
+		auto* Inventory = Pawn->GetInventoryComponent();
+		TestTrue(TEXT("Real map template available"), Inventory->AddItemByVnum(30302, 1));
+		TestFalse(TEXT("Carried map cannot bypass this run's stones"), Room->HandleItem(Player, 0, nullptr));
+		Room->bMapFound = true; Room->Stones = 4;
+		TestTrue(TEXT("Real map advances completed map puzzle"), Room->HandleItem(Player, 0, nullptr));
+		TestFalse(TEXT("Map replay rejected"), Room->HandleItem(Player, 0, nullptr));
+		TestTrue(TEXT("Map stage completed"), Room->GetPhase() == EMT2DungeonRoomPhase::Completed);
+	}
+	{
+		MT2DungeonFixture::FRig Rig;
+		auto* Room = Cast<AMT2DevilTowerRoom>(Rig.Room(TEXT("final"), FVector::ZeroVector, AMT2DevilTowerRoom::StaticClass()));
+		Room->Floor = 9; Room->TransitionSeconds = 60;
+		auto* First = Rig.Player(TEXT("first")); Room->JoinPlayer(First); Rig.TimerTick(.01f);
+		auto* Late = Rig.Player(TEXT("late")); Room->JoinPlayer(Late);
+		auto* Boss = Rig.Mob(FVector(500,0,0)); SetVnum(Boss, 1093); Room->RegisterEnemy(Boss);
+		Boss->GetHealthComponent()->SetHealth(0.f);
+		TestTrue(TEXT("Final boss completes the stage"), Room->GetPhase() == EMT2DungeonRoomPhase::Completed);
+		for (auto* Member : {First, Late}) TestEqual(TEXT("Participants including late joiner get completion flag"), Member->GetQuestManagerComponent()->GetQuestFlag(TEXT("deviltower_zone.9_done")), 1);
+		auto* After = Rig.Player(TEXT("after")); Room->JoinPlayer(After);
+		TestEqual(TEXT("Post-completion arrival cannot inherit reward"), After->GetQuestManagerComponent()->GetQuestFlag(TEXT("deviltower_zone.9_done")), 0);
+		TestTrue(TEXT("Final exit timer owned by room"), Rig.World->GetTimerManager().TimerExists(Room->AdvanceTimer));
+	}
+	{
+		MT2DungeonFixture::FRig Rig;
+		auto* Room = Cast<AMT2DevilTowerRoom>(Rig.Room(TEXT("blacksmith"), FVector::ZeroVector, AMT2DevilTowerRoom::StaticClass()));
+		Room->Floor = 6; Room->NextRoom = Rig.Room(TEXT("upper"), FVector(5000,0,0));
+		for (int32 Vnum : {20074,20075,20076})
+		{ auto& Spawn = Room->PuzzleSpawns.AddDefaulted_GetRef(); Spawn.Vnum = Vnum; Spawn.LocalTransform.SetLocation(FVector(500,0,120)); }
+		auto* Player = Rig.Player(TEXT("reward-player"), FVector::ZeroVector, true);
+		Room->JoinPlayer(Player); Rig.TimerTick(.01f);
+		auto* Boss = Rig.Mob(FVector(-500,0,0)); SetVnum(Boss, 1092); Room->RegisterEnemy(Boss); Boss->GetHealthComponent()->SetHealth(0.f);
+		TestTrue(TEXT("Proud Demon King completes boss stage"), Room->GetPhase() == EMT2DungeonRoomPhase::Completed);
+		TestEqual(TEXT("One randomly selected blacksmith"), Room->Supports.Num(), 1);
+		TestFalse(TEXT("Blacksmith reward stage does not automatically advance"), Rig.World->GetTimerManager().TimerExists(Room->AdvanceTimer));
+		if (!Room->Supports.IsEmpty() && Room->Supports[0].IsValid())
+		{
+			auto* Blacksmith = Room->Supports[0].Get(); Blacksmith->SetActorLocation(FVector(200,0,120));
+			TestTrue(TEXT("Eligible participant gets material-free refinement entitlement"), Room->CanRefine(Player, Blacksmith));
+			auto* Inventory = CastChecked<AMT2PlayerCharacter>(Player->GetPawn())->GetInventoryComponent();
+			TestTrue(TEXT("Refinable sword template available"), Inventory->AddItemByVnum(16, 1));
+			const int32 SwordSlot = Inventory->GetSlots().IndexOfByPredicate([](const auto& Item) { return Item.Vnum == 16 && !Item.IsEmpty(); });
+			const auto* Sword = Inventory->GetTemplateAtSlot(SwordSlot);
+			TestTrue(TEXT("Imported sword has a working refinement recipe"), Inventory->CanRefineItem(SwordSlot));
+			if (TestNotNull(TEXT("Sword recipe template"), Sword) && Inventory->CanRefineItem(SwordSlot))
+			{
+				TestFalse(TEXT("Recipe normally requires materials"), Sword->RefinementRecipe.Materials.IsEmpty());
+				Player->AddYang(Sword->RefinementRecipe.YangCost + 100);
+				const int64 Before = Player->GetYang();
+				const auto Result = Inventory->RefineItem(SwordSlot, INDEX_NONE, true);
+				TestTrue(TEXT("Money-only refinement performs one normal success/failure roll without materials"), Result == EMT2RefinementResult::Success || Result == EMT2RefinementResult::FailedDestroyed);
+				TestEqual(TEXT("Money-only refinement still charges recipe Yang"), Player->GetYang(), Before - Sword->RefinementRecipe.YangCost);
+			}
+			auto* After = Rig.Player(TEXT("after-reward"), FVector(0,100,0), true); Room->JoinPlayer(After);
+			After->GetQuestManagerComponent()->SetQuestFlag(TEXT("deviltower_zone.can_refine"), Room->GetRunSerial());
+			TestFalse(TEXT("Stale saved flag cannot reward post-completion arrival"), Room->CanRefine(After, Blacksmith));
+			TestFalse(TEXT("A stale NPC dialogue epoch cannot advance"), Room->SelectUpperFloors(Player, Blacksmith, Room->GetRunSerial() - 1, false));
+		}
+	}
+	{
+		MT2DungeonFixture::FRig Rig;
+		auto* Room = Cast<AMT2DevilTowerRoom>(Rig.Room(TEXT("key"), FVector::ZeroVector, AMT2DevilTowerRoom::StaticClass()));
+		Room->Floor = 8;
+		auto* Player = Rig.Player(TEXT("key-player"), FVector::ZeroVector, true);
+		Room->JoinPlayer(Player); Rig.TimerTick(.01f);
+		auto* Seal = Rig.Mob(FVector(200,0,0)); SetVnum(Seal, 20366); Room->Supports.Add(Seal);
+		auto* Inventory = CastChecked<AMT2PlayerCharacter>(Player->GetPawn())->GetInventoryComponent();
+		Inventory->AddItemByVnum(30303, 1);
+		TestFalse(TEXT("Fake key cannot open Sa-Soe seal"), Room->HandleItem(Player, 0, Seal));
+		Inventory->AddItemByVnum(30304, 1);
+		const int32 Slot = Inventory->GetSlots().IndexOfByPredicate([](const auto& Item) { return Item.Vnum == 30304 && !Item.IsEmpty(); });
+		Seal->SetActorLocation(FVector(600,0,0));
+		TestFalse(TEXT("Remote hand-in rejected"), Room->HandleItem(Player, Slot, Seal));
+		Seal->SetActorLocation(FVector(200,0,0));
+		TestTrue(TEXT("Real key opens owned seal"), Room->HandleItem(Player, Slot, Seal));
+		TestTrue(TEXT("Key stage completed"), Room->GetPhase() == EMT2DungeonRoomPhase::Completed);
+		TestEqual(TEXT("Fake key preserved"), Inventory->CountItemByVnum(30303), 1);
+	}
 	return true;
 }
 #endif

@@ -1045,8 +1045,8 @@ namespace
 				OutWarnings.Add(FString::Printf(TEXT("Malformed spawn row at %s:%d"), *Path, LineIndex + 1));
 				continue;
 			}
-			if (Type != TEXT("m") && Type != TEXT("g") && Type != TEXT("ga")
-				&& Type != TEXT("r") && Type != TEXT("s"))
+			if (Type != TEXT("m") && Type != TEXT("ma") && Type != TEXT("g") && Type != TEXT("ga")
+				&& Type != TEXT("r") && Type != TEXT("ra") && Type != TEXT("s"))
 			{
 				OutWarnings.Add(FString::Printf(TEXT("Unsupported spawn type '%s' at %s:%d"), *Type, *Path, LineIndex + 1));
 				continue;
@@ -1080,7 +1080,7 @@ namespace
 				Entry.HorizontalExtent = FVector2D(Entry.Center.X, FMath::Abs(Entry.Center.Y));
 			}
 
-			if (Type == TEXT("m") || Type == TEXT("s"))
+			if (Type == TEXT("m") || Type == TEXT("ma") || Type == TEXT("s"))
 			{
 				Entry.Type = Type == TEXT("s") ? EMT2MobSpawnType::Anywhere : EMT2MobSpawnType::Mob;
 				FMT2MobSpawnVariant& Variant = Entry.Variants.AddDefaulted_GetRef();
@@ -1097,7 +1097,7 @@ namespace
 					OutWarnings.Add(FString::Printf(TEXT("Missing or empty group VNUM %d at %s:%d"), Vnum, *Path, LineIndex + 1));
 				}
 			}
-			else if (Type == TEXT("r"))
+			else if (Type == TEXT("r") || Type == TEXT("ra"))
 			{
 				Entry.Type = EMT2MobSpawnType::GroupGroup;
 				if (const TArray<FImportedMobGroupChoice>* Choices = GroupChoices.Find(Vnum))

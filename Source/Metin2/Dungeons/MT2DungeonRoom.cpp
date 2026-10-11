@@ -8,6 +8,7 @@
 #include "Engine/GameInstance.h"
 #include "GameFramework/GameStateBase.h"
 #include "Mobs/MT2Mob.h"
+#include "Mobs/MT2MetinStone.h"
 #include "Mobs/MT2MobAIComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Persistence/MT2PersistenceComponent.h"
@@ -140,8 +141,10 @@ bool AMT2DungeonRoom::StartEncounter()
 	bSpawning = true;
 	auto* GI = GetGameInstance(); auto* Vnums = GI ? GI->GetSubsystem<UMT2VnumRegistrySubsystem>() : nullptr;
 	TMap<int32, TArray<AMT2Mob*>> Groups;
+	const auto Variants = ChooseSpawnVariants(Spawns);
 	for (const auto& Spawn : Spawns)
 	{
+		if (Spawn.VariantId > 0 && Variants.FindRef(Spawn.GroupId) != Spawn.VariantId) continue;
 		const auto MobClass = Vnums ? Vnums->ResolveMobClass(Spawn.Vnum) : TSubclassOf<AMT2Mob>();
 		const FTransform Transform = Spawn.LocalTransform * GetActorTransform();
 		FActorSpawnParameters Parameters; Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::DontSpawnIfColliding;
@@ -154,9 +157,59 @@ bool AMT2DungeonRoom::StartEncounter()
 		}
 		if (Spawn.bForceAggressive) Mob->GetMobAIComponent()->SetForceAggressive(true);
 		if (Spawn.GroupId > 0) Groups.FindOrAdd(Spawn.GroupId).Add(Mob);
+		OnEncounterMobSpawned(Spawn, Mob);
 	}
 	for (const auto& Pair : Groups) for (AMT2Mob* Mob : Pair.Value) Mob->SetSpawnGroupMembers(Pair.Value);
-	bSpawning = false; EncounterStarted(); return Phase == EMT2DungeonRoomPhase::Active;
+	bSpawning = false; OnEncounterStarted(); EncounterStarted(); return Phase == EMT2DungeonRoomPhase::Active;
+}
+TMap<int32, int32> AMT2DungeonRoom::ChooseSpawnVariants(const TArray<FMT2DungeonSpawn>& Wave)
+{
+	TMap<int32, TMap<int32, int32>> Weights;
+	for (const auto& Spawn : Wave) if (Spawn.VariantId > 0)
+		Weights.FindOrAdd(Spawn.GroupId).FindOrAdd(Spawn.VariantId) = FMath::Max(1, Spawn.VariantWeight);
+	TMap<int32, int32> Result;
+	for (const auto& Group : Weights)
+	{
+		int32 Total = 0; for (const auto& Variant : Group.Value) Total += Variant.Value;
+		int32 Roll = FMath::RandRange(1, Total);
+		for (const auto& Variant : Group.Value) if ((Roll -= Variant.Value) <= 0) { Result.Add(Group.Key, Variant.Key); break; }
+	}
+	return Result;
+}
+AMT2Mob* AMT2DungeonRoom::SpawnEncounterMob(const FMT2DungeonSpawn& Spawn)
+{
+	if (!HasAuthority() || GetPhase() != EMT2DungeonRoomPhase::Active) return nullptr;
+	auto* GI = GetGameInstance(); auto* Vnums = GI ? GI->GetSubsystem<UMT2VnumRegistrySubsystem>() : nullptr;
+	const auto Class = Vnums ? Vnums->ResolveMobClass(Spawn.Vnum) : TSubclassOf<AMT2Mob>();
+	const FTransform Transform = Spawn.LocalTransform * GetActorTransform();
+	FActorSpawnParameters Params; Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::DontSpawnIfColliding;
+	auto* Mob = Class && ContainsLocation(Transform.GetLocation()) ? GetWorld()->SpawnActor<AMT2Mob>(Class, Transform, Params) : nullptr;
+	if (Mob && !RegisterEnemy(Mob)) { Mob->Destroy(); return nullptr; }
+	if (Mob && Spawn.bForceAggressive) Mob->GetMobAIComponent()->SetForceAggressive(true);
+	if (Mob) OnEncounterMobSpawned(Spawn, Mob);
+	return Mob;
+}
+void AMT2DungeonRoom::PurgeEnemy(AMT2Mob* Mob)
+{
+	if (!HasAuthority() || !IsValid(Mob)) return;
+	// A stone's EndPlay purges its summons. Detach room callbacks first so this intentional
+	// purge cannot be mistaken for the unexpected disappearance of a living objective.
+	for (auto Enemy : Enemies.Array()) if (Enemy.IsValid() && Enemy.Get() != Mob && Enemy->GetSpawningStone() == Mob)
+		PurgeEnemy(Enemy.Get());
+	Enemies.Remove(Mob); AliveEnemies.Remove(Mob); RemainingEnemies = AliveEnemies.Num();
+	if (auto* Health = Mob->GetHealthComponent()) Health->OnDeath.RemoveDynamic(this, &ThisClass::OnEnemyDeath);
+	Mob->OnEndPlay.RemoveDynamic(this, &ThisClass::OnEnemyEndPlay);
+	if (auto* Registry = GetWorld()->GetSubsystem<UMT2DungeonSubsystem>()) Registry->RemoveEnemy(Mob, this);
+	Mob->Destroy(); ForceNetUpdate();
+}
+void AMT2DungeonRoom::SetEncounterDeadline(float Seconds)
+{
+	if (!HasAuthority() || Phase != EMT2DungeonRoomPhase::Active || !FMath::IsFinite(Seconds) || Seconds <= 0.f) return;
+	Deadline = GetWorld()->GetTimeSeconds() + Seconds;
+	const int32 Epoch = RunSerial;
+	GetWorld()->GetTimerManager().SetTimer(EncounterTimer, FTimerDelegate::CreateWeakLambda(this, [this, Epoch]()
+		{ if (RunSerial == Epoch) FailEncounter(); }), Seconds, false);
+	ForceNetUpdate();
 }
 bool AMT2DungeonRoom::RegisterEnemy(AMT2Mob* Mob)
 {
@@ -172,12 +225,20 @@ bool AMT2DungeonRoom::RegisterEnemy(AMT2Mob* Mob)
 	}
 	RemainingEnemies = AliveEnemies.Num(); ForceNetUpdate(); return true;
 }
+bool AMT2DungeonRoom::RegisterSummonedEnemy(AMT2Mob* Mob, AMT2Mob* Source)
+{
+	if (!Enemies.Contains(Source) || !RegisterEnemy(Mob)) return false;
+	OnSummonedEnemy(Mob, Source); return true;
+}
 void AMT2DungeonRoom::OnEnemyDeath()
 {
 	if (Phase != EMT2DungeonRoomPhase::Active) return;
-	for (auto It = AliveEnemies.CreateIterator(); It; ++It) if (It->IsValid() && (*It)->GetHealthComponent()->IsDead()) It.RemoveCurrent();
+	TArray<TWeakObjectPtr<AMT2Mob>> Killed;
+	for (auto It = AliveEnemies.CreateIterator(); It; ++It) if (It->IsValid() && (*It)->GetHealthComponent()->IsDead())
+	{ Killed.Add(*It); It.RemoveCurrent(); }
 	RemainingEnemies = AliveEnemies.Num(); ForceNetUpdate();
-	if (!bSpawning && RemainingEnemies == 0 && !Enemies.IsEmpty()) CompleteEncounter();
+	for (auto Mob : Killed) if (Mob.IsValid() && Phase == EMT2DungeonRoomPhase::Active) OnEnemyKilled(Mob.Get());
+	if (CompletesOnElimination() && !bSpawning && RemainingEnemies == 0 && !Enemies.IsEmpty()) CompleteEncounter();
 }
 void AMT2DungeonRoom::OnEnemyEndPlay(AActor* Actor, EEndPlayReason::Type Reason)
 {
@@ -195,7 +256,7 @@ void AMT2DungeonRoom::OnEnemyEndPlay(AActor* Actor, EEndPlayReason::Type Reason)
 	if (GetWorld()->bIsTearingDown || (Reason != EEndPlayReason::Destroyed && Reason != EEndPlayReason::RemovedFromWorld)) return;
 	// Despawning a live objective must not count as a kill or open progression doors.
 	if (bAlive && Phase == EMT2DungeonRoomPhase::Active) FailEncounter();
-	else if (bTracked && Phase == EMT2DungeonRoomPhase::Active && !bSpawning && AliveEnemies.IsEmpty()) CompleteEncounter();
+	else if (CompletesOnElimination() && bTracked && Phase == EMT2DungeonRoomPhase::Active && !bSpawning && AliveEnemies.IsEmpty()) CompleteEncounter();
 }
 void AMT2DungeonRoom::SetPhase(EMT2DungeonRoomPhase NewPhase) { Phase = NewPhase; ApplyDoors(); ForceNetUpdate(); }
 void AMT2DungeonRoom::ApplyDoors()
@@ -214,7 +275,7 @@ void AMT2DungeonRoom::FailEncounter()
 {
 	if (!HasAuthority() || !bRegistered || Phase != EMT2DungeonRoomPhase::Active) return;
 	GetWorld()->GetTimerManager().ClearTimer(EncounterTimer); Deadline = 0.0;
-	SetPhase(EMT2DungeonRoomPhase::Failed); EncounterFailed(); ScheduleEmptyReset();
+	SetPhase(EMT2DungeonRoomPhase::Failed); OnEncounterFailed(); EncounterFailed(); ScheduleEmptyReset();
 }
 void AMT2DungeonRoom::ClearEnemies(bool bDestroy)
 {
@@ -242,7 +303,7 @@ bool AMT2DungeonRoom::ResetWhenEmpty()
 	bResetting = true;
 	GetWorld()->GetTimerManager().ClearTimer(EncounterTimer); GetWorld()->GetTimerManager().ClearTimer(ResetTimer);
 	EligiblePlayers.Reset(); ClaimedPlayers.Reset(); Deadline = 0.0;
-	ClearEnemies(true); SetPhase(EMT2DungeonRoomPhase::Idle); bResetting = false; ForceNetUpdate(); return true;
+	OnEncounterReset(); ClearEnemies(true); SetPhase(EMT2DungeonRoomPhase::Idle); bResetting = false; ForceNetUpdate(); return true;
 }
 bool AMT2DungeonRoom::TryClaimCompletion(AMT2PlayerState* Player)
 {
@@ -251,6 +312,10 @@ bool AMT2DungeonRoom::TryClaimCompletion(AMT2PlayerState* Player)
 		Id.IsEmpty() || !EligiblePlayers.Contains(Id) || ClaimedPlayers.Contains(Id)) return false;
 	if (!IsValid(Player->GetPawn()) || !ContainsLocation(Player->GetPawn()->GetActorLocation())) return false;
 	ClaimedPlayers.Add(Id); return true;
+}
+bool AMT2DungeonRoom::IsCompletionEligible(const AMT2PlayerState* Player) const
+{
+	return EligiblePlayers.Contains(PlayerIdentity(Player));
 }
 bool AMT2DungeonRoom::AdvancePlayer(AMT2PlayerState* Player)
 {

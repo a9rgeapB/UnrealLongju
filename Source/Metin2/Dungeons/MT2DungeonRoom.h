@@ -19,6 +19,9 @@ struct METIN2_API FMT2DungeonSpawn
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) FTransform LocalTransform;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bForceAggressive = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 GroupId = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float RespawnSeconds = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 VariantId = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 VariantWeight = 1;
 };
 
 UCLASS(Blueprintable)
@@ -43,6 +46,7 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Dungeon") void LeavePlayer(AMT2PlayerState* Player);
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Dungeon") bool StartEncounter();
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Dungeon") bool RegisterEnemy(AMT2Mob* Mob);
+	bool RegisterSummonedEnemy(AMT2Mob* Mob, AMT2Mob* Source);
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Dungeon") void CompleteEncounter();
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Dungeon") void FailEncounter();
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Dungeon") bool ResetWhenEmpty();
@@ -59,7 +63,20 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category="Dungeon") void EncounterCompleted();
 	UFUNCTION(BlueprintImplementableEvent, Category="Dungeon") void EncounterFailed();
 protected:
+	virtual bool CompletesOnElimination() const { return true; }
+	virtual void OnEncounterStarted() {}
+	virtual void OnEncounterMobSpawned(const FMT2DungeonSpawn& Spawn, AMT2Mob* Mob) {}
+	virtual void OnSummonedEnemy(AMT2Mob* Mob, AMT2Mob* Source) {}
+	virtual void OnEnemyKilled(AMT2Mob* Mob) {}
 	virtual void OnEncounterCompleted() {}
+	virtual void OnEncounterFailed() {}
+	virtual void OnEncounterReset() {}
+	AMT2Mob* SpawnEncounterMob(const FMT2DungeonSpawn& Spawn);
+	void PurgeEnemies() { ClearEnemies(true); }
+	void PurgeEnemy(AMT2Mob* Mob);
+	void SetEncounterDeadline(float Seconds);
+	bool IsCompletionEligible(const AMT2PlayerState* Player) const;
+	static TMap<int32, int32> ChooseSpawnVariants(const TArray<FMT2DungeonSpawn>& Wave);
 	TArray<TWeakObjectPtr<AMT2PlayerState>> GetMembers() const { return Members.Array(); }
 private:
 	UFUNCTION() void OnOverlap(UPrimitiveComponent* Component, AActor* Other, UPrimitiveComponent* OtherComponent, int32 BodyIndex, bool bFromSweep, const FHitResult& Hit);

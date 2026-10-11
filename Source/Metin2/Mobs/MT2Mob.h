@@ -143,6 +143,7 @@ public:
 
 	// Old Dead(NULL): dies on the spot with no killer, so it pays out no exp, gold or drops.
 	void KillWithoutReward();
+	virtual void CalculateVisualCollision(float& OutRadius, float& OutHalfHeight, float& OutMeshRelativeZ) const;
 
 	// A spot near Origin where MobClass's capsule actually fits on the ground: rings outward from
 	// StartRadius until a candidate traces down to ground with nothing overlapping its capsule, so
@@ -249,8 +250,6 @@ private:
 	// Server-only, non-persistent leases. Weak references cannot keep a disconnected pawn alive.
 	TWeakObjectPtr<UMT2QuestManagerComponent> QuestConversationOwner;
 	TWeakObjectPtr<AMT2PlayerCharacter> QuestConversationPawn;
-	void CalculateVisualCollision(float& OutRadius, float& OutHalfHeight,
-		float& OutMeshRelativeZ) const;
 	bool IsStationaryNpc() const;
 	void ApplyVisualConfiguration();
 	void ApplyStatsToRuntimeState();

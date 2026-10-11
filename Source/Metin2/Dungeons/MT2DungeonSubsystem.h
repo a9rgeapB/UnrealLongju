@@ -16,6 +16,7 @@ public:
 	void UnregisterRoom(AMT2DungeonRoom* Room);
 	AMT2DungeonRoom* FindRoom(FName RoomId) const;
 	AMT2DungeonRoom* GetPlayerRoom(const AMT2PlayerState* Player) const;
+	AMT2DungeonRoom* GetEnemyRoom(const AMT2Mob* Mob) const;
 	void ReconcilePlayer(AMT2PlayerState* Player);
 	bool AssignPlayer(AMT2PlayerState* Player, AMT2DungeonRoom* Room);
 	void RemovePlayer(AMT2PlayerState* Player, AMT2DungeonRoom* Room);

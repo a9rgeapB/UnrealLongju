@@ -38,7 +38,7 @@ bool UMT2InventoryComponent::CanRefineItem(int32 TargetSlot) const
 		ResolveTemplate(CurrentTemplate->RefinedVnum) != nullptr;
 }
 
-EMT2RefinementResult UMT2InventoryComponent::RefineItem(int32 TargetSlot, int32 ScrollSlot)
+EMT2RefinementResult UMT2InventoryComponent::RefineItem(int32 TargetSlot, int32 ScrollSlot, bool bMoneyOnly)
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority() || !Slots.IsValidIndex(TargetSlot) ||
 		Slots[TargetSlot].IsEmpty() || TargetSlot == ScrollSlot || !CanRefineItem(TargetSlot))
@@ -90,7 +90,7 @@ EMT2RefinementResult UMT2InventoryComponent::RefineItem(int32 TargetSlot, int32 
 		}
 		return Total;
 	};
-	for (const FMT2RefinementMaterial& Material : Recipe.Materials)
+	if (!bMoneyOnly) for (const FMT2RefinementMaterial& Material : Recipe.Materials)
 	{
 		if (CountMaterial(Material.ItemVnum) < Material.Count)
 		{
@@ -124,7 +124,7 @@ EMT2RefinementResult UMT2InventoryComponent::RefineItem(int32 TargetSlot, int32 
 			}
 		}
 	};
-	for (const FMT2RefinementMaterial& Material : Recipe.Materials)
+	if (!bMoneyOnly) for (const FMT2RefinementMaterial& Material : Recipe.Materials)
 	{
 		RemoveMaterial(Material.ItemVnum, Material.Count);
 	}

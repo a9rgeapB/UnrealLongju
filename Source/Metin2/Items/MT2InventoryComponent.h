@@ -78,7 +78,7 @@ public:
 		int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped = false);
 
 	// Server-only atomic refinement. ScrollSlot is INDEX_NONE for blacksmith refinement.
-	EMT2RefinementResult RefineItem(int32 TargetSlot, int32 ScrollSlot = INDEX_NONE);
+	EMT2RefinementResult RefineItem(int32 TargetSlot, int32 ScrollSlot = INDEX_NONE, bool bMoneyOnly = false);
 
 	// Read-only eligibility check shared by client UI and server validation. A maxed item, missing
 	// result template, or item without an imported refine_proto recipe returns false.

@@ -8,6 +8,8 @@
 */
 
 #include "Mobs/MT2MobLifecycleComponent.h"
+#include "Dungeons/MT2DungeonSubsystem.h"
+#include "Dungeons/MT2DungeonRoom.h"
 
 #include "Components/MT2HealthComponent.h"
 #include "Core/MT2VnumRegistrySubsystem.h"
@@ -87,7 +89,13 @@ bool UMT2MobLifecycleComponent::SpawnResurrectionMob()
 	FActorSpawnParameters Parameters;
 	Parameters.Owner = Owner->GetOwner();
 	Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-	return World->SpawnActor<AMT2Mob>(MobClass, Owner->GetActorTransform(), Parameters) != nullptr;
+	auto* Spawned = World->SpawnActor<AMT2Mob>(MobClass, Owner->GetActorTransform(), Parameters);
+	if (!Spawned) return false;
+	if (auto* Dungeon = World->GetSubsystem<UMT2DungeonSubsystem>())
+		if (auto* Source = Cast<AMT2Mob>(Owner))
+			if (auto* Room = Dungeon->GetEnemyRoom(Source); Room && !Room->RegisterSummonedEnemy(Spawned, Source))
+			{ Spawned->Destroy(); return false; }
+	return true;
 }
 
 void UMT2MobLifecycleComponent::ProcessRegeneration(double CurrentTime)

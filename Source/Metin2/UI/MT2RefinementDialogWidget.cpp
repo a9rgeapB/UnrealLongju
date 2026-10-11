@@ -250,7 +250,9 @@ void UMT2RefinementDialogWidget::RebuildPreview()
 		}
 		return Total;
 	};
-	for (const FMT2RefinementMaterial& Material : Recipe.Materials)
+	const AMT2Npc* Npc = PendingBlacksmith.Get();
+	const bool bMoneyOnly = PendingScrollSlot == INDEX_NONE && Npc && Npc->GetMobVnum() >= 20074 && Npc->GetMobVnum() <= 20076;
+	if (!bMoneyOnly) for (const FMT2RefinementMaterial& Material : Recipe.Materials)
 	{
 		const int32 Owned = CountAvailableMaterial(Material.ItemVnum);
 		const UMT2ItemTemplate* MaterialTemplate = Registry

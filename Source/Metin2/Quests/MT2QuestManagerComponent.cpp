@@ -467,6 +467,26 @@ bool UMT2QuestManagerComponent::DispatchNpcInteraction(int32 NpcVnum, AActor* Np
 	{
 		return false;
 	}
+	if (auto* Dungeon = State->GetWorld()->GetSubsystem<UMT2DungeonSubsystem>())
+		if (auto* Tower = Cast<AMT2DevilTowerRoom>(Dungeon->GetPlayerRoom(State)); Tower && Tower->IsBlacksmith(Npc))
+		{
+			FMT2QuestContext Context; Context.PlayerState = State; Context.Player = Cast<AMT2PlayerCharacter>(State->GetPawn());
+			Context.Manager = this; Context.TargetActor = Npc;
+			if (!TryLockQuestNpc(Context)) return true;
+			ActiveContext = Context; CallStack.Reset(); ScriptVariables.Reset();
+			const FText* Notice = Tower->LegacyMessages.Find(State->GetCharacterLevel() >= 75 ? FName(TEXT("_200_say")) : FName(TEXT("_230_say")));
+			AppendSay(NSLOCTEXT("MT2Dungeons", "TowerUpperFloorsTitle", "The upper floors"), { Notice ? *Notice : FText::GetEmpty() });
+			TArray<FText> Options; TArray<FMT2QuestChoiceBranch> Branches;
+			for (int32 Index = 0; Index < 2; ++Index)
+			{
+				Options.Add(Index == 0 ? NSLOCTEXT("MT2Dungeons", "TowerGo", "Go") : NSLOCTEXT("MT2Dungeons", "TowerLeave", "Leave the tower"));
+				auto* Choice = NewObject<UMT2DevilTowerChoice>(this); Choice->Room = Tower; Choice->Epoch = Tower->GetRunSerial(); Choice->bLeave = Index == 1;
+				Branches.AddDefaulted_GetRef().Nodes.Add(Choice);
+			}
+			Options.Add(NSLOCTEXT("MT2Quest", "CloseDialog", "Close"));
+			Branches.AddDefaulted_GetRef().Nodes.Add(NewObject<UMT2QuestNode_Close>(this));
+			PresentChoices(Options, Branches, NAME_None, FString(), false); return true;
+		}
 	UGameInstance* GameInstance = State->GetGameInstance();
 	UMT2QuestRegistrySubsystem* Registry =
 		GameInstance ? GameInstance->GetSubsystem<UMT2QuestRegistrySubsystem>() : nullptr;
@@ -678,6 +698,15 @@ bool UMT2QuestManagerComponent::DispatchEventInternal(
 			Inventory->GetSlots()[ItemSlot].IsEmpty()) { return false; }
 		Context.EventItemSnapshot = Inventory->GetSlots()[ItemSlot];
 		Context.bHasEventItemSnapshot = true;
+	}
+	if (bNativeTower && (Event == EMT2QuestEvent::ItemTake || Event == EMT2QuestEvent::ItemUse))
+		if (auto* Tower = Cast<AMT2DevilTowerRoom>(Dungeon->GetPlayerRoom(State)))
+			if (Tower->HandleItem(State, ItemSlot, Event == EMT2QuestEvent::ItemTake ? TargetActor : nullptr)) return true;
+	if (bNativeTower && Event == EMT2QuestEvent::Logout && Context.Player)
+	{
+		if (auto* Tower = Cast<AMT2DevilTowerRoom>(Dungeon->GetPlayerRoom(State))) Tower->RecoverMapOnLogout(State);
+		auto* Inventory = Context.Player->GetInventoryComponent();
+		for (const int32 Item : {30300, 30302}) Inventory->RemoveItemByVnum(Item, Inventory->CountItemByVnum(Item));
 	}
 
 	// Interaction events belong to exactly one quest - the first that claims the NPC owns the

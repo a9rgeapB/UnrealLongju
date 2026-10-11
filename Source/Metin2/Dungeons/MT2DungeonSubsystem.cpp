@@ -36,6 +36,11 @@ bool UMT2DungeonSubsystem::AssignPlayer(AMT2PlayerState* Player, AMT2DungeonRoom
 	if (AMT2DungeonRoom* Existing = GetPlayerRoom(Player); Existing && Existing != Room) return false;
 	Players.Add(Player, Room); return true;
 }
+AMT2DungeonRoom* UMT2DungeonSubsystem::GetEnemyRoom(const AMT2Mob* Mob) const
+{
+	const auto* Value = Enemies.Find(Mob); auto* Room = Value ? Value->Get() : nullptr;
+	return IsValid(Room) && !Room->IsActorBeingDestroyed() ? Room : nullptr;
+}
 void UMT2DungeonSubsystem::ReconcilePlayer(AMT2PlayerState* Player)
 {
 	if (!IsValid(Player) || !Player->HasAuthority() || Player->GetWorld() != GetWorld()) return;

@@ -8,6 +8,8 @@
 */
 
 #include "Mobs/MT2MetinStone.h"
+#include "Dungeons/MT2DungeonSubsystem.h"
+#include "Dungeons/MT2DungeonRoom.h"
 
 #include "Components/MT2HealthComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -123,6 +125,11 @@ void AMT2MetinStone::HandleStoneDeath()
 
 void AMT2MetinStone::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// Purging a dungeon puzzle stone must also purge its living summons, without rewards.
+	if (HasAuthority() && GetWorld() && !GetWorld()->bIsTearingDown &&
+		(EndPlayReason == EEndPlayReason::Destroyed || EndPlayReason == EEndPlayReason::RemovedFromWorld))
+		for (auto Mob : SpawnedMobs) if (Mob.IsValid()) { Mob->SetSpawningStone(nullptr); Mob->Destroy(); }
+	SpawnedMobs.Reset();
 	ClearSmoke();
 	GetHealthComponent()->OnValueChanged.RemoveDynamic(this, &AMT2MetinStone::RefreshSmoke);
 	GetHealthComponent()->OnMaxValueChanged.RemoveDynamic(this, &AMT2MetinStone::RefreshSmoke);
@@ -274,6 +281,9 @@ void AMT2MetinStone::SpawnGroupMember(TSubclassOf<AMT2Mob> MobClass, AActor* Att
 	// each spawn's exp on the stone.
 	Spawned->SetSpawningStone(this);
 	SpawnedMobs.Add(Spawned);
+	if (auto* Dungeon = World->GetSubsystem<UMT2DungeonSubsystem>())
+		if (auto* Room = Dungeon->GetEnemyRoom(this); Room && !Room->RegisterSummonedEnemy(Spawned, this))
+		{ SpawnedMobs.Remove(Spawned); Spawned->Destroy(); return; }
 
 	// Old SelectStone(this) handed the stone's attacker to its spawns, so the wave immediately goes
 	// for whoever is breaking the stone.

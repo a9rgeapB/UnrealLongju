@@ -93,6 +93,8 @@
 #include "Duel/MT2DuelComponent.h"
 #include "UI/MT2RespawnWidget.h"
 #include "UI/MT2RefinementDialogWidget.h"
+#include "Dungeons/MT2DungeonSubsystem.h"
+#include "Dungeons/MT2DevilTowerRoom.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMT2Targeting, Log, All);
 
@@ -1914,9 +1916,11 @@ void AMT2PlayerCharacter::ServerUseInventoryItemOnActor_Implementation(
 		return;
 	}
 
+	auto* Dungeon = GetWorld()->GetSubsystem<UMT2DungeonSubsystem>();
+	auto* Tower = Dungeon ? Cast<AMT2DevilTowerRoom>(Dungeon->GetPlayerRoom(GetPlayerState<AMT2PlayerState>())) : nullptr;
 	if (AMT2Npc* Npc = Cast<AMT2Npc>(TargetActor);
-		Npc && UMT2GameplaySettings::Get().RefinementBlacksmithVnums.Contains(
-			Npc->GetMobVnum()))
+		Npc && ((Npc->GetMobVnum() >= 20074 && Npc->GetMobVnum() <= 20076) ?
+			(Tower && Tower->CanRefine(GetPlayerState<AMT2PlayerState>(), Npc, InventorySlot)) : UMT2GameplaySettings::Get().RefinementBlacksmithVnums.Contains(Npc->GetMobVnum())))
 	{
 		if (InventoryComponent->CanRefineItem(InventorySlot))
 		{
@@ -1946,18 +1950,24 @@ void AMT2PlayerCharacter::ServerRefineInventoryItem_Implementation(
 	}
 
 	const bool bUsingScroll = ScrollSlot != INDEX_NONE;
+	auto* State = GetPlayerState<AMT2PlayerState>();
+	auto* Dungeon = GetWorld()->GetSubsystem<UMT2DungeonSubsystem>();
+	auto* Tower = Dungeon ? Cast<AMT2DevilTowerRoom>(Dungeon->GetPlayerRoom(State)) : nullptr;
+	const bool bTowerRefine = !bUsingScroll && Tower && Tower->CanRefine(State, Blacksmith, TargetSlot);
+	const bool bTowerNpc = IsValid(Blacksmith) && Blacksmith->GetMobVnum() >= 20074 && Blacksmith->GetMobVnum() <= 20076;
 	if (!bUsingScroll &&
 		(!Blacksmith ||
-			!UMT2GameplaySettings::Get().RefinementBlacksmithVnums.Contains(
-				Blacksmith->GetMobVnum()) ||
+			(bTowerNpc ? !bTowerRefine : !UMT2GameplaySettings::Get().RefinementBlacksmithVnums.Contains(Blacksmith->GetMobVnum())) ||
 			FVector::Dist2D(GetActorLocation(), Blacksmith->GetActorLocation()) > 350.0f))
 	{
 		ClientNotifyRefinementResult(EMT2RefinementResult::Invalid);
 		return;
 	}
 
-	ClientNotifyRefinementResult(
-		InventoryComponent->RefineItem(TargetSlot, ScrollSlot));
+	const auto Result = InventoryComponent->RefineItem(TargetSlot, ScrollSlot, bTowerRefine);
+	if (bTowerRefine && (Result == EMT2RefinementResult::Success || Result == EMT2RefinementResult::FailedDestroyed))
+		State->GetQuestManagerComponent()->SetQuestFlag(TEXT("deviltower_zone.can_refine"), 0);
+	ClientNotifyRefinementResult(Result);
 }
 
 void AMT2PlayerCharacter::ClientOpenRefinementDialog_Implementation(
