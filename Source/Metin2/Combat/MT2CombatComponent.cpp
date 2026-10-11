@@ -663,6 +663,9 @@ void UMT2CombatComponent::RequestBasicAttack()
 	{
 		return;
 	}
+	// Consume the one-shot before activation, so a new animation timer can be distinguished
+	// from the callback currently executing. Interrupted/missing motion must not strand held input.
+	GetWorld()->GetTimerManager().ClearTimer(BasicAttackTimer);
 
 	bool bActivated = false;
 	if (UAbilitySystemComponent* AbilitySystem =
@@ -672,9 +675,9 @@ void UMT2CombatComponent::RequestBasicAttack()
 		AttackTags.AddTag(MT2GameplayTags::Ability_Attack);
 		bActivated = AbilitySystem->TryActivateAbilitiesByTag(AttackTags, true);
 	}
-	if (!bActivated && bBasicAttackHeld)
+	if (bBasicAttackHeld && !GetWorld()->GetTimerManager().IsTimerActive(BasicAttackTimer))
 	{
-		ScheduleNextBasicAttack(BasicAttackRetryInterval);
+		ScheduleNextBasicAttack(bActivated ? BasicAttackInterval : BasicAttackRetryInterval);
 	}
 }
 
@@ -925,6 +928,7 @@ TArray<AActor*> UMT2CombatComponent::FindBasicAttackTargets() const
 		CheckedActors.Add(AlreadyTargeted);
 	}
 	TArray<AActor*> SweptTargets;
+	TArray<FHitResult> GeometryHits;
 	for (const FOverlapResult& Overlap : Overlaps)
 	{
 		AActor* Candidate = Overlap.GetActor();
@@ -965,9 +969,16 @@ TArray<AActor*> UMT2CombatComponent::FindBasicAttackTargets() const
 		FCollisionObjectQueryParams GeometryQuery;
 		GeometryQuery.AddObjectTypesToQuery(ECC_WorldStatic);
 		GeometryQuery.AddObjectTypesToQuery(ECC_WorldDynamic);
-		const FVector TargetLocation = CandidateLocation + FVector(0.0f, 0.0f, GetTraceHeight(Candidate));
-		if (World->LineTraceTestByObjectType(
-				Start + FVector(0.0f, 0.0f, AttackerHalfHeight), TargetLocation, GeometryQuery, QueryParams))
+		// Actor locations are already capsule centers. Object traces ignore channel responses,
+		// so an enclosing overlap-only room/trigger must not count as a solid wall.
+		GeometryHits.Reset();
+		World->LineTraceMultiByObjectType(GeometryHits, Start, CandidateLocation, GeometryQuery, QueryParams);
+		const bool bBlocked = GeometryHits.ContainsByPredicate([](const FHitResult& Hit)
+		{
+			const UPrimitiveComponent* Component = Hit.GetComponent();
+			return Component && Component->GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block;
+		});
+		if (bBlocked)
 		{
 			continue;
 		}

@@ -288,6 +288,7 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	friend class FMT2HeldAttackInputTest;
 	friend class FMT2ObserverReplicationTest;
 	friend class FMT2QuestAlignmentApiTest;
 	friend class FMT2WarriorComboKnockbackTest;
@@ -505,6 +506,7 @@ private:
 	// in range, instead of the click only ever walking to a single point and stopping.
 	bool bAutoEngageTarget = false;
 	bool bAttackFacingLocked = false;
+	bool bAttackInputHeld = false;
 	float AttackFacingYaw = 0.0f;
 	FVector AttackAdvanceDirection = FVector::ZeroVector;
 	float AttackAdvanceSpeed = 0.0f;

@@ -145,6 +145,8 @@ public:
 	static constexpr float MotionKnockbackDuration = 2.f;
 
 private:
+	friend class FMT2MeleeRoomOcclusionTest;
+	friend class FMT2HeldAttackFallbackTest;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	bool ScheduleBasicAttackHits(AActor* TargetActor, bool bSingleTarget);
 	void ExecuteBasicAttackHit(FMT2MotionAttackEvent Event, TWeakObjectPtr<AActor> TargetActor, bool bSingleTarget);

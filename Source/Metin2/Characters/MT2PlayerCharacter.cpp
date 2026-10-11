@@ -301,6 +301,11 @@ void AMT2PlayerCharacter::Tick(float DeltaSeconds)
 	// overshooting by one tick.
 	UpdateCombatEngagement(DeltaSeconds);
 	UpdateAutoMove();
+	if (bAttackInputHeld && IsLocallyControlled() && !IsDead() && !IsInteractionUIOpen() &&
+		(!FishingComponent || !FishingComponent->HasRodEquipped()) && !GetCombatComponent()->IsBasicAttackHeld())
+	{
+		GetCombatComponent()->StartBasicAttackLoop();
+	}
 
 	// Reached the NPC we clicked: stop and interact once.
 	if (AMT2Npc* Npc = PendingInteractNpc.Get(); Npc && IsLocallyControlled())
@@ -785,6 +790,7 @@ void AMT2PlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	GetCombatComponent()->StopBasicAttackLoop();
 	GetCombatComponent()->OnBasicAttackPerformed.RemoveDynamic(
 		this, &AMT2PlayerCharacter::HandleBasicAttackPerformed);
+	bAttackInputHeld = false;
 	GetHealthComponent()->OnDeath.RemoveDynamic(this, &AMT2PlayerCharacter::HandleDeath);
 	GetHealthComponent()->OnRevived.RemoveDynamic(this, &AMT2PlayerCharacter::HandleRevived);
 	GetHealthComponent()->OnValueChanged.RemoveDynamic(this, &AMT2PlayerCharacter::HandleHealthChanged);
@@ -832,11 +838,13 @@ void AMT2PlayerCharacter::HandleAttackPressed()
 	{
 		StopAutoMove(); GetCombatComponent()->StopBasicAttackLoop(); FishingComponent->RequestToggleFishing(); return;
 	}
+	bAttackInputHeld = true;
 	GetCombatComponent()->StartBasicAttackLoop();
 }
 
 void AMT2PlayerCharacter::HandleAttackReleased()
 {
+	bAttackInputHeld = false;
 	GetCombatComponent()->StopBasicAttackLoop();
 }
 
@@ -1001,7 +1009,7 @@ void AMT2PlayerCharacter::UpdateCombatEngagement(float DeltaSeconds)
 	{
 		bAutoEngageTarget = false;
 		Combat->SetSelectedTarget(nullptr);
-		Combat->StopBasicAttackLoop();
+		if (!bAttackInputHeld) Combat->StopBasicAttackLoop();
 		if (AutoMoveTargetActor.Get() == Target)
 		{
 			StopAutoMove();
@@ -1014,7 +1022,7 @@ void AMT2PlayerCharacter::UpdateCombatEngagement(float DeltaSeconds)
 	if (DistanceSquared > FMath::Square(AttackRange))
 	{
 		// Out of range: keep/resume chasing, don't swing at empty air.
-		if (Combat->IsBasicAttackHeld())
+		if (Combat->IsBasicAttackHeld() && !bAttackInputHeld)
 		{
 			UE_LOG(LogMT2Targeting, Warning, TEXT("[MT2Engage] '%s' out of range (dist=%.0f > range=%.0f), stopping attack loop"),
 				*GetNameSafe(Target), FMath::Sqrt(DistanceSquared), AttackRange);
@@ -1150,6 +1158,7 @@ void AMT2PlayerCharacter::UpdateSafeZoneNotification()
 
 void AMT2PlayerCharacter::HandleDeath()
 {
+	bAttackInputHeld = false;
 	GetCombatComponent()->CancelPendingBasicAttackHits();
 	if (FishingComponent && HasAuthority()) { FishingComponent->CancelFishing(); }
 	DeathLocation = GetActorLocation();
