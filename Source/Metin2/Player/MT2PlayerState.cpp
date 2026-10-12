@@ -18,6 +18,9 @@
 #include "Duel/MT2DuelComponent.h"
 #include "Characters/MT2CharacterBase.h"
 #include "Characters/MT2PlayerCharacter.h"
+#include "Characters/MT2CharacterAppearanceSettings.h"
+#include "Components/MT2StatusEffectComponent.h"
+#include "TimerManager.h"
 #include "Components/MT2HealthComponent.h"
 #include "Components/MT2ManaComponent.h"
 #include "Components/MT2StaminaComponent.h"
@@ -217,6 +220,7 @@ void AMT2PlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME_CONDITION(AMT2PlayerState, UnspentSkillPoints, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMT2PlayerState, UnspentStatPoints, COND_OwnerOnly);
 	DOREPLIFETIME(AMT2PlayerState, CharacterAppearance);
+	DOREPLIFETIME(AMT2PlayerState, HairShape);
 	DOREPLIFETIME(AMT2PlayerState, Empire);
 	DOREPLIFETIME(AMT2PlayerState, GuildId);
 	DOREPLIFETIME(AMT2PlayerState, GuildName);
@@ -667,6 +671,59 @@ bool AMT2PlayerState::SetCharacterAppearance(const FMT2CharacterAppearance& NewA
 	return true;
 }
 
+void AMT2PlayerState::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (GetWorld()) GetWorld()->GetTimerManager().ClearTimer(HairExpiryTimer);
+	Super::EndPlay(EndPlayReason);
+}
+
+bool AMT2PlayerState::SetHairShape(int32 Shape)
+{
+	if (!HasAuthority() || Shape < 0 || (Shape != 0 &&
+		!GetDefault<UMT2CharacterAppearanceSettings>()->FindHair(Shape, CharacterAppearance))) return false;
+	if (HairShape == Shape) return true;
+	HairShape = Shape;
+	if (Shape == 0) SetHairExpiry(0);
+	OnRep_HairShape();
+	ForceNetUpdate();
+	PersistenceComponent->MarkDirty();
+	return true;
+}
+
+void AMT2PlayerState::OnRep_HairShape()
+{
+	if (AMT2PlayerCharacter* Character = Cast<AMT2PlayerCharacter>(GetPawn())) Character->RefreshHairAppearance();
+}
+
+void AMT2PlayerState::SetHairExpiry(int64 ExpiresAt)
+{
+	if (!HasAuthority()) return;
+	HairExpiresAt = FMath::Max<int64>(0, ExpiresAt);
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(HairExpiryTimer);
+		if (HairExpiresAt > 0)
+		{
+			const int64 Remaining = HairExpiresAt - FDateTime::UtcNow().ToUnixTimestamp();
+			if (Remaining <= 0) { ExpireHair(); return; }
+			World->GetTimerManager().SetTimer(HairExpiryTimer, this, &AMT2PlayerState::ExpireHair,
+				static_cast<float>(FMath::Min<int64>(Remaining, MAX_int32)), false);
+		}
+	}
+	PersistenceComponent->MarkDirty();
+}
+
+void AMT2PlayerState::ExpireHair()
+{
+	if (!HasAuthority()) return;
+	if (HairExpiresAt > FDateTime::UtcNow().ToUnixTimestamp()) { SetHairExpiry(HairExpiresAt); return; }
+	SetHairShape(0);
+	SetHairExpiry(0);
+	if (AMT2PlayerCharacter* Character = Cast<AMT2PlayerCharacter>(GetPawn()))
+		Character->GetStatusEffectComponent()->RemoveEffectsByType(514);
+	PendingRestoredStatusEffects.RemoveAll([](const FMT2StatusEffect& Effect) { return Effect.Type == 514; });
+}
+
 bool AMT2PlayerState::SetEmpire(EMT2Empire NewEmpire)
 {
 	if (!HasAuthority() || Empire == NewEmpire)
@@ -885,6 +942,8 @@ FString AMT2PlayerState::CapturePersistentStateJson_Implementation() const
 	Appearance->SetNumberField(TEXT("sex"), static_cast<uint8>(CharacterAppearance.Sex));
 	Appearance->SetNumberField(TEXT("style"), static_cast<uint8>(CharacterAppearance.Style));
 	Root->SetObjectField(TEXT("appearance"), Appearance);
+	Root->SetNumberField(TEXT("hair_shape"), HairShape);
+	Root->SetNumberField(TEXT("hair_expires_at"), static_cast<double>(HairExpiresAt));
 
 	const FMT2PrimaryStats& BaseStats = PrimaryStatsComponent->GetBaseStats();
 	TSharedRef<FJsonObject> PrimaryStats = MakeShared<FJsonObject>();
@@ -954,6 +1013,7 @@ FString AMT2PlayerState::CapturePersistentStateJson_Implementation() const
 					Item->SetNumberField(TEXT("slot"), SlotIndex);
 					Item->SetNumberField(TEXT("vnum"), Items[SlotIndex].Vnum);
 					Item->SetNumberField(TEXT("count"), Items[SlotIndex].Count);
+					Item->SetNumberField(TEXT("realtime_expires_at"), static_cast<double>(Items[SlotIndex].RealtimeExpiresAt));
 					const UMT2ItemTemplate* Template = MT2ItemUtils::ResolveTemplate(this, Items[SlotIndex].Vnum);
 					const bool bFishingSockets = Template && (Template->IsA<UMT2ItemRodTemplate>() || Template->IsA<UMT2ItemFishTemplate>());
 					for (int32 SocketIndex = 0; SocketIndex < 3; ++SocketIndex)
@@ -1342,6 +1402,9 @@ bool AMT2PlayerState::ApplyPersistentStateJson_Implementation(const FString& Pay
 			FMT2ItemSlot Slot;
 			Slot.Vnum = ReadInteger(TEXT("vnum"));
 			Slot.Count = ReadInteger(TEXT("count"));
+			double ItemExpiry = 0;
+			if (Item->TryGetNumberField(TEXT("realtime_expires_at"), ItemExpiry) && FMath::IsFinite(ItemExpiry) &&
+				ItemExpiry > 0 && ItemExpiry <= 9007199254740991.0) Slot.RealtimeExpiresAt = static_cast<int64>(ItemExpiry);
 			UMT2VnumRegistrySubsystem* Registry = GetGameInstance()
 				? GetGameInstance()->GetSubsystem<UMT2VnumRegistrySubsystem>() : nullptr;
 			const TSubclassOf<UMT2ItemTemplate> ItemTemplateClass = Registry
@@ -1448,6 +1511,14 @@ bool AMT2PlayerState::ApplyPersistentStateJson_Implementation(const FString& Pay
 		QuestManagerComponent->LoadFrom(Root.ToSharedRef());
 		SkillComponent->MigrateLegacyGrandMasterReadCounts();
 	}
+	// Hair expiry uses wall-clock time, including time spent offline and cross-map transfers.
+	double SavedHair = 0, SavedHairExpiry = 0;
+	Root->TryGetNumberField(TEXT("hair_shape"), SavedHair);
+	Root->TryGetNumberField(TEXT("hair_expires_at"), SavedHairExpiry);
+	if (FMath::IsFinite(SavedHair) && SavedHair >= 0 && SavedHair <= MAX_int32 && FMath::FloorToDouble(SavedHair) == SavedHair)
+		SetHairShape(static_cast<int32>(SavedHair));
+	SetHairExpiry(FMath::IsFinite(SavedHairExpiry) && SavedHairExpiry > 0 && SavedHairExpiry <= 9007199254740991.0
+		? static_cast<int64>(SavedHairExpiry) : 0);
 
 	// A portal destination stashed before a transfer; the game mode ground-snaps the player here on arrival.
 	const TSharedPtr<FJsonObject>* PendingSpawnObject = nullptr;
@@ -1485,6 +1556,11 @@ bool AMT2PlayerState::ApplyPersistentStateJson_Implementation(const FString& Pay
 				AffectObject->TryGetNumberField(TEXT("remove_on_death"), Value))
 			{
 				Effect.bRemoveOnDeath = !FMath::IsNearlyZero(Value);
+			}
+			if (Effect.Type == 514)
+			{
+				if (HairShape == 0 || HairExpiresAt <= FDateTime::UtcNow().ToUnixTimestamp()) continue;
+				Effect.RemainingSeconds = static_cast<int32>(FMath::Min<int64>(MAX_int32, HairExpiresAt - FDateTime::UtcNow().ToUnixTimestamp()));
 			}
 			PendingRestoredStatusEffects.Add(Effect);
 		}

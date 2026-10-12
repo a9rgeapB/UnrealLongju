@@ -42,10 +42,12 @@ bool FMT2ObserverReplicationTest::RunTest(const FString&)
 	Worn[0].Vnum = 11209; Worn[0].Count = 1;
 	Worn[4].Vnum = 19; Worn[4].Count = 1;
 	Worn[4].MetinSockets.SetNum(3); Worn[4].MetinSockets[0].Value = 777;
+	Worn[20].Vnum = 73001; Worn[20].Count = 1;
 	Inventory->RestoreItems({}, Worn);
 	Inventory->RefreshPublicAppearance();
 	TestEqual(TEXT("Public armor identifier"), Inventory->PublicAppearance.BodyVnum, 11209);
 	TestEqual(TEXT("Public weapon identifier"), Inventory->PublicAppearance.WeaponVnum, 19);
+	TestEqual(TEXT("Public hair identifier"), Inventory->PublicAppearance.HairVnum, 73001);
 	Inventory->GetClass()->SetUpRuntimeReplicationData();
 	TArray<FLifetimeProperty> Properties; Inventory->GetLifetimeReplicatedProps(Properties);
 	auto Condition = [&](FName Name)
@@ -61,6 +63,7 @@ bool FMT2ObserverReplicationTest::RunTest(const FString&)
 	ObserverInventory->PublicAppearance = Inventory->PublicAppearance;
 	ObserverInventory->OnRep_PublicAppearance();
 	TestEqual(TEXT("Late observer reconstructs weapon"), ObserverInventory->GetEquipment()[4].Vnum, 19);
+	TestEqual(TEXT("Late observer reconstructs costume hair"), ObserverInventory->GetEquipment()[20].Vnum, 73001);
 	TestTrue(TEXT("Observer receives no socket state"), ObserverInventory->GetEquipment()[4].MetinSockets.IsEmpty());
 	TestEqual(TEXT("Owner socket state preserved"), Inventory->GetEquipment()[4].MetinSockets[0].Value, 777);
 	Inventory->Equipment[4] = FMT2ItemSlot(); Inventory->RefreshPublicAppearance();

@@ -80,6 +80,7 @@ void UMT2InventoryComponent::RefreshPublicAppearance()
 	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
 	PublicAppearance.BodyVnum = Equipment.IsValidIndex(0) && !Equipment[0].IsEmpty() ? Equipment[0].Vnum : 0;
 	PublicAppearance.WeaponVnum = Equipment.IsValidIndex(4) && !Equipment[4].IsEmpty() ? Equipment[4].Vnum : 0;
+	PublicAppearance.HairVnum = Equipment.IsValidIndex(20) && !Equipment[20].IsEmpty() ? Equipment[20].Vnum : 0;
 }
 
 void UMT2InventoryComponent::OnRep_PublicAppearance()
@@ -90,6 +91,8 @@ void UMT2InventoryComponent::OnRep_PublicAppearance()
 	Equipment[0].Count = PublicAppearance.BodyVnum > 0 ? 1 : 0;
 	Equipment[4].Vnum = PublicAppearance.WeaponVnum;
 	Equipment[4].Count = PublicAppearance.WeaponVnum > 0 ? 1 : 0;
+	Equipment[20].Vnum = PublicAppearance.HairVnum;
+	Equipment[20].Count = PublicAppearance.HairVnum > 0 ? 1 : 0;
 	OnEquipmentChanged.Broadcast();
 }
 
@@ -120,6 +123,7 @@ int32 UMT2InventoryComponent::GetWearPosition(int32 Vnum) const
 {
 	if (Cast<UMT2ItemRodTemplate>(ResolveTemplate(Vnum))) { return static_cast<int32>(EMT2ItemWearFlag::Weapon); }
 	const UMT2ItemEquipmentTemplate* EquipmentTemplate = Cast<UMT2ItemEquipmentTemplate>(ResolveTemplate(Vnum));
+	if (Cast<UMT2ItemHairTemplate>(EquipmentTemplate)) return INDEX_NONE;
 	if (!EquipmentTemplate || EquipmentTemplate->Vnum <= 0)
 	{
 		return INDEX_NONE;
@@ -196,6 +200,7 @@ void UMT2InventoryComponent::RestoreItems(
 	{
 		Equipment[Index] = InEquipment.IsValidIndex(Index) ? InEquipment[Index] : FMT2ItemSlot();
 	}
+	ProcessItemExpiry();
 	// Saves written before wearable-mask mapping was corrected stored shields in slot 8
 	// (UNIQUE2). Repair that one unambiguous legacy placement while loading the character.
 	const int32 LegacyShieldSlot = 8;
@@ -297,6 +302,7 @@ void UMT2InventoryComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	if (GetWorld())
 	{
 		GetWorld()->GetTimerManager().ClearTimer(AutoRecoveryTimer);
+		GetWorld()->GetTimerManager().ClearTimer(ItemExpiryTimer);
 	}
 	Super::EndPlay(EndPlayReason);
 }
@@ -346,6 +352,7 @@ int32 UMT2InventoryComponent::AddItemSlotPartialInternal(
 	FMT2ItemSlot GeneratedItem = Item;
 	Template->InitializeGeneratedInstance(GeneratedItem);
 	GeneratedItem.bNewlyAcquired = true;
+	if (GeneratedItem.RealtimeExpiresAt > 0 && GeneratedItem.RealtimeExpiresAt <= FDateTime::UtcNow().ToUnixTimestamp()) return 0;
 	if (Slots.Num() != SlotCount)
 	{
 		Slots.SetNum(SlotCount);
@@ -396,6 +403,7 @@ int32 UMT2InventoryComponent::AddItemSlotPartialInternal(
 		return 0;
 	}
 	OnInventoryChanged.Broadcast();
+	if (GeneratedItem.RealtimeExpiresAt > 0) ProcessItemExpiry();
 	return GeneratedItem.Count - Remaining;
 }
 
@@ -597,6 +605,19 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 	if (ActionTemplate)
 	{
 		return ExecuteAction();
+	}
+	if (ItemTemplate->IsA<UMT2ItemHairTemplate>() && Slots[InventorySlot].Vnum >= 73001 && Slots[InventorySlot].Vnum <= 73762)
+	{
+		if (!CanEquipTemplate(ItemTemplate)) return false;
+		AMT2PlayerState* State = Character->GetPlayerState<AMT2PlayerState>();
+		if (!State) return false;
+		static const int32 Offsets[] = {72000, 71250, 70500, 69750};
+		const int32 Race = static_cast<int32>(State->GetCharacterAppearance().Race);
+		if (Race < 0 || Race >= UE_ARRAY_COUNT(Offsets)) return false;
+		const int32 Shape = Slots[InventorySlot].Vnum - Offsets[Race];
+		if (State->GetHairShape() == Shape) return true;
+		if (!State->SetHairShape(Shape)) return false;
+		return ConsumeItemAtSlot(InventorySlot);
 	}
 
 	const UMT2ItemUseTemplate* UseTemplate = Cast<UMT2ItemUseTemplate>(ItemTemplate);
@@ -871,6 +892,44 @@ int32 UMT2InventoryComponent::RemoveItemByVnum(int32 Vnum, int32 Count)
 	}
 	OnInventoryChanged.Broadcast();
 	return Count - Remaining;
+}
+
+bool UMT2InventoryComponent::StartItemRealtimeExpiry(int32 InventorySlot)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !Slots.IsValidIndex(InventorySlot) || Slots[InventorySlot].IsEmpty()) return false;
+	const UMT2ItemTemplate* Template = ResolveTemplate(Slots[InventorySlot].Vnum);
+	if (!Template) return false;
+	// The original binding only schedules items whose proto declares a real-time limit.
+	if (!Template->Limits.ContainsByPredicate([](const FMT2ItemLimit& Limit)
+		{ return Limit.Type == EMT2ItemLimitType::RealTime || Limit.Type == EMT2ItemLimitType::RealTimeFromFirstUse; })) return true;
+	Slots[InventorySlot].RealtimeExpiresAt = Slots[InventorySlot].MetinSockets.IsValidIndex(0)
+		? Slots[InventorySlot].MetinSockets[0].Value : FDateTime::UtcNow().ToUnixTimestamp();
+	if (Slots[InventorySlot].RealtimeExpiresAt <= 0) Slots[InventorySlot].RealtimeExpiresAt = FDateTime::UtcNow().ToUnixTimestamp();
+	ProcessItemExpiry();
+	OnInventoryChanged.Broadcast();
+	return true;
+}
+
+void UMT2InventoryComponent::ProcessItemExpiry()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !GetWorld()) return;
+	const int64 Now = FDateTime::UtcNow().ToUnixTimestamp();
+	bool bPending = false, bBagChanged = false, bWornChanged = false;
+	auto Process = [&](TArray<FMT2ItemSlot>& Items, bool& bChanged)
+	{
+		for (FMT2ItemSlot& Item : Items)
+		{
+			if (Item.IsEmpty() || Item.RealtimeExpiresAt <= 0) continue;
+			if (Item.RealtimeExpiresAt <= Now) { Item = FMT2ItemSlot(); bChanged = true; }
+			else bPending = true;
+		}
+	};
+	Process(Slots, bBagChanged); Process(Equipment, bWornChanged);
+	if (bBagChanged) OnInventoryChanged.Broadcast();
+	if (bWornChanged) OnEquipmentChanged.Broadcast();
+	if (bPending && !GetWorld()->GetTimerManager().IsTimerActive(ItemExpiryTimer))
+		GetWorld()->GetTimerManager().SetTimer(ItemExpiryTimer, this, &UMT2InventoryComponent::ProcessItemExpiry, 1.f, true);
+	else if (!bPending) GetWorld()->GetTimerManager().ClearTimer(ItemExpiryTimer);
 }
 
 bool UMT2InventoryComponent::SetItemSocketValue(int32 InventorySlot, int32 SocketIndex, int32 Value)

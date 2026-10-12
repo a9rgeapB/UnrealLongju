@@ -2656,7 +2656,8 @@ namespace
 			FString Arguments;
 
 			// Anonymous table callbacks are function frames, not generic for-loops: return nil
-			if (Line.StartsWith(TEXT("d.")) && !Line.StartsWith(TEXT("d.notice")))
+			if ((Line.StartsWith(TEXT("d.")) && !Line.StartsWith(TEXT("d.notice"))) ||
+				Line.StartsWith(TEXT("pc.set_part(")) || Line.StartsWith(TEXT("item.start_realtime_expire(")))
 			{
 				FlushSay(); FString Call = Line;
 				TArray<TObjectPtr<UMT2QuestNode>> Prelude;
@@ -2873,7 +2874,7 @@ namespace
 							Table.Name = FName(*TableName);
 							int32 Cursor = 0;
 							ParseLuaValue(Constructor, Cursor, Table.Nodes);
-							if (Table.Nodes.Num() > 1)
+							if (Table.Nodes.Num() > 0)
 							{
 								UMT2QuestNode_SetVariable* Node =
 									NewObject<UMT2QuestNode_SetVariable>(State.Outer);
@@ -2909,7 +2910,7 @@ namespace
 				}
 				else
 				{
-					FRegexMatcher Indexed(FRegexPattern(TEXT("^([A-Za-z_][A-Za-z_0-9]*(?:\\.[A-Za-z_][A-Za-z_0-9]*|\\[.*\\])*)\\[(.+)\\]\\s*=(?!=)\\s*(.+)$")), Line);
+					FRegexMatcher Indexed(FRegexPattern(TEXT("^([A-Za-z_][A-Za-z_0-9]*(?:\\.[A-Za-z_][A-Za-z_0-9]*|\\[.*\\])*)\\s*\\[(.+)\\]\\s*=(?!=)\\s*(.+)$")), Line);
 					FRegexMatcher Named(FRegexPattern(TEXT("^([A-Za-z_][A-Za-z_0-9]*(?:\\.[A-Za-z_][A-Za-z_0-9]*|\\[.*\\])*)\\.([A-Za-z_][A-Za-z_0-9]*)\\s*=(?!=)\\s*(.+)$")), Line);
 					if (Indexed.FindNext())
 					{
@@ -3257,6 +3258,12 @@ namespace
 				{
 					FlushSay();
 					UMT2QuestNode_GiveItem* Node = NewObject<UMT2QuestNode_GiveItem>(State.Outer);
+					Node->bSelectGivenItem = Line.Contains(TEXT("pc.give_item2_select"));
+					if (Node->bSelectGivenItem)
+					{
+						FRegexMatcher Assignment(FRegexPattern(TEXT("^(?:local\\s+)?([A-Za-z_][A-Za-z_0-9]*)\\s*=\\s*pc\\.give_item2_select")), Line);
+						if (Assignment.FindNext()) { Node->SelectionResultVariable = FName(*Assignment.GetCaptureGroup(1)); State.KnownVariables.Add(Assignment.GetCaptureGroup(1)); }
+					}
 					int32 ItemVnum = 0;
 					// Literals stay literal (readable in the editor); computed values ride as expressions.
 					if (bRaceItemFunction) { Node->ItemVnumByRace = MoveTemp(RaceVnums); }
@@ -3509,15 +3516,18 @@ namespace
 			}
 			if (ExtractCallArguments(Line, TEXT("pc.setqf"), Arguments))
 			{
-				const TArray<FString> Parts = SplitArguments(Arguments);
+				TArray<FString> Parts = SplitArguments(Arguments);
+				TArray<TObjectPtr<UMT2QuestNode>> Prelude;
+				const bool bLowered = Parts.Num() == 2 && ExtractRuntimeFunctionCalls(Lines, Parts[1], State, Prelude);
 				int32 Value = 0;
 				FString Reason;
 				const bool bLiteral = Parts.Num() >= 2 && ParseInt(Parts[1], Value);
 				// The increment idiom pc.setqf("f", pc.getqf("f") + 1) rides as an expression.
-				if (Parts.Num() >= 2 && (bLiteral || CanConvertExpression(Parts[1], State, Reason)))
+				if (bLowered && (bLiteral || CanConvertExpression(Parts[1], State, Reason)))
 				{
 					bool bResolved = false;
 					FlushSay();
+					Nodes.Append(Prelude);
 					UMT2QuestNode_SetFlag* Node = NewObject<UMT2QuestNode_SetFlag>(State.Outer);
 					Node->FlagName = FName(*ResolveText(Parts[0], *State.Locale, bResolved));
 					if (bLiteral) { Node->Value = Value; } else { Node->ValueExpression = Parts[1]; }
@@ -3702,6 +3712,13 @@ namespace
 			}
 			// say_item / say_item_vnum show an item line inside the page; the reward text around them
 			// carries the meaning, so the item itself becomes a plain line.
+			if (ExtractCallArguments(Line, TEXT("say_show_item"), Arguments))
+			{
+				FString Reason;
+				if (!CanConvertExpression(Arguments, State, Reason)) { RecordUnconverted(State, Nodes, Raw, Index); continue; }
+				EnsureSay()->Lines.Add(FText::FromString(ResolveDisplayText(TEXT("item_name(") + Arguments + TEXT(")"), *State.Locale)));
+				continue;
+			}
 			if (ExtractCallArguments(Line, TEXT("say_item_vnum"), Arguments) ||
 				ExtractCallArguments(Line, TEXT("say_item"), Arguments))
 			{
@@ -3820,21 +3837,39 @@ namespace
 					ExtractCallArguments(Line, TEXT("affect.add_collect"), Arguments);
 				if (bQuestAffect || bHairAffect || bCollectPoint || bCollect)
 				{
-					const TArray<FString> Parts = SplitArguments(Arguments);
+					TArray<FString> Parts = SplitArguments(Arguments);
+					TArray<TObjectPtr<UMT2QuestNode>> Prelude;
+					bool bLowered = Parts.Num() == 3;
+					for (FString& Part : Parts)
+					{
+						Part = ResolveStaticTableConstants(Part, *State.Locale);
+						bLowered = bLowered && ExtractRuntimeFunctionCalls(Lines, Part, State, Prelude);
+						if (bHairAffect && bLowered)
+						{
+							// Capture each argument before the next helper can mutate script state.
+							const FName Name(*FString::Printf(TEXT("__quest_hair_arg_%d"), State.GeneratedTemporaryIndex++));
+							UMT2QuestNode_SetVariable* Capture = NewObject<UMT2QuestNode_SetVariable>(State.Outer);
+							Capture->VariableName = Name; Capture->Expression = Part; Prelude.Add(Capture);
+							++State.Result->NodesCreated; State.KnownVariables.Add(Name.ToString()); Part = Name.ToString();
+						}
+					}
 					int32 ApplyType = 0;
 					FString ValueReason;
 					FString DurationReason;
-					if (Parts.Num() >= 3 && ResolveLegacyAffectType(Parts[0], bCollectPoint, ApplyType) &&
+					const bool bStaticType = bLowered && ResolveLegacyAffectType(Parts[0], bCollectPoint, ApplyType);
+					if (bLowered && (bStaticType || (!bCollectPoint && CanConvertExpression(Parts[0], State, ValueReason))) &&
 						CanConvertExpression(Parts[1], State, ValueReason) &&
 						CanConvertExpression(Parts[2], State, DurationReason))
 					{
 						FlushSay();
+						Nodes.Append(Prelude);
 						UMT2QuestNode_ModifyAffect* Node =
 							NewObject<UMT2QuestNode_ModifyAffect>(State.Outer);
 						Node->Operation = bQuestAffect ? EMT2QuestAffectOperation::AddQuest
 							: (bHairAffect ? EMT2QuestAffectOperation::AddHair
 								: EMT2QuestAffectOperation::AddCollect);
 						Node->ApplyType = ApplyType;
+						if (!bStaticType) Node->ApplyTypeExpression = Parts[0];
 						Node->ValueExpression = Parts[1];
 						Node->DurationExpression = Parts[2];
 						Nodes.Add(Node);

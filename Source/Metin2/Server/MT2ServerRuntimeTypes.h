@@ -152,6 +152,8 @@ struct METIN2_API FMT2CharacterSummary
 	// Costume hair (wear slot 20) takes precedence over normal head/hair equipment (slot 1).
 	UPROPERTY(BlueprintReadOnly, Category = "Character|Preview")
 	int32 EquippedHairVnum = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Character|Preview")
+	int32 HairShape = 0;
 };
 
 struct FMT2AccountLoginResult

@@ -11,12 +11,32 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
+#include "Engine/DataAsset.h"
+#include "Items/MT2ItemTemplate.h"
 #include "Player/MT2PlayerTypes.h"
 #include "MT2CharacterAppearanceSettings.generated.h"
 
 class USkeletalMesh;
 class UTexture2D;
 class UAnimInstance;
+
+USTRUCT(BlueprintType)
+struct METIN2_API FMT2HairShape
+{
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Shape = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FMT2HairMeshVariant> Variants;
+};
+
+// Cooked client HairData tables; shape numbers are not item vnums.
+UCLASS()
+class METIN2_API UMT2HairCatalog : public UDataAsset
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FMT2HairShape> Shapes;
+	const FMT2HairMeshVariant* Find(int32 Shape, const FMT2CharacterAppearance& Appearance) const;
+};
 
 USTRUCT(BlueprintType)
 struct METIN2_API FMT2CharacterAppearanceAsset
@@ -66,6 +86,9 @@ class METIN2_API UMT2CharacterAppearanceSettings : public UDeveloperSettings
 
 public:
 	UMT2CharacterAppearanceSettings();
+	const FMT2HairMeshVariant* FindHair(int32 Shape, const FMT2CharacterAppearance& Appearance) const;
+	UPROPERTY(EditAnywhere, Config, Category = "Hair")
+	TSoftObjectPtr<UMT2HairCatalog> HairCatalog;
 
 	const FMT2CharacterAppearanceAsset* FindAppearance(const FMT2CharacterAppearance& Appearance) const;
 	const FMT2CharacterAnimationProfile* FindAnimationProfile(
@@ -74,6 +97,8 @@ public:
 	virtual FName GetCategoryName() const override { return TEXT("Game"); }
 
 private:
+	UPROPERTY(Transient)
+	mutable TObjectPtr<UMT2HairCatalog> LoadedHairCatalog;
 	UPROPERTY(EditAnywhere, Config, Category = "Character")
 	TArray<FMT2CharacterAppearanceAsset> Appearances;
 

@@ -346,6 +346,8 @@ USTRUCT(BlueprintType)
 struct METIN2_API FMT2ItemInstanceData
 {
 	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Expiry")
+	int64 RealtimeExpiresAt = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item", meta = (ClampMin = "0"))
 	int32 Count = 1;

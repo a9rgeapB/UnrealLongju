@@ -1318,4 +1318,49 @@ bool FMT2QuestLoweringTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Rejected lowering rolls back temporaries"), State.GeneratedTemporaryIndex, BeforeTemporaries);
 	return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2QuestHairTest, "Metin2.Quests.Importer.Hair",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2QuestHairTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	if (!TestNotNull(TEXT("World"), World)) return false;
+	ON_SCOPE_EXIT { World->DestroyWorld(false); };
+	AMT2PlayerState* PlayerState = World->SpawnActor<AMT2PlayerState>();
+	AMT2PlayerCharacter* Player = World->SpawnActor<AMT2PlayerCharacter>();
+	UMT2QuestManagerComponent* Manager = PlayerState->GetQuestManagerComponent();
+	FMT2QuestContext Context; Context.Manager = Manager; Context.PlayerState = PlayerState; Context.Player = Player;
+	Manager->ActiveContext = Context;
+	const TMap<FString, FString> Locale;
+	const TArray<FString> Lines = {
+		TEXT("hair_list = {}"), TEXT("hair_list [74001] = {1001, 43, 10, 604800}"),
+		TEXT("return hair_list[vnum][index]"),
+		TEXT("x = 20"), TEXT("return 604800"),
+		TEXT("local shape = hair.My_hair_item(74001, 1)"),
+		TEXT("pc.set_part(PART_HAIR, hair.My_hair_item(74001, 1))"),
+		TEXT("affect.add_hair(hair.My_hair_item(74001, 2), hair.My_hair_item(74001, 3), hair.My_hair_item(74001, 4))"),
+		TEXT("pc.setqf(\"limit_time\", get_time() + hair.My_hair_item(74001, 4))"),
+		TEXT("x = 10"), TEXT("affect.add_hair(43, x, hair.change_value())")};
+	const TArray<FParsedFunction> Functions = {{TEXT("My_hair_item"), {TEXT("vnum"), TEXT("index")}, 0, 3},
+		{TEXT("change_value"), {}, 3, 5}};
+	FMT2QuestImportResult Result; FTranslateState State;
+	State.Locale = &Locale; State.Outer = Manager; State.ScriptName = State.QuestName = TEXT("hair");
+	State.Result = &Result; State.Functions = &Functions;
+	const auto Nodes = TranslateBlock(Lines, 5, Lines.Num(), State);
+	TestEqual(TEXT("Hair helper and native statements all convert"), Result.StatementsUnconverted, 0);
+	Manager->PushFrame(Nodes); Manager->RunPendingFrames();
+	TestEqual(TEXT("Nested hair table lookup"), Manager->GetScriptVariable(TEXT("shape")).Number, 1001.0);
+	TestEqual(TEXT("Hair selected"), PlayerState->GetHairShape(), 1001);
+	TestTrue(TEXT("Hair stat bonus applied"), Player->GetStatusEffectComponent()->HasEffectType(514));
+	TestEqual(TEXT("Earlier affect argument captured before later helper mutation"), Player->GetStatusEffectComponent()->GetEffectValueByType(514), 10);
+	TestTrue(TEXT("Absolute hair deadline"), Manager->GetQuestFlag(TEXT("limit_time")) > FDateTime::UtcNow().ToUnixTimestamp());
+	PlayerState->SetHairExpiry(FDateTime::UtcNow().ToUnixTimestamp() - 1);
+	TestEqual(TEXT("Expired hair reset"), PlayerState->GetHairShape(), 0);
+	bool bOk = false;
+	TestTrue(TEXT("Empty wear returns nil"), FMT2QuestExpression::Evaluate(TEXT("pc.get_wear(20) == nil"), Context, bOk).AsBool() && bOk);
+	FMT2ItemSlot Expired; Expired.Vnum = 73001; Expired.Count = 1;
+	Expired.RealtimeExpiresAt = FDateTime::UtcNow().ToUnixTimestamp() - 1;
+	Player->GetInventoryComponent()->RestoreItems({Expired}, {});
+	TestTrue(TEXT("Expired item removed while restoring inventory"), Player->GetInventoryComponent()->GetSlots()[0].IsEmpty());
+	return true;
+}
 #endif

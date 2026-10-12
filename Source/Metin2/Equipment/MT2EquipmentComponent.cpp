@@ -72,6 +72,8 @@ void UMT2EquipmentComponent::ApplyDefaultHair(const FMT2CharacterAppearance& App
 		GetDefault<UMT2CharacterAppearanceSettings>()->FindAppearance(Appearance);
 	if (!Asset || Asset->DefaultHairMesh.IsNull())
 	{
+		++HairRequestId;
+		if (HairLoadHandle.IsValid()) { HairLoadHandle->CancelHandle(); HairLoadHandle.Reset(); }
 		HairMeshComponent->EmptyOverrideMaterials();
 		HairMeshComponent->SetSkeletalMesh(nullptr);
 		HairMeshComponent->SetVisibility(false, true);

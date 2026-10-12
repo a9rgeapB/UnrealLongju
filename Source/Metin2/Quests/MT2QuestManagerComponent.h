@@ -104,6 +104,7 @@ UCLASS(BlueprintType, ClassGroup = "MT2", meta = (BlueprintSpawnableComponent))
 class METIN2_API UMT2QuestManagerComponent : public UActorComponent
 {
 	GENERATED_BODY()
+	friend class FMT2QuestHairTest;
 
 public:
 	UMT2QuestManagerComponent();
@@ -185,6 +186,7 @@ public:
 	// ---- Dialog building, called by the Say/Select/Close nodes ----
 	// say_title()/say(): accumulate into the page being built.
 	void AppendSay(const FText& Title, const TArray<FText>& Lines);
+	void SelectEventItem(int32 Slot) { ActiveContext.EventItemSlot = Slot; ActiveContext.bHasEventItemSnapshot = false; }
 	// select(): flush the accumulated page with these options and wait for the answer. Branches are the
 	// node lists to run per option, in the same order.
 	void PresentChoices(const TArray<FText>& Options, const TArray<FMT2QuestChoiceBranch>& Branches,

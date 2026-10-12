@@ -26,6 +26,7 @@ struct METIN2_API FMT2EquipmentAppearance
 	GENERATED_BODY()
 	UPROPERTY() int32 BodyVnum = 0;
 	UPROPERTY() int32 WeaponVnum = 0;
+	UPROPERTY() int32 HairVnum = 0;
 };
 
 // Slot-based, server-authoritative item grid replicated to the owning client, matching the old game's
@@ -100,6 +101,7 @@ public:
 	// item.set_socket). Grows the socket array if the item has fewer sockets than the index asks for.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Sockets")
 	bool SetItemSocketValue(int32 InventorySlot, int32 SocketIndex, int32 Value);
+	bool StartItemRealtimeExpiry(int32 InventorySlot);
 
 	// Server-only old item.set_value: writes one intrinsic attribute slot on the item that raised a
 	// quest event. Slots 0-4 are normal attributes and 5-6 are rare attributes.
@@ -221,4 +223,6 @@ private:
 	FMT2EquipmentAppearance PublicAppearance;
 
 	FTimerHandle AutoRecoveryTimer;
+	FTimerHandle ItemExpiryTimer;
+	void ProcessItemExpiry();
 };

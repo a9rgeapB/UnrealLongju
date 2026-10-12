@@ -75,6 +75,7 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual ELifetimeCondition AllowActorComponentToReplicate(const UActorComponent* ComponentToReplicate) const override;
 	virtual void PostInitializeComponents() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	void InitializeAbilitySystem(AActor* AvatarActor);
 	virtual FString CapturePersistentStateJson_Implementation() const override;
 	virtual bool ApplyPersistentStateJson_Implementation(const FString& PayloadJson) override;
@@ -160,6 +161,14 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Character")
 	bool SetCharacterAppearance(const FMT2CharacterAppearance& NewAppearance);
+
+	UFUNCTION(BlueprintPure, Category = "Character|Hair")
+	int32 GetHairShape() const { return HairShape; }
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Character|Hair")
+	bool SetHairShape(int32 Shape);
+	void SetHairExpiry(int64 ExpiresAt);
+	void ExpireHair();
+	UFUNCTION() void OnRep_HairShape();
 
 	UFUNCTION(BlueprintPure, Category = "Character")
 	EMT2Empire GetEmpire() const { return Empire; }
@@ -455,6 +464,10 @@ private:
 
 	UPROPERTY(ReplicatedUsing = OnRep_CharacterAppearance)
 	FMT2CharacterAppearance CharacterAppearance;
+	UPROPERTY(ReplicatedUsing = OnRep_HairShape)
+	int32 HairShape = 0;
+	int64 HairExpiresAt = 0;
+	FTimerHandle HairExpiryTimer;
 
 	UPROPERTY(ReplicatedUsing = OnRep_Empire)
 	EMT2Empire Empire = EMT2Empire::None;

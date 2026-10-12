@@ -1409,7 +1409,7 @@ void AMT2PlayerCharacter::InitializePlayerState()
 	if (MT2PlayerState)
 	{
 		GetAppearanceComponent()->ApplyCharacterAppearance(MT2PlayerState->GetCharacterAppearance());
-		GetEquipmentComponent()->ApplyDefaultHair(MT2PlayerState->GetCharacterAppearance());
+		RefreshHairAppearance();
 
 		// Buffs/debuffs restored from the persistent payload before this pawn existed (old game:
 		// LoadAffect on login). Server-only by construction - only the server stages them.
@@ -1440,13 +1440,13 @@ void AMT2PlayerCharacter::InitializePlayerState()
 void AMT2PlayerCharacter::HandleCharacterAppearanceChanged(const FMT2CharacterAppearance& Appearance)
 {
 	GetAppearanceComponent()->ApplyCharacterAppearance(Appearance);
-	GetEquipmentComponent()->ApplyDefaultHair(Appearance);
+	RefreshHairAppearance();
 	RefreshDerivedStats();
 }
 
 void AMT2PlayerCharacter::HandleCharacterAppearanceApplied(const FMT2CharacterAppearance& Appearance)
 {
-	GetEquipmentComponent()->ApplyDefaultHair(Appearance);
+	RefreshHairAppearance();
 	HandleEquipmentChanged();
 }
 
@@ -2615,8 +2615,27 @@ void AMT2PlayerCharacter::RefreshObserverReplicationPolicy()
 	ForceNetUpdate();
 }
 
+void AMT2PlayerCharacter::RefreshHairAppearance()
+{
+	const AMT2PlayerState* State = GetPlayerState<AMT2PlayerState>();
+	if (!State || !GetEquipmentComponent() || GetNetMode() == NM_DedicatedServer) return;
+	const FMT2CharacterAppearance& Appearance = State->GetCharacterAppearance();
+	const UGameInstance* Instance = GetGameInstance();
+	UMT2VnumRegistrySubsystem* Registry = Instance ? Instance->GetSubsystem<UMT2VnumRegistrySubsystem>() : nullptr;
+	const auto& Worn = InventoryComponent->GetEquipment();
+	constexpr int32 HairSlot = 20;
+	const UMT2ItemCostumeTemplate* Costume = Registry && Worn.IsValidIndex(HairSlot) && !Worn[HairSlot].IsEmpty()
+		? Cast<UMT2ItemCostumeTemplate>(Registry->ResolveItemTemplateClass(Worn[HairSlot].Vnum).GetDefaultObject()) : nullptr;
+	const FMT2HairMeshVariant* Hair = Costume && Costume->CostumeSubType == 1 ? Costume->ResolveHairVariant(Appearance) : nullptr;
+	if (!Hair && State->GetHairShape() != 0)
+		Hair = GetDefault<UMT2CharacterAppearanceSettings>()->FindHair(State->GetHairShape(), Appearance);
+	if (Hair && !Hair->Mesh.IsNull()) GetEquipmentComponent()->EquipHair(Hair->Mesh, Hair->DiffuseTexture);
+	else GetEquipmentComponent()->ApplyDefaultHair(Appearance);
+}
+
 void AMT2PlayerCharacter::HandleEquipmentChanged()
 {
+	RefreshHairAppearance();
 	if (HasAuthority())
 	{
 		ForceNetUpdate();

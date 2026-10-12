@@ -55,6 +55,7 @@ class METIN2_API AMT2PlayerCharacter : public AMT2CharacterBase, public IAbility
 	GENERATED_BODY()
 
 public:
+	void RefreshHairAppearance();
 	AMT2PlayerCharacter();
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	virtual void Tick(float DeltaSeconds) override;

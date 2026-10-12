@@ -89,6 +89,7 @@ TSharedRef<FJsonObject> UMT2ServerRuntimeSubsystem::WriteCharacterSummary(
 	Object->SetNumberField(TEXT("armor_vnum"), Character.EquippedArmorVnum);
 	Object->SetNumberField(TEXT("weapon_vnum"), Character.EquippedWeaponVnum);
 	Object->SetNumberField(TEXT("hair_vnum"), Character.EquippedHairVnum);
+	Object->SetNumberField(TEXT("hair_shape"), Character.HairShape);
 	return Object;
 }
 
@@ -108,6 +109,7 @@ bool UMT2ServerRuntimeSubsystem::ReadCharacterSummary(
 	OutCharacter.EquippedArmorVnum = GetIntField(Object, TEXT("armor_vnum"));
 	OutCharacter.EquippedWeaponVnum = GetIntField(Object, TEXT("weapon_vnum"));
 	OutCharacter.EquippedHairVnum = GetIntField(Object, TEXT("hair_vnum"));
+	OutCharacter.HairShape = GetIntField(Object, TEXT("hair_shape"));
 	return !OutCharacter.CharacterId.IsEmpty() && !OutCharacter.CharacterName.IsEmpty();
 }
 

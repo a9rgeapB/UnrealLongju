@@ -1,5 +1,7 @@
 # Quest porting status
 
+Hair appearance, timed hair bonuses and the hair-related quest bindings are described in [HairStyles](HairStyles.md). The imported hair quests have no unsupported statements; authored legacy guards are retained.
+
 This guide summarizes the current quest importer/runtime and its limits. See [QuestSystem](QuestSystem.md) for architecture, dispatch, persistence and import commands. The port implements selected Lua semantics and gameplay bindings, not an unrestricted Lua interpreter.
 
 ## Original-game model

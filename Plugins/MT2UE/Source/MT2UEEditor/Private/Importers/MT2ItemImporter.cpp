@@ -8,6 +8,7 @@
 */
 
 #include "Importers/MT2ItemImporter.h"
+#include "Characters/MT2CharacterAppearanceSettings.h"
 #include "Config/MT2PathSettings.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -666,6 +667,7 @@ namespace
 
 		FString HairPath;
 		bool bInHairData = false;
+		int32 HairDepth = 0;
 		int32 HairIndex = INDEX_NONE;
 		FString Model;
 		FString TargetSkin;
@@ -696,6 +698,12 @@ namespace
 		for (FString Line : Lines)
 		{
 			Line.TrimStartAndEndInline();
+			if (bInHairData && Line == TEXT("{")) { ++HairDepth; continue; }
+			if (bInHairData && Line == TEXT("}"))
+			{
+				if (--HairDepth == 0) { Flush(); bInHairData = false; }
+				continue;
+			}
 			if (Line.Equals(TEXT("Group HairData"), ESearchCase::IgnoreCase))
 			{
 				bInHairData = true;
@@ -1357,6 +1365,47 @@ namespace
 		OutPackagesToSave.AddUnique(Blueprint->GetOutermost());
 		return Blueprint;
 	}
+}
+
+bool FMT2ItemImporter::ImportHairCatalog(const FString& SourceRoot, const FString& DestinationRoot, FString& OutError)
+{
+	TArray<FString> Warnings;
+	const auto Shapes = LoadHairShapeVisuals(SourceRoot, DestinationRoot, Warnings);
+	for (const FString& Warning : Warnings) UE_LOG(LogTemp, Warning, TEXT("%s"), *Warning);
+	if (!Warnings.IsEmpty() || Shapes.IsEmpty()) { OutError = TEXT("HairData tables could not be loaded."); return false; }
+	const FString PackageName = NormalizeItemDestinationRoot(DestinationRoot) / TEXT("Logic/Items/DA_HairCatalog");
+	UMT2HairCatalog* Catalog = LoadObject<UMT2HairCatalog>(nullptr, *(PackageName + TEXT(".DA_HairCatalog")));
+	if (!Catalog)
+	{
+		Catalog = NewObject<UMT2HairCatalog>(CreatePackage(*PackageName), TEXT("DA_HairCatalog"), RF_Public | RF_Standalone);
+		FAssetRegistryModule::AssetCreated(Catalog);
+	}
+	Catalog->Shapes.Reset();
+	TArray<int32> Keys;
+	Shapes.GetKeys(Keys); Keys.Sort();
+	int32 Variants = 0;
+	for (int32 Key : Keys)
+	{
+		FMT2HairShape& Entry = Catalog->Shapes.AddDefaulted_GetRef(); Entry.Shape = Key;
+		for (const FMT2ItemHairVisualDefinition& Visual : Shapes[Key])
+		{
+			if (!FPackageName::DoesPackageExist(FPackageName::ObjectPathToPackageName(Visual.TextureObjectPath)))
+			{ OutError = FString::Printf(TEXT("Missing hair texture: %s"), *Visual.TextureObjectPath); return false; }
+			FMT2HairMeshVariant& Variant = Entry.Variants.AddDefaulted_GetRef();
+			Variant.Race = static_cast<EMT2CharacterRace>(Visual.Race);
+			Variant.Sex = static_cast<EMT2CharacterSex>(Visual.Sex);
+			Variant.Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(Visual.MeshObjectPath));
+			Variant.DiffuseTexture = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(Visual.TextureObjectPath));
+			++Variants;
+		}
+	}
+	Catalog->MarkPackageDirty();
+	FSavePackageArgs Args; Args.TopLevelFlags = RF_Public | RF_Standalone;
+	if (!UPackage::SavePackage(Catalog->GetPackage(), Catalog,
+		*FPackageName::LongPackageNameToFilename(PackageName, FPackageName::GetAssetPackageExtension()), Args))
+	{ OutError = TEXT("Could not save the hair catalog."); return false; }
+	UE_LOG(LogTemp, Display, TEXT("Hair catalog: %d shapes, %d race/sex variants with existing meshes and textures."), Keys.Num(), Variants);
+	return true;
 }
 
 bool FMT2ItemImporter::Discover(

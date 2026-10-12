@@ -182,6 +182,8 @@ AMT2WorldItem* AMT2WorldItem::SpawnWorldItemInstance(
 	AActor* SourceActor, const FString& InOwnerCharacterId,
 	const FString& InOwnerDisplayName, float OwnershipDuration)
 {
+	const int64 Remaining = Item.RealtimeExpiresAt - FDateTime::UtcNow().ToUnixTimestamp();
+	if (Item.RealtimeExpiresAt > 0 && Remaining <= 0) return nullptr;
 	AMT2WorldItem* WorldItem = SpawnWorldItem(
 		World, GroundLocation, Item.Vnum, Item.Count, SourceActor,
 		InOwnerCharacterId, InOwnerDisplayName, OwnershipDuration);
@@ -189,6 +191,11 @@ AMT2WorldItem* AMT2WorldItem::SpawnWorldItemInstance(
 	{
 		WorldItem->InitializeItemInstance(
 			Item, InOwnerCharacterId, InOwnerDisplayName, OwnershipDuration);
+		if (Item.RealtimeExpiresAt > 0)
+		{
+			const float DeadlineLifeSpan = static_cast<float>(FMath::Min<int64>(Remaining, MAX_int32));
+			WorldItem->SetLifeSpan(WorldItem->GetLifeSpan() > 0 ? FMath::Min(WorldItem->GetLifeSpan(), DeadlineLifeSpan) : DeadlineLifeSpan);
+		}
 	}
 	return WorldItem;
 }

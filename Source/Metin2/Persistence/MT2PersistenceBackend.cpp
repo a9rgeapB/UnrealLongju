@@ -172,7 +172,8 @@ namespace
 			!Row.GetColumnValueByIndex(8, OutCharacter.Channel) ||
 			!Row.GetColumnValueByIndex(9, OutCharacter.EquippedArmorVnum) ||
 			!Row.GetColumnValueByIndex(10, OutCharacter.EquippedWeaponVnum) ||
-			!Row.GetColumnValueByIndex(11, OutCharacter.EquippedHairVnum))
+			!Row.GetColumnValueByIndex(11, OutCharacter.EquippedHairVnum) ||
+			!Row.GetColumnValueByIndex(12, OutCharacter.HairShape))
 		{
 			return false;
 		}
@@ -212,6 +213,8 @@ struct FMT2PersistenceBackend::FImpl
 	TArray<FString> SchemaStatements() const
 	{
 		return {
+			TEXT("CREATE TABLE IF NOT EXISTS player_hair (player_id TEXT PRIMARY KEY,hair_shape INTEGER NOT NULL DEFAULT 0,expires_at INTEGER NOT NULL DEFAULT 0,FOREIGN KEY(player_id) REFERENCES players(player_id) ON DELETE CASCADE);"),
+			TEXT("CREATE TABLE IF NOT EXISTS item_realtime_expiry (item_instance_id TEXT PRIMARY KEY,expires_at INTEGER NOT NULL,FOREIGN KEY(item_instance_id) REFERENCES items(item_instance_id) ON DELETE CASCADE);"),
 			TEXT("CREATE TABLE IF NOT EXISTS accounts (account_id TEXT PRIMARY KEY,username_normalized TEXT NOT NULL UNIQUE COLLATE NOCASE,display_name TEXT NOT NULL,password_algorithm TEXT NOT NULL,password_salt TEXT NOT NULL,password_hash TEXT NOT NULL,status INTEGER NOT NULL DEFAULT 0,failed_attempts INTEGER NOT NULL DEFAULT 0,locked_until INTEGER NOT NULL DEFAULT 0);"),
 			TEXT("CREATE TABLE IF NOT EXISTS players (player_id TEXT PRIMARY KEY,account_id TEXT NOT NULL,character_name TEXT NOT NULL UNIQUE COLLATE NOCASE,character_index INTEGER NOT NULL,level INTEGER NOT NULL DEFAULT 1,experience INTEGER NOT NULL DEFAULT 0,experience_milestone_step INTEGER NOT NULL DEFAULT 0,unspent_stat_points INTEGER NOT NULL DEFAULT 0,unspent_skill_points INTEGER NOT NULL DEFAULT 0,race INTEGER NOT NULL DEFAULT 0,sex INTEGER NOT NULL DEFAULT 0,style INTEGER NOT NULL DEFAULT 0,empire INTEGER NOT NULL DEFAULT 0,guild_id INTEGER NOT NULL DEFAULT 0,guild_name TEXT NOT NULL DEFAULT '',karma INTEGER NOT NULL DEFAULT 0,yang INTEGER NOT NULL DEFAULT 0,st INTEGER NOT NULL DEFAULT 0,dx INTEGER NOT NULL DEFAULT 0,ht INTEGER NOT NULL DEFAULT 0,iq INTEGER NOT NULL DEFAULT 0,health REAL NOT NULL DEFAULT 100,max_health REAL NOT NULL DEFAULT 100,mana REAL NOT NULL DEFAULT 100,max_mana REAL NOT NULL DEFAULT 100,stamina REAL NOT NULL DEFAULT 100,max_stamina REAL NOT NULL DEFAULT 100,movement_speed REAL NOT NULL DEFAULT 100,skill_group INTEGER NOT NULL DEFAULT 0,map_id TEXT NOT NULL,channel INTEGER NOT NULL DEFAULT 1,position_valid INTEGER NOT NULL DEFAULT 0,pos_x REAL NOT NULL DEFAULT 0,pos_y REAL NOT NULL DEFAULT 0,pos_z REAL NOT NULL DEFAULT 0,rotation_pitch REAL NOT NULL DEFAULT 0,rotation_yaw REAL NOT NULL DEFAULT 0,rotation_roll REAL NOT NULL DEFAULT 0,skills TEXT NOT NULL DEFAULT '',quickslots TEXT NOT NULL DEFAULT '',affects TEXT NOT NULL DEFAULT '',startup_items_granted INTEGER NOT NULL DEFAULT 0,UNIQUE(account_id,character_index),FOREIGN KEY(account_id) REFERENCES accounts(account_id) ON DELETE CASCADE);"),
 			TEXT("CREATE TABLE IF NOT EXISTS items (item_instance_id TEXT PRIMARY KEY,owner_player_id TEXT NOT NULL,storage_type INTEGER NOT NULL,slot_index INTEGER NOT NULL,vnum INTEGER NOT NULL,item_count INTEGER NOT NULL DEFAULT 1,bonus_type_0 INTEGER NOT NULL DEFAULT 0,bonus_value_0 INTEGER NOT NULL DEFAULT 0,bonus_type_1 INTEGER NOT NULL DEFAULT 0,bonus_value_1 INTEGER NOT NULL DEFAULT 0,bonus_type_2 INTEGER NOT NULL DEFAULT 0,bonus_value_2 INTEGER NOT NULL DEFAULT 0,bonus_type_3 INTEGER NOT NULL DEFAULT 0,bonus_value_3 INTEGER NOT NULL DEFAULT 0,bonus_type_4 INTEGER NOT NULL DEFAULT 0,bonus_value_4 INTEGER NOT NULL DEFAULT 0,rare_bonus_type_0 INTEGER NOT NULL DEFAULT 0,rare_bonus_value_0 INTEGER NOT NULL DEFAULT 0,rare_bonus_type_1 INTEGER NOT NULL DEFAULT 0,rare_bonus_value_1 INTEGER NOT NULL DEFAULT 0,socket_0 INTEGER NOT NULL DEFAULT 0,socket_1 INTEGER NOT NULL DEFAULT 0,socket_2 INTEGER NOT NULL DEFAULT 0,UNIQUE(owner_player_id,storage_type,slot_index),FOREIGN KEY(owner_player_id) REFERENCES players(player_id) ON DELETE CASCADE);"),
@@ -362,12 +365,21 @@ struct FMT2PersistenceBackend::FImpl
 			}) != INDEX_NONE;
 		};
 
+		FSQLitePreparedStatement Hair = Database.PrepareStatement(TEXT("SELECT hair_shape,expires_at FROM player_hair WHERE player_id=?;"));
+		if (!Hair.IsValid() || !Hair.SetBindingValueByIndex(1, PlayerId) || Hair.Execute([&](const FSQLitePreparedStatement& Row)
+		{
+			int32 Shape = 0; int64 Expiry = 0;
+			if (!Row.GetColumnValueByIndex(0, Shape) || !Row.GetColumnValueByIndex(1, Expiry)) return ESQLitePreparedStatementExecuteRowResult::Error;
+			Root->SetNumberField(TEXT("hair_shape"), Shape); Root->SetNumberField(TEXT("hair_expires_at"), static_cast<double>(Expiry));
+			return ESQLitePreparedStatementExecuteRowResult::Stop;
+		}) == INDEX_NONE) { Result.Error = DatabaseError(Database, TEXT("Could not load hairstyle")); return Result; }
 		TArray<TSharedPtr<FJsonValue>> Items;
-		if (!ReadObjectArray(TEXT("SELECT storage_type,slot_index,vnum,item_count,bonus_type_0,bonus_value_0,bonus_type_1,bonus_value_1,bonus_type_2,bonus_value_2,bonus_type_3,bonus_value_3,bonus_type_4,bonus_value_4,rare_bonus_type_0,rare_bonus_value_0,rare_bonus_type_1,rare_bonus_value_1,socket_0,socket_1,socket_2 FROM items WHERE owner_player_id=? ORDER BY storage_type,slot_index;"),
+		if (!ReadObjectArray(TEXT("SELECT storage_type,slot_index,vnum,item_count,bonus_type_0,bonus_value_0,bonus_type_1,bonus_value_1,bonus_type_2,bonus_value_2,bonus_type_3,bonus_value_3,bonus_type_4,bonus_value_4,rare_bonus_type_0,rare_bonus_value_0,rare_bonus_type_1,rare_bonus_value_1,socket_0,socket_1,socket_2,COALESCE((SELECT expires_at FROM item_realtime_expiry e WHERE e.item_instance_id=items.item_instance_id),0) FROM items WHERE owner_player_id=? ORDER BY storage_type,slot_index;"),
 			[](const FSQLitePreparedStatement& Row)
 			{
 				int32 Storage=0,Slot=0,Vnum=0,Count=0; Row.GetColumnValueByIndex(0,Storage); Row.GetColumnValueByIndex(1,Slot); Row.GetColumnValueByIndex(2,Vnum); Row.GetColumnValueByIndex(3,Count);
 				TSharedRef<FJsonObject> O=MakeShared<FJsonObject>(); O->SetNumberField(TEXT("container"),Storage); O->SetNumberField(TEXT("slot"),Slot); O->SetNumberField(TEXT("vnum"),Vnum); O->SetNumberField(TEXT("count"),Count);
+				int64 Expiry = 0; Row.GetColumnValueByIndex(21, Expiry); O->SetNumberField(TEXT("realtime_expires_at"), static_cast<double>(Expiry));
 				for (int32 Index=0;Index<5;++Index)
 				{
 					int32 Type=0,Value=0; Row.GetColumnValueByIndex(4+Index*2,Type); Row.GetColumnValueByIndex(5+Index*2,Value);
@@ -472,7 +484,13 @@ struct FMT2PersistenceBackend::FImpl
 			Statement.SetBindingValueByIndex(15, Int64Field(Root,TEXT("yang"))) &&
 			Statement.SetBindingValueByIndex(16, BooleanField(Root,TEXT("startup_items_granted")) ? 1 : 0) &&
 			Statement.SetBindingValueByIndex(17, Record.EntityId);
-		if (bBound && Statement.Execute()) return true;
+		if (bBound && Statement.Execute())
+		{
+			FSQLitePreparedStatement Hair = Database.PrepareStatement(TEXT("INSERT INTO player_hair(player_id,hair_shape,expires_at) VALUES(?,?,?) ON CONFLICT(player_id) DO UPDATE SET hair_shape=excluded.hair_shape,expires_at=excluded.expires_at;"));
+			if (Hair.IsValid() && Hair.SetBindingValueByIndex(1, Record.EntityId) &&
+				Hair.SetBindingValueByIndex(2, IntegerField(Root, TEXT("hair_shape"))) &&
+				Hair.SetBindingValueByIndex(3, Int64Field(Root, TEXT("hair_expires_at"))) && Hair.Execute()) return true;
+		}
 		OutError = DatabaseError(Database, TEXT("Could not save player core fields"));
 		return false;
 	}
@@ -555,6 +573,13 @@ struct FMT2PersistenceBackend::FImpl
 				if (!bBound || !Insert.Execute())
 				{
 					OutError=DatabaseError(Database,TEXT("Could not insert player item")); return false;
+				}
+				const int64 Expiry = Int64Field(Item, TEXT("realtime_expires_at"));
+				if (Expiry > 0)
+				{
+					FSQLitePreparedStatement Timer = Database.PrepareStatement(TEXT("INSERT INTO item_realtime_expiry(item_instance_id,expires_at) VALUES(?,?);"));
+					if (!Timer.IsValid() || !Timer.SetBindingValueByIndex(1, InstanceId) || !Timer.SetBindingValueByIndex(2, Expiry) || !Timer.Execute())
+					{ OutError = DatabaseError(Database, TEXT("Could not save item expiry")); return false; }
 				}
 			}
 		}
@@ -734,7 +759,8 @@ struct FMT2PersistenceBackend::FImpl
 			"COALESCE((SELECT i.vnum FROM items i WHERE i.owner_player_id=p.player_id AND i.storage_type=1 AND i.slot_index=0 LIMIT 1),0),"
 			"COALESCE((SELECT i.vnum FROM items i WHERE i.owner_player_id=p.player_id AND i.storage_type=1 AND i.slot_index=4 LIMIT 1),0),"
 			"COALESCE((SELECT i.vnum FROM items i WHERE i.owner_player_id=p.player_id AND i.storage_type=1 AND i.slot_index=20 LIMIT 1),"
-			"(SELECT i.vnum FROM items i WHERE i.owner_player_id=p.player_id AND i.storage_type=1 AND i.slot_index=1 LIMIT 1),0) "
+			"(SELECT i.vnum FROM items i WHERE i.owner_player_id=p.player_id AND i.storage_type=1 AND i.slot_index=1 LIMIT 1),0), "
+			"COALESCE((SELECT CASE WHEN h.expires_at=0 OR h.expires_at>CAST(strftime('%s','now') AS INTEGER) THEN h.hair_shape ELSE 0 END FROM player_hair h WHERE h.player_id=p.player_id),0) "
 			"FROM players p WHERE p.account_id=? ORDER BY p.character_index LIMIT 4;"));
 		if(!S.IsValid()||!S.SetBindingValueByIndex(1,AccountId)){OutError=DatabaseError(Database,TEXT("Could not prepare character list"));return false;}
 		const int64 Rows=S.Execute([&](const FSQLitePreparedStatement& Row){FMT2CharacterSummary& C=Out.AddDefaulted_GetRef();return ReadCharacterSummaryRow(Row,C)?ESQLitePreparedStatementExecuteRowResult::Continue:ESQLitePreparedStatementExecuteRowResult::Error;});
@@ -843,7 +869,8 @@ FMT2CharacterCreateResult FMT2PersistenceBackend::FindCharacter(const FString& A
 		"COALESCE((SELECT i.vnum FROM items i WHERE i.owner_player_id=p.player_id AND i.storage_type=1 AND i.slot_index=0 LIMIT 1),0),"
 		"COALESCE((SELECT i.vnum FROM items i WHERE i.owner_player_id=p.player_id AND i.storage_type=1 AND i.slot_index=4 LIMIT 1),0),"
 		"COALESCE((SELECT i.vnum FROM items i WHERE i.owner_player_id=p.player_id AND i.storage_type=1 AND i.slot_index=20 LIMIT 1),"
-		"(SELECT i.vnum FROM items i WHERE i.owner_player_id=p.player_id AND i.storage_type=1 AND i.slot_index=1 LIMIT 1),0) "
+		"(SELECT i.vnum FROM items i WHERE i.owner_player_id=p.player_id AND i.storage_type=1 AND i.slot_index=1 LIMIT 1),0), "
+		"COALESCE((SELECT CASE WHEN h.expires_at=0 OR h.expires_at>CAST(strftime('%s','now') AS INTEGER) THEN h.hair_shape ELSE 0 END FROM player_hair h WHERE h.player_id=p.player_id),0) "
 		"FROM players p WHERE p.account_id=? AND p.player_id=? LIMIT 1;"));
 	if(!S.IsValid()||!S.SetBindingValueByIndex(1,AccountId)||!S.SetBindingValueByIndex(2,CharacterId)){Result.Error=DatabaseError(Impl->Database,TEXT("Could not prepare character lookup"));return Result;}
 	const int64 Rows=S.Execute([&](const FSQLitePreparedStatement& Row){return ReadCharacterSummaryRow(Row,Result.Character)?ESQLitePreparedStatementExecuteRowResult::Continue:ESQLitePreparedStatementExecuteRowResult::Error;});Result.bSucceeded=Rows==1;if(!Result.bSucceeded)Result.Error=TEXT("Character does not belong to this account.");return Result;

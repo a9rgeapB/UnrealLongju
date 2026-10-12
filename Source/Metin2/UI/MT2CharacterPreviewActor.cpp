@@ -356,6 +356,8 @@ void AMT2CharacterPreviewActor::ApplyCharacterSummary(const FMT2CharacterSummary
 		Registry->ResolveItemTemplateClass(Character.EquippedHairVnum).GetDefaultObject());
 	const FMT2HairMeshVariant* HairVariant =
 		HairCostume ? HairCostume->ResolveHairVariant(Character.Appearance) : nullptr;
+	if (!HairVariant && Character.HairShape != 0)
+		HairVariant = GetDefault<UMT2CharacterAppearanceSettings>()->FindHair(Character.HairShape, Character.Appearance);
 	if (HairVariant && !HairVariant->Mesh.IsNull())
 	{
 		HairMesh->EmptyOverrideMaterials();

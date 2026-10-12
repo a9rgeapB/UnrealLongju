@@ -28,6 +28,13 @@ int32 UMT2ImportItemsCommandlet::Main(const FString& Params)
 	FString DestinationRoot = UMT2PathSettings::Path(TEXT("ImportDestinationRoot"));
 	FParse::Value(*Params, TEXT("Source="), SourceRoot);
 	FParse::Value(*Params, TEXT("Destination="), DestinationRoot);
+	if (FParse::Param(*Params, TEXT("HairCatalogOnly")))
+	{
+		FString HairError;
+		if (!FMT2ItemImporter::ImportHairCatalog(SourceRoot, DestinationRoot, HairError))
+		{ UE_LOG(LogTemp, Error, TEXT("%s"), *HairError); return 1; }
+		return 0;
+	}
 
 	TArray<FMT2ItemImportRecord> Records;
 	TArray<FString> Warnings;

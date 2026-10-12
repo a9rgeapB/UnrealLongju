@@ -45,6 +45,7 @@ struct FMT2ItemImportResult
 class FMT2ItemImporter
 {
 public:
+	static bool ImportHairCatalog(const FString& SourceRoot, const FString& DestinationRoot, FString& OutError);
 	static bool Discover(
 		const FString& SourceRoot,
 		const FString& DestinationRoot,

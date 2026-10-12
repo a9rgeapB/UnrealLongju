@@ -307,6 +307,8 @@ class METIN2_API UMT2QuestNode_GiveItem : public UMT2QuestNode
 
 public:
 	virtual EMT2QuestNodeResult Execute(const FMT2QuestContext& Context) override;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item") bool bSelectGivenItem = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item") FName SelectionResultVariable;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	int32 ItemVnum = 0;

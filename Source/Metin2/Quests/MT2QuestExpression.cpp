@@ -381,7 +381,7 @@ namespace
 			TEXT("is_test_server"), TEXT("get_global_time"), TEXT("pc_find_skill_teacher_vid"),
 			TEXT("pc.is_clear_skill_group"), TEXT("pc.get_skill_group_name"), TEXT("pc.is_polymorphed"),
 			TEXT("pc.is_engaged"), TEXT("pc.is_married"), TEXT("pc.has_guild"), TEXT("pc.is_riding"),
-			TEXT("pc.count_item_by_vnum"), TEXT("pc.get_wear"), TEXT("pc.get_part"),
+			TEXT("pc.count_item_by_vnum"), TEXT("pc.get_wear"), TEXT("pc.get_part"), TEXT("pc.set_part"),
 			// Spelling variants the scripts use interchangeably with the ones above, plus the reads
 			// that had no binding at all (each one blocked every condition it appeared in).
 			TEXT("pc.is_mount"), TEXT("pc.hasguild"), TEXT("pc.getempire"), TEXT("pc.get_guild"),
@@ -396,6 +396,7 @@ namespace
 			TEXT("horse.is_dead"), TEXT("horse.is_ride"), TEXT("npc.get_guild"),
 			TEXT("item.get_socket"), TEXT("item.get_vnum"), TEXT("item.vnum"),
 			TEXT("item.get_count"), TEXT("item.get_cell"), TEXT("item.get_value"),
+			TEXT("item.start_realtime_expire"),
 			TEXT("__fish_real_refine_rod"),
 			TEXT("item.get_type"), TEXT("item.get_sub_type"), TEXT("item.get_level"),
 			TEXT("item.get_level_limit"), TEXT("item.get_refine_vnum"), TEXT("item.next_refine_vnum"),
@@ -1294,9 +1295,27 @@ namespace
 			Party->SetScriptFlag(FlagName, static_cast<int32>(Value));
 			return FMT2QuestValue();
 		}
+		if (Name == TEXT("pc.get_part") || Name == TEXT("pc.set_part"))
+		{
+			double Part = 0, Shape = 0;
+			if (!State || !TryNumericValue(Argument(0), Part) || Part != 3 ||
+				(Name == TEXT("pc.set_part") && (!Player || !Player->HasAuthority() ||
+				!TryNumericValue(Argument(1), Shape) || !FMath::IsFinite(Shape) || Shape < 0 || Shape > MAX_int32 ||
+				FMath::FloorToDouble(Shape) != Shape))) { bOutOk = false; return FMT2QuestValue(); }
+			if (Name == TEXT("pc.get_part")) return FMT2QuestValue(State->GetHairShape());
+			bOutOk = Context.PlayerState->SetHairShape(static_cast<int32>(Shape));
+			return FMT2QuestValue();
+		}
+		if (Name == TEXT("pc.get_wear"))
+		{
+			double Slot = 0;
+			if (!Inventory || !TryNumericValue(Argument(0), Slot) || !FMath::IsFinite(Slot) || Slot < 0 ||
+				Slot >= Inventory->GetEquipment().Num() || FMath::FloorToDouble(Slot) != Slot) return FMT2QuestValue();
+			const FMT2ItemSlot& Item = Inventory->GetEquipment()[static_cast<int32>(Slot)];
+			return Item.IsEmpty() ? FMT2QuestValue() : FMT2QuestValue(Item.Vnum);
+		}
 		if (Name == TEXT("pc.is_polymorphed") || Name == TEXT("pc.is_engaged") ||
-			Name == TEXT("pc.is_married") ||
-			Name == TEXT("pc.get_wear") || Name == TEXT("pc.get_part"))
+			Name == TEXT("pc.is_married"))
 		{
 			return FMT2QuestValue(0.0);
 		}
@@ -1413,6 +1432,11 @@ namespace
 			return FMT2QuestValue(Item ? Item->RefinedVnum : 0);
 		}
 
+		if (Name == TEXT("item.start_realtime_expire"))
+		{
+			if (!Context.Player || !Context.Player->HasAuthority() || !Context.Player->GetInventoryComponent()->StartItemRealtimeExpiry(Context.EventItemSlot)) bOutOk = false;
+			return FMT2QuestValue();
+		}
 		// ---- the item that raised this event (item.* reads) ----
 		if (Name.StartsWith(TEXT("item.")))
 		{
@@ -1925,6 +1949,7 @@ namespace
 				if (Name == TEXT("true"))  { return FMT2QuestValue::Boolean(true); }
 				if (Name == TEXT("false")) { return FMT2QuestValue::Boolean(false); }
 				if (Name == TEXT("nil")) { return FMT2QuestValue(); }
+				if (Name == TEXT("PART_HAIR")) { return FMT2QuestValue(3); }
 
 				// Call
 				if (IsOperator(TEXT("(")))

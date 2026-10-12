@@ -74,6 +74,7 @@ namespace
 
 UMT2CharacterAppearanceSettings::UMT2CharacterAppearanceSettings()
 {
+	HairCatalog = TSoftObjectPtr<UMT2HairCatalog>(FSoftObjectPath(TEXT("/Game/Logic/Items/DA_HairCatalog.DA_HairCatalog")));
 	const bool bBuildDefaultAppearances = Appearances.IsEmpty();
 	const bool bBuildDefaultAnimationProfiles = AnimationProfiles.IsEmpty();
 
@@ -129,6 +130,20 @@ UMT2CharacterAppearanceSettings::UMT2CharacterAppearanceSettings()
 			}
 		}
 	}
+}
+
+const FMT2HairMeshVariant* UMT2HairCatalog::Find(int32 Shape, const FMT2CharacterAppearance& Appearance) const
+{
+	const FMT2HairShape* Entry = Shapes.FindByPredicate([Shape](const FMT2HairShape& Value) { return Value.Shape == Shape; });
+	return Entry ? Entry->Variants.FindByPredicate([&Appearance](const FMT2HairMeshVariant& Variant)
+		{ return Variant.Race == Appearance.Race && Variant.Sex == Appearance.Sex; }) : nullptr;
+}
+
+const FMT2HairMeshVariant* UMT2CharacterAppearanceSettings::FindHair(int32 Shape, const FMT2CharacterAppearance& Appearance) const
+{
+	if (!LoadedHairCatalog || LoadedHairCatalog->GetPathName() != HairCatalog.ToSoftObjectPath().ToString())
+		LoadedHairCatalog = HairCatalog.LoadSynchronous();
+	return LoadedHairCatalog ? LoadedHairCatalog->Find(Shape, Appearance) : nullptr;
 }
 
 const FMT2CharacterAnimationProfile* UMT2CharacterAppearanceSettings::FindAnimationProfile(

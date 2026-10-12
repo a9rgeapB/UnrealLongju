@@ -49,6 +49,7 @@ bool MT2ItemUtils::HaveSameInstanceData(const FMT2ItemSlot& Left, const FMT2Item
 {
 	if (Left.Vnum != Right.Vnum ||
 		Left.SkillVnum != Right.SkillVnum ||
+		Left.RealtimeExpiresAt != Right.RealtimeExpiresAt ||
 		Left.AutoRecoveryRemainingAmount != Right.AutoRecoveryRemainingAmount ||
 		Left.AutoRecoveryMaximumAmount != Right.AutoRecoveryMaximumAmount ||
 		Left.bAutoRecoveryActive != Right.bAutoRecoveryActive ||

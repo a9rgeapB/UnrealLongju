@@ -351,7 +351,22 @@ EMT2QuestNodeResult UMT2QuestNode_GiveItem::Execute(const FMT2QuestContext& Cont
 			}
 		}
 		const int32 RequestedCount = FMath::Max(ResolveAmount(CountExpression, Count, Context), 1);
+		TArray<int32> BeforeCounts;
+		if (bSelectGivenItem)
+			for (const FMT2ItemSlot& Slot : Inventory->GetSlots()) BeforeCounts.Add(Slot.Vnum == ResolvedVnum ? Slot.Count : 0);
 		const int32 AddedCount = Inventory->AddItemByVnumPartial(ResolvedVnum, RequestedCount);
+		if (bSelectGivenItem && Context.Manager)
+		{
+			if (AddedCount > 0)
+			{
+				const auto& Slots = Inventory->GetSlots();
+				for (int32 Index = 0; Index < Slots.Num(); ++Index)
+					if (Slots[Index].Vnum == ResolvedVnum && Slots[Index].Count > (BeforeCounts.IsValidIndex(Index) ? BeforeCounts[Index] : 0))
+					{ Context.Manager->SelectEventItem(Index); break; }
+			}
+			// The legacy select variant sets the current item but returns no Lua values.
+			if (!SelectionResultVariable.IsNone()) Context.Manager->SetScriptVariable(SelectionResultVariable, FMT2QuestValue());
+		}
 		UE_LOG(LogMT2QuestRuntime, Log,
 			TEXT("[Quest] Player=%s Quest=%s gave ItemVnum=%d Count=%d/%d."),
 			Context.PlayerState ? *Context.PlayerState->GetCharacterName() : TEXT("Unknown"),
@@ -774,6 +789,7 @@ EMT2QuestNodeResult UMT2QuestNode_ModifyAffect::Execute(const FMT2QuestContext& 
 	if (Operation == EMT2QuestAffectOperation::RemoveHair)
 	{
 		Effects->RemoveEffectsByType(514); // AFFECT_HAIR
+		if (Context.PlayerState) Context.PlayerState->SetHairExpiry(0);
 		return EMT2QuestNodeResult::Continue;
 	}
 
@@ -787,6 +803,8 @@ EMT2QuestNodeResult UMT2QuestNode_ModifyAffect::Execute(const FMT2QuestContext& 
 	{
 		Effect.Type = 514; // AFFECT_HAIR
 		Effects->AddEffect(Effect, true);
+		if (Context.PlayerState && Effect.RemainingSeconds > 0)
+			Context.PlayerState->SetHairExpiry(FDateTime::UtcNow().ToUnixTimestamp() + Effect.RemainingSeconds);
 	}
 	else if (Operation == EMT2QuestAffectOperation::AddCollect)
 	{

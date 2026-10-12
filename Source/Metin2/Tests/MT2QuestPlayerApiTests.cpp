@@ -399,6 +399,55 @@ bool FMT2QuestAlignmentPersistenceTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2HairPersistenceTest, "Metin2.Quests.PlayerApi.HairPersistence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2HairPersistenceTest::RunTest(const FString& Parameters)
+{
+	FMT2PersistenceBackendConfig Config;
+	Config.RootDirectory = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("Automation/Hair") / FGuid::NewGuid().ToString(EGuidFormats::Digits));
+	TSharedPtr<FMT2PersistenceBackend, ESPMode::ThreadSafe> Backend;
+	ON_SCOPE_EXIT { Backend.Reset(); IFileManager::Get().DeleteDirectory(*Config.RootDirectory, false, true); };
+	Backend = MakeShared<FMT2PersistenceBackend, ESPMode::ThreadSafe>(Config);
+	FString Error;
+	if (!TestTrue(TEXT("Database opens"), Backend->Initialize(Error))) return false;
+	const auto Account = Backend->RegisterAccount(TEXT("hair_fixture"), TEXT("salt"), TEXT("hash"));
+	const auto Character = Backend->CreateCharacter(Account.AccountId, TEXT("HairFixture"), FMT2CharacterAppearance(), EMT2Empire::Shinsoo, TEXT("yongan"));
+	if (!TestTrue(TEXT("Character created"), Character.bSucceeded)) return false;
+	auto Loaded = Backend->Load(TEXT("player"), Character.Character.CharacterId);
+	TSharedPtr<FJsonObject> Root;
+	if (!TestTrue(TEXT("Initial state loads"), Loaded.bSucceeded && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Loaded.Record.PayloadJson), Root))) return false;
+	const int64 Deadline = FDateTime::UtcNow().ToUnixTimestamp() + 604800;
+	Root->SetNumberField(TEXT("hair_shape"), 1001);
+	Root->SetNumberField(TEXT("hair_expires_at"), static_cast<double>(Deadline));
+	TSharedRef<FJsonObject> Item = MakeShared<FJsonObject>();
+	Item->SetNumberField(TEXT("container"), 0); Item->SetNumberField(TEXT("slot"), 0);
+	Item->SetNumberField(TEXT("vnum"), 73001); Item->SetNumberField(TEXT("count"), 1);
+	Item->SetNumberField(TEXT("realtime_expires_at"), static_cast<double>(Deadline));
+	Root->SetArrayField(TEXT("items"), {MakeShared<FJsonValueObject>(Item)});
+	FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<>::Create(&Loaded.Record.PayloadJson));
+	if (!TestTrue(TEXT("Hair state saved"), Backend->Save(Loaded.Record).bSucceeded)) return false;
+	Backend.Reset(); Backend = MakeShared<FMT2PersistenceBackend, ESPMode::ThreadSafe>(Config);
+	if (!TestTrue(TEXT("Existing schema reopens"), Backend->Initialize(Error))) return false;
+	Loaded = Backend->Load(TEXT("player"), Character.Character.CharacterId);
+	if (!TestTrue(TEXT("Saved state loads"), Loaded.bSucceeded && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Loaded.Record.PayloadJson), Root))) return false;
+	TestEqual(TEXT("Shape survives database roundtrip"), Root->GetNumberField(TEXT("hair_shape")), 1001.0);
+	TestEqual(TEXT("Hair deadline survives database roundtrip"), Root->GetNumberField(TEXT("hair_expires_at")), static_cast<double>(Deadline));
+	TestEqual(TEXT("Item deadline survives database roundtrip"), Root->GetArrayField(TEXT("items"))[0]->AsObject()->GetNumberField(TEXT("realtime_expires_at")), static_cast<double>(Deadline));
+	const auto Found = Backend->FindCharacter(Account.AccountId, Character.Character.CharacterId);
+	TestTrue(TEXT("Character summary includes current hair"), Found.bSucceeded && Found.Character.HairShape == 1001);
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	ON_SCOPE_EXIT { World->DestroyWorld(false); };
+	AMT2PlayerState* State = World->SpawnActor<AMT2PlayerState>();
+	State->GetAbilitySystemComponent()->AddAttributeSetSubobject(State->GetCoreAttributes());
+	State->GetAbilitySystemComponent()->InitAbilityActorInfo(State, State);
+	TestTrue(TEXT("Player restores hair"), State->ApplyPersistentStateJson_Implementation(Loaded.Record.PayloadJson));
+	TestEqual(TEXT("Restored visual shape"), State->GetHairShape(), 1001);
+	TestFalse(TEXT("Unknown shape rejected"), State->SetHairShape(MAX_int32));
+	State->SetHairExpiry(FDateTime::UtcNow().ToUnixTimestamp() - 1);
+	TestEqual(TEXT("Offline deadline resets hair"), State->GetHairShape(), 0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2QuestPlayerResourcesTest,
 	"Metin2.Quests.PlayerApi.Resources",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -384,6 +384,10 @@ void UMT2InventoryWidget::HandleGridSlotRightClicked(int32 SlotIndex, EMT2Invent
 		{
 			Player->ServerOpenInventoryLootCrate(SlotIndex, INDEX_NONE);
 		}
+		else if (Cast<UMT2ItemHairTemplate>(Template))
+		{
+			Player->ServerUseInventoryItem(SlotIndex);
+		}
 		else if (Cast<UMT2ItemEquipmentTemplate>(Template) || Cast<UMT2ItemRodTemplate>(Template))
 		{
 			Player->ServerEquipInventoryItem(SlotIndex);
@@ -393,7 +397,7 @@ void UMT2InventoryWidget::HandleGridSlotRightClicked(int32 SlotIndex, EMT2Invent
 			// A skill book targets its own skill (book Value0): right-click reads it directly.
 			Player->ServerReadSkillBook(SlotIndex);
 		}
-		else if (Cast<UMT2ItemUseTemplate>(Template))
+		else if (Cast<UMT2ItemUseTemplate>(Template) || Cast<UMT2ItemQuestTemplate>(Template))
 		{
 			Player->ServerUseInventoryItem(SlotIndex);
 		}
