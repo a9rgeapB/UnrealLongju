@@ -8,6 +8,8 @@
 */
 
 #include "Quests/MT2QuestNode.h"
+#include "Dungeons/MT2DungeonSubsystem.h"
+#include "Dungeons/MT2DungeonRoom.h"
 #include "Config/MT2PathSettings.h"
 
 #include "Characters/MT2PlayerCharacter.h"
@@ -682,11 +684,21 @@ EMT2QuestNodeResult UMT2QuestNode_SetState::Execute(const FMT2QuestContext& Cont
 
 EMT2QuestNodeResult UMT2QuestNode_Notice::Execute(const FMT2QuestContext& Context)
 {
+	const FString Text = Context.Manager ? Context.Manager->ExpandQuestText(Message, Context) : Message.ToString();
+	if (bDungeonScoped)
+	{
+		auto* Room = Context.Manager ? Context.Manager->GetQuestDungeon(Context) : nullptr;
+		if (!Room) return EMT2QuestNodeResult::Stop;
+		for (auto Member : Room->GetScriptMembers()) if (Member.IsValid())
+			if (auto* Player = Member->GetPawn())
+				if (auto* Controller = Cast<AMT2PlayerController>(Player->GetController())) Controller->SendSystemChatMessage(Text);
+		return EMT2QuestNodeResult::Continue;
+	}
 	if (Context.Player)
 	{
 		if (AMT2PlayerController* Controller = Cast<AMT2PlayerController>(Context.Player->GetController()))
 		{
-			Controller->SendSystemChatMessage(Message.ToString());
+			Controller->SendSystemChatMessage(Text);
 		}
 	}
 	return EMT2QuestNodeResult::Continue;
@@ -1007,7 +1019,14 @@ EMT2QuestNodeResult UMT2QuestNode_StartTimer::Execute(const FMT2QuestContext& Co
 			Argument = Evaluated;
 		}
 	}
-	Context.Manager->StartQuestTimer(TimerName, Delay, bServerTimer, bLooping, Argument, Context.Quest);
+	UMT2QuestManagerComponent* Owner = Context.Manager;
+	if (bServerTimer)
+	{
+		auto* Dungeon = Owner->GetWorld() ? Owner->GetWorld()->GetSubsystem<UMT2DungeonSubsystem>() : nullptr;
+		auto* Room = Dungeon && !Argument.bIsNil ? Dungeon->FindQuestDungeon(Argument.AsInt()) : Owner->GetQuestDungeon(Context);
+		if (Room) Owner = Room->GetScriptExecutor();
+	}
+	Owner->StartQuestTimer(TimerName, Delay, bServerTimer, bLooping, Argument, Context.Quest);
 	return EMT2QuestNodeResult::Continue;
 }
 
@@ -1015,7 +1034,16 @@ EMT2QuestNodeResult UMT2QuestNode_ClearTimer::Execute(const FMT2QuestContext& Co
 {
 	if (Context.Manager)
 	{
-		Context.Manager->ClearQuestTimer(TimerName, Context.Quest);
+		UMT2QuestManagerComponent* Owner = Context.Manager;
+		if (bServerTimer)
+		{
+			bool bOk = true; auto Argument = ArgumentExpression.IsEmpty() ? FMT2QuestValue() : FMT2QuestExpression::Evaluate(ArgumentExpression, Context, bOk);
+			if (!bOk) return EMT2QuestNodeResult::Stop;
+			auto* Dungeon = Owner->GetWorld() ? Owner->GetWorld()->GetSubsystem<UMT2DungeonSubsystem>() : nullptr;
+			auto* Room = Dungeon && !Argument.bIsNil ? Dungeon->FindQuestDungeon(Argument.AsInt()) : Owner->GetQuestDungeon(Context);
+			if (Room) Owner = Room->GetScriptExecutor();
+		}
+		Owner->ClearQuestTimer(TimerName, Context.Quest);
 	}
 	return EMT2QuestNodeResult::Continue;
 }

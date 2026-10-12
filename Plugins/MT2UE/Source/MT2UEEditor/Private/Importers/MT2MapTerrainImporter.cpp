@@ -1013,7 +1013,7 @@ namespace
 		for (int32 LineIndex = 0; LineIndex < Lines.Num(); ++LineIndex)
 		{
 			FString Line = Lines[LineIndex].TrimStartAndEnd();
-			if (Line.IsEmpty() || Line.StartsWith(TEXT("//"))) continue;
+			if (Line.IsEmpty() || Line.StartsWith(TEXT("//")) || Line.StartsWith(TEXT("#"))) continue;
 			int32 CommentIndex = INDEX_NONE;
 			if (Line.FindChar(TEXT('/'), CommentIndex) && Line.Mid(CommentIndex).StartsWith(TEXT("//")))
 			{

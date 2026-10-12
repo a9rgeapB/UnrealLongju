@@ -180,6 +180,7 @@ bool UMT2MobSpawnComponent::SpawnGroup(int32 EntryIndex)
 		Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 		if (AMT2Mob* Mob = GetWorld()->SpawnActor<AMT2Mob>(MobClass, Location, FRotator(0.0f, Yaw, 0.0f), Parameters))
 		{
+			if (SpawnRegistration.IsBound() && !SpawnRegistration.Execute(Mob)) { Mob->Destroy(); continue; }
 			if (Entry.bForceAggressive) Mob->GetMobAIComponent()->SetForceAggressive(true);
 			Mob->OnDestroyed.AddUniqueDynamic(this, &UMT2MobSpawnComponent::HandleSpawnedMobDestroyed);
 			ActiveGroup.Members.Add(Mob);

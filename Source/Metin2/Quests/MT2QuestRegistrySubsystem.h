@@ -43,6 +43,7 @@ public:
 private:
 	friend class FMT2QuestTargetDispatchTest;
 	friend class FMT2QuestTriggerGateTest;
+	friend class FMT2QuestDungeonBindingsTest;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<const UMT2Quest>> Quests;
 

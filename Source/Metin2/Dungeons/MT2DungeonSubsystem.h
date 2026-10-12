@@ -15,6 +15,9 @@ public:
 	bool RegisterRoom(AMT2DungeonRoom* Room);
 	void UnregisterRoom(AMT2DungeonRoom* Room);
 	AMT2DungeonRoom* FindRoom(FName RoomId) const;
+	AMT2DungeonRoom* FindQuestDungeon(int32 Index) const;
+	AMT2DungeonRoom* FindRoomAtLocation(FVector Location) const;
+	AMT2DungeonRoom* FindQuestRoomAtPosition(int32 MapIndex, FVector2D XY) const;
 	AMT2DungeonRoom* GetPlayerRoom(const AMT2PlayerState* Player) const;
 	AMT2DungeonRoom* GetEnemyRoom(const AMT2Mob* Mob) const;
 	void ReconcilePlayer(AMT2PlayerState* Player);
@@ -25,6 +28,8 @@ public:
 	virtual void Deinitialize() override;
 private:
 	TMap<FName, TWeakObjectPtr<AMT2DungeonRoom>> Rooms;
+	TMap<int32, TWeakObjectPtr<AMT2DungeonRoom>> QuestDungeons;
+	int32 NextQuestDungeonSerial = 1;
 	TMap<TWeakObjectPtr<AMT2PlayerState>, TWeakObjectPtr<AMT2DungeonRoom>> Players;
 	TMap<TWeakObjectPtr<AMT2Mob>, TWeakObjectPtr<AMT2DungeonRoom>> Enemies;
 };

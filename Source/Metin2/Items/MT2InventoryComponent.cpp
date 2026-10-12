@@ -32,6 +32,7 @@
 #include "Player/MT2PlayerState.h"
 #include "Player/MT2PlayerController.h"
 #include "Quests/MT2QuestManagerComponent.h"
+#include "Quests/MT2QuestTableAsset.h"
 #include "Stats/MT2PrimaryStatsComponent.h"
 
 namespace
@@ -582,6 +583,9 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 	{
 		if (UMT2QuestManagerComponent* QuestManager = QuestOwner->GetQuestManagerComponent())
 		{
+			const UMT2QuestTableAsset* QuestTables = LoadObject<UMT2QuestTableAsset>(nullptr, UMT2QuestTableAsset::GetAssetPath());
+			const int32 Group = QuestTables ? QuestTables->QuestSpecialItemGroups.FindRef(Slots[InventorySlot].Vnum) : 0;
+			if (Group > 0 && QuestManager->DispatchEvent(EMT2QuestEvent::SpecialItemUse, Group, nullptr, InventorySlot)) return true;
 			if (QuestManager->DispatchEvent(
 				EMT2QuestEvent::ItemUse, Slots[InventorySlot].Vnum, nullptr, InventorySlot))
 			{

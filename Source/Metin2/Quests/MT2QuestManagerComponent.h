@@ -132,6 +132,13 @@ public:
 	// Name-matched dispatch for events that identify themselves by name rather than a vnum
 	// (Timer/ServerTimer, named target arrivals).
 	bool DispatchNamedEvent(EMT2QuestEvent Event, FName EventName, AActor* TargetActor = nullptr);
+	bool NotifyItemPicked(const FMT2ItemSlot& PickedItem);
+	AMT2DungeonRoom* GetQuestDungeon(const FMT2QuestContext& Context) const;
+	void SelectQuestDungeon(AMT2DungeonRoom* Room);
+	void AdvanceQuestDungeon(AMT2DungeonRoom* Room);
+	void DispatchDungeonTimer(AMT2DungeonRoom* Room, const UMT2Quest* Quest, FName TimerName, const FMT2QuestValue& Argument);
+	void ResetDungeonExecution();
+	void ClearDungeonTimers();
 
 	// Convenience for gameplay code that has an actor rather than the component: routes the event to
 	// that actor's quest manager when it is a player. Safe to call with anything (including null).
@@ -260,6 +267,7 @@ private:
 	friend class FMT2QuestLoweringTest;
 	friend class FMT2QuestCompactReturnTest;
 	friend class FMT2QuestRewardHelperTest;
+	friend class FMT2QuestDungeonBindingsTest;
 	friend class FMT2QuestStringImportTest;
 	friend class FMT2QuestResultListImportTest;
 	friend class FMT2QuestTargetDispatchTest;
@@ -275,7 +283,7 @@ private:
 	// Shared dispatch: EventName is set for name-matched events (timers), Vnum for the rest.
 	bool DispatchEventInternal(
 		EMT2QuestEvent Event, int32 Vnum, FName EventName, AActor* TargetActor, int32 ItemSlot = -1,
-		FName QuestId = NAME_None);
+		FName QuestId = NAME_None, const FMT2ItemSlot* PickedItem = nullptr);
 
 	// Runs one specific quest's trigger for an event, rather than broadcasting to every quest.
 	bool DispatchEventToQuest(const UMT2Quest* Quest, EMT2QuestEvent Event);
@@ -401,6 +409,8 @@ private:
 
 	// Argument of the timer being handled right now, for get_server_timer_arg().
 	FMT2QuestValue ActiveTimerArgument;
+	TWeakObjectPtr<AMT2DungeonRoom> SelectedQuestDungeon;
+	bool bQuestDungeonSelected = false;
 
 	void HandleQuestTimerFired(FName TimerName, FName QuestId);
 

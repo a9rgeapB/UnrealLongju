@@ -23,6 +23,7 @@
 #include "Persistence/MT2PersistenceComponent.h"
 #include "Party/MT2Party.h"
 #include "Player/MT2PlayerState.h"
+#include "Quests/MT2QuestManagerComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundAttenuation.h"
 #include "Skills/MT2SkillDefinition.h"
@@ -351,6 +352,8 @@ int64 AMT2WorldItem::TryPickup(
 		return 0;
 	}
 	WakeForReplication();
+	FMT2ItemSlot PickedItem = ItemInstance;
+	PickedItem.Count = AddedCount;
 	ItemInstance.Count -= AddedCount;
 	if (ItemInstance.Count <= 0)
 	{
@@ -360,6 +363,8 @@ int64 AMT2WorldItem::TryPickup(
 	{
 		ForceNetUpdate();
 	}
+	if (auto* Recipient = ReceivingCharacter->GetPlayerState<AMT2PlayerState>())
+		if (auto* Quests = Recipient->GetQuestManagerComponent()) Quests->NotifyItemPicked(PickedItem);
 	return AddedCount;
 }
 

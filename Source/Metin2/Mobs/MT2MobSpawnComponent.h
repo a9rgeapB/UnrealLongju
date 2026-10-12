@@ -15,6 +15,7 @@
 #include "MT2MobSpawnComponent.generated.h"
 
 class AMT2Mob;
+DECLARE_DELEGATE_RetVal_OneParam(bool, FMT2SpawnRegistration, AMT2Mob*);
 
 UCLASS(BlueprintType, ClassGroup = "MT2", meta = (BlueprintSpawnableComponent))
 class METIN2_API UMT2MobSpawnComponent : public UActorComponent
@@ -37,6 +38,8 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Mob Spawning")
 	void RespawnMissingMobs();
 	void ProcessSpawns();
+	// Optional authority-side ownership gate for room-script waves.
+	FMT2SpawnRegistration SpawnRegistration;
 
 protected:
 	virtual void BeginPlay() override;

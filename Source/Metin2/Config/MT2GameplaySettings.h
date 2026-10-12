@@ -95,6 +95,10 @@ class METIN2_API UMT2GameplaySettings : public UDeveloperSettings
 	GENERATED_BODY()
 
 public:
+	// Explicit bindings for symbolic quest item names absent from the source proto.
+	// Importer-only: runtime triggers are cooked as numeric VNUM filters.
+	UPROPERTY(EditAnywhere, config, Category = "Quests")
+	TMap<FString, int32> QuestItemTriggerAliases;
 	virtual FName GetCategoryName() const override { return TEXT("Metin2"); }
 
 	static const UMT2GameplaySettings& Get() { return *GetDefault<UMT2GameplaySettings>(); }

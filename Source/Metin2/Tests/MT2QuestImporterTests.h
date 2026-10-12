@@ -29,6 +29,107 @@
 #include "Items/MT2InventoryComponent.h"
 #include "Items/MT2ItemTemplate.h"
 #include "UObject/StrongObjectPtr.h"
+#include "Dungeons/MT2DungeonRoom.h"
+#include "Dungeons/MT2DungeonSubsystem.h"
+#include "GameFramework/WorldSettings.h"
+#include "TimerManager.h"
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2QuestEventAliasesTest, "Metin2.Quests.Importer.EventAliases",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2QuestEventAliasesTest::RunTest(const FString& Parameters)
+{
+	const TMap<FString,FString> Locale;
+	const TMap<FString,int32> Names = {{TEXT("questscroll1"),50301}, {TEXT("ITEM4_1"),31032}};
+	EMT2QuestEvent Event; int32 Vnum; FText Label; FName Name;
+	TestTrue(TEXT("Named item use"), ParseTriggerSpec(TEXT("questscroll1.use"), Locale, Event, Vnum, Label, &Names, &Name));
+	TestEqual(TEXT("Named item vnum"), Vnum, 50301);
+	TestTrue(TEXT("Named pickup"), ParseTriggerSpec(TEXT("ITEM4_1.pick"), Locale, Event, Vnum, Label, &Names, &Name));
+	TestEqual(TEXT("Pickup event"), Event, EMT2QuestEvent::ItemPick);
+	TestTrue(TEXT("Special group use"), ParseTriggerSpec(TEXT("10031.sig_use"), Locale, Event, Vnum, Label, &Names, &Name));
+	TestEqual(TEXT("Group event"), Event, EMT2QuestEvent::SpecialItemUse);
+	TestEqual(TEXT("Group identity preserved"), Vnum, 10031);
+	for (const auto& Spec : {TEXT("__TARGET__.target.click"), TEXT("__TARGET__target.click"), TEXT("__TARGET__.click")})
+	{
+		TestTrue(FString(TEXT("Target alias ")) + Spec, ParseTriggerSpec(Spec, Locale, Event, Vnum, Label, &Names, &Name));
+		TestEqual(TEXT("Target click dispatch"), Event, EMT2QuestEvent::TargetClick);
+		TestEqual(TEXT("Marker name retained"), Name, FName(TEXT("__TARGET__")));
+	}
+	TestFalse(TEXT("Unknown item does not become wildcard"), ParseTriggerSpec(TEXT("unknown_scroll.use"), Locale, Event, Vnum, Label, &Names, &Name));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2QuestDungeonBindingsTest, "Metin2.Quests.Importer.DungeonBindings",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2QuestDungeonBindingsTest::RunTest(const FString& Parameters)
+{
+	UWorld* Original = GWorld;
+	TStrongObjectPtr<UGameInstance> Instance(NewObject<UGameInstance>(GEngine));
+	Instance->InitializeStandalone(); UWorld* World = Instance->GetWorld();
+	World->InitializeActorsForPlay(FURL()); World->GetWorldSettings()->NotifyBeginPlay();
+	ON_SCOPE_EXIT { World->EndPlay(EEndPlayReason::Quit); Instance->Shutdown(); World->DestroyWorld(false); GEngine->DestroyWorldContext(World); GWorld = Original; };
+	auto SpawnRoom = [&](FName Id, FVector Location)
+	{
+		FTransform Transform(Location); auto* Room = World->SpawnActorDeferred<AMT2DungeonRoom>(AMT2DungeonRoom::StaticClass(), Transform);
+		Room->RoomId = Id; Room->LegacyMapIndex = 66; Room->FinishSpawning(Transform); return Room;
+	};
+	auto* Room = SpawnRoom(TEXT("script.first"), FVector::ZeroVector);
+	auto* Other = SpawnRoom(TEXT("script.second"), FVector(5000,0,0));
+	auto* Executor = Room->GetScriptExecutor();
+	FMT2QuestContext Context; Context.Manager = Executor; Context.DungeonRoom = Room;
+	auto Read = [&](const FString& Expression)
+	{
+		bool bOk = false; const auto Value = FMT2QuestExpression::Evaluate(Expression, Context, bOk);
+		TestTrue(TEXT("Dungeon expression: ") + Expression, bOk); return Value;
+	};
+	Read(TEXT("d.setf('counter', 2.75)"));
+	TestEqual(TEXT("Legacy integer truncation"), Read(TEXT("d.getf('counter')")).Number, 2.0);
+	Read(TEXT("d.setf('Counter', 9)"));
+	TestEqual(TEXT("Flag names case sensitive"), Read(TEXT("d.getf('counter')")).Number, 2.0);
+	TestEqual(TEXT("Independent stage state"), Other->GetScriptFlag(TEXT("counter")), 0);
+	TestFalse(TEXT("Failed selection returns false"), Read(TEXT("d.select(0)")).AsBool());
+	TestEqual(TEXT("Failed selection clears context"), Read(TEXT("d.get_map_index()")).Number, 0.0);
+	const FString Index = FString::FromInt(Room->GetQuestDungeonIndex());
+	TestTrue(TEXT("Logical room can be selected"), Read(TEXT("d.select(") + Index + TEXT(")")).AsBool());
+	TestTrue(TEXT("Find uses logical identity"), Read(TEXT("d.find(") + Index + TEXT(")")).AsBool());
+	TestEqual(TEXT("Instance-compatible identity range"), Room->GetQuestDungeonIndex()/10000, 66);
+	TStrongObjectPtr<UBlueprint> Blueprint(FKismetEditorUtilities::CreateBlueprint(UMT2Quest::StaticClass(), GetTransientPackage(),
+		MakeUniqueObjectName(GetTransientPackage(), UBlueprint::StaticClass(), TEXT("DungeonBindingProbe")), BPTYPE_Normal,
+		UBlueprint::StaticClass(), UBlueprintGeneratedClass::StaticClass(), TEXT("QuestTest")));
+	auto* Quest = Cast<UMT2Quest>(Blueprint->GeneratedClass->GetDefaultObject()); Quest->QuestName = TEXT("dungeon_binding_probe");
+	FMT2QuestState& State = Quest->States.AddDefaulted_GetRef(); State.StateName = TEXT("start");
+	FMT2QuestTrigger& Trigger = State.Triggers.AddDefaulted_GetRef(); Trigger.Event = EMT2QuestEvent::ServerTimer; Trigger.TriggerName = TEXT("pulse");
+	auto* Guard = NewObject<UMT2QuestCondition_Expression>(Quest); Guard->Expression = TEXT("d.select(get_server_timer_arg())"); Trigger.Conditions.Add(Guard);
+	auto* Set = NewObject<UMT2QuestNode_SetVariable>(Quest); Set->VariableName = TEXT("ignored"); Set->Expression = TEXT("d.setf('counter', d.getf('counter') + 1)"); Trigger.Nodes.Add(Set);
+	auto* Registry = Instance->GetSubsystem<UMT2QuestRegistrySubsystem>(); Registry->bLoaded = true; Registry->QuestsById.Add(Quest->GetQuestId(), Quest);
+	Registry->Quests.Add(Quest);
+	auto* Player = World->SpawnActor<AMT2PlayerState>(); auto* PlayerManager = Player->GetQuestManagerComponent();
+	FMT2QuestTrigger& Pick = State.Triggers.AddDefaulted_GetRef(); Pick.Event = EMT2QuestEvent::ItemPick; Pick.Vnum = 31032;
+	auto* PickCount = NewObject<UMT2QuestNode_SetFlag>(Quest); PickCount->FlagName = TEXT("picked"); PickCount->ValueExpression = TEXT("item.get_count()"); Pick.Nodes.Add(PickCount);
+	FMT2ItemSlot Snapshot; Snapshot.Vnum = 31032; Snapshot.Count = 3;
+	TestTrue(TEXT("Successful pickup dispatches exact item"), PlayerManager->NotifyItemPicked(Snapshot));
+	TestEqual(TEXT("Pickup observes committed count"), PlayerManager->GetQuestFlag(TEXT("picked"), Quest), 3);
+	TestFalse(TEXT("Empty/failed pickup does not dispatch"), PlayerManager->NotifyItemPicked(FMT2ItemSlot()));
+	FMT2QuestContext PlayerContext; PlayerContext.Manager = PlayerManager; PlayerContext.PlayerState = Player; PlayerContext.Quest = Quest;
+	auto* Timer = NewObject<UMT2QuestNode_StartTimer>(); Timer->TimerName = TEXT("pulse"); Timer->bServerTimer = true;
+	Timer->Seconds = 1.f; Timer->ArgumentExpression = Index;
+	++GFrameCounter; World->GetTimerManager().Tick(0.f);
+	TestEqual(TEXT("Room timer schedules"), Timer->Execute(PlayerContext), EMT2QuestNodeResult::Continue);
+	TestTrue(TEXT("Initiator owns no room timer"), PlayerManager->QuestTimers.IsEmpty());
+	Player->Destroy(); ++GFrameCounter; World->GetTimerManager().Tick(1.1f);
+	TestEqual(TEXT("Room timer fires without initiating player"), Room->GetScriptFlag(TEXT("counter")), 3);
+	Executor->StartQuestTimer(TEXT("pulse"), 1.f, true, false, FMT2QuestValue(Room->GetQuestDungeonIndex()), Quest);
+	Executor->ResetDungeonExecution(); ++GFrameCounter; World->GetTimerManager().Tick(1.1f);
+	TestEqual(TEXT("Reset cancels queued room callbacks"), Room->GetScriptFlag(TEXT("counter")), 3);
+	Executor->ActiveContext.Event = EMT2QuestEvent::ServerTimer;
+	Executor->AdvanceQuestDungeon(Other);
+	TestEqual(TEXT("Timer chain follows destination stage"), Executor->GetActiveTimerArgument().Number, double(Other->GetQuestDungeonIndex()));
+	FMT2QuestImportResult Result; FTranslateState Translation; const TMap<FString,FString> Locale;
+	Translation.Locale = &Locale; Translation.Outer = Executor; Translation.Result = &Result; Translation.QuestName = Translation.ScriptName = TEXT("probe");
+	const TArray<FString> Lines = {TEXT("d.setf('level', 4)"), TEXT("d.clear_regen()"), TEXT("d.set_unique('boss', 1)"), TEXT("d.jump_all(2165,7270)")};
+	TranslateBlock(Lines, 0, Lines.Num(), Translation);
+	TestEqual(TEXT("Dungeon calls lower into runtime nodes"), Result.StatementsUnconverted, 0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2QuestCompactReturnTest, "Metin2.Quests.Importer.CompactReturns",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -992,8 +1093,7 @@ bool FMT2QuestTargetDispatchTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Arrival distinct from click"), Event, EMT2QuestEvent::Arrive);
 	TestTrue(TEXT("Named target disappearance parses"), ParseTriggerSpec(TEXT("teacher.target.die"), Locale, Event, Vnum, Label, nullptr, &Name));
 	TestEqual(TEXT("Disappearance distinct from click/arrival"), Event, EMT2QuestEvent::TargetDie);
-	for (const TCHAR* Bad : {TEXT("teacher.target"), TEXT("teacher.target.unknown"), TEXT("teacher.target.click.extra"),
-		TEXT("__TARGET__target.click"), TEXT("__TARGET__.click")})
+	for (const TCHAR* Bad : {TEXT("teacher.target"), TEXT("teacher.target.unknown"), TEXT("teacher.target.click.extra")})
 	{
 		TestFalse(FString(TEXT("Unsupported/malformed retained: ")) + Bad, ParseTriggerSpec(Bad, Locale, Event, Vnum, Label, nullptr, &Name));
 	}

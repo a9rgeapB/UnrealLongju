@@ -50,6 +50,22 @@ The value model uses FString; invalid UTF-8 transformations fail explicitly. Arb
 
 Unresolved item/scroll/target trigger variants must have real dispatch sources and correctly resolved identities; parser acceptance alone is insufficient.
 
+`<vnum>.pick` fires after a successful ground-item inventory commit, on the actual receiving player (including party loot routing), with a snapshot of the collected quantity. Failed pickups do not fire it. Pickup snapshots support item reads, not arbitrary mutation of a selected live inventory slot. `sig_use` matches quest-type special-item-group IDs imported from `special_item_group.txt`, while `item.*` reads the actual used item.
+
+Named item `.use`/`.pick` triggers resolve original proto names or explicit **Metin2 Gameplay → Quests → Quest Item Trigger Aliases**. Unknown or ambiguous names remain diagnostics; aliases must identify an existing source item. Item aliases cannot change NPC mappings. Named-target aliases `__TARGET__target.click` and `__TARGET__.click` retain their marker identity and dispatch as target clicks.
+
+## Scripted dungeon bindings
+
+`d.*` operates on world-local `AMT2DungeonRoom` stages. Rooms need unique `RoomId` values, a legacy base map index (inferred from map presentation when available), bounds, collision-backed destinations and entrances. Script-facing indices use the legacy `base-map * 10000 + serial` form as **logical handles**; they do not create worlds or processes. `pc.get_map_index()` inside a registered dungeon room reports this compatible handle to imported scripts.
+
+Supported bindings include selection/find, case-sensitive shared integer flags, room-member quest flags, unique entity IDs/death queries, monster counts, purge/kill, spawning, regeneration, elimination-triggered transitions, local shared/party jumps, room exit destinations and dungeon chat notices. Monster counts exclude NPCs. Flags, uniques and callbacks are cleared with the room run; late joiners share the existing stage rather than duplicating its wave.
+
+Dungeon `server_timer`/`server_loop_timer` callbacks are owned by the addressed room's nonreplicated quest executor, not the initiating player. They execute without a player and survive that player's logout. Reset/removal clears callbacks. Player dialogue cannot suspend these handlers. Clearing a dungeon server timer resolves its optional room argument.
+
+The importer cooks supported `share/data/dungeon` regeneration files and group definitions into the shared quest table asset. Runtime uses the existing spawn scheduler, applies the current map's mirrored coordinates and registers spawned entities with the owning room. Missing regen data, ambiguous/unconfigured destinations and invalid arguments fail explicitly. Clear-regeneration stops future spawning without purging existing enemies.
+
+Jumps within a hosted dungeon map use configured shared rooms. Cross-process dungeon entry/continuation, member item-group operations, named-area spawning and additional `d.*` variants are not complete. Conversion does not create room layouts for other dungeons or replace the native Devil Tower progression; that map continues to bypass the imported private-map tower script.
+
 ## Gameplay bindings
 
 Implemented subsets include:
@@ -73,10 +89,10 @@ Quest flags are signed 32-bit, including stored timestamps; the 2038 limitation 
 
 ## Remaining gameplay work
 
-- Authoritative dungeon/instance ownership, unique mobs, regen, party instancing, instance warps and dungeon-wide timers.
+- Remaining dungeon bindings, cross-process entry/continuation and configured room layouts for additional dungeons.
 - Dragon Soul qualification/refinement, pets, marriage, guild wars/buildings, forked-road events and remaining horse APIs.
 - Cube, safebox/mall and unresolved quest/UI integration.
-- Placeholder bindings such as dungeon/polymorph, marriage/engagement, wear/part queries. Review each binding's actual return behavior instead of assuming name registration means parity.
+- Placeholder bindings such as polymorph, marriage/engagement and wear/part queries. Review each binding's actual return behavior instead of assuming name registration means parity.
 - Dialogue/broadcast ownership, cross-map entity identity/relevancy and persistence/reconnect behavior.
 
 ## Validation workflow

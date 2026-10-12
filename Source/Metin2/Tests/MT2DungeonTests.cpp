@@ -7,6 +7,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Characters/MT2PlayerCharacter.h"
 #include "Components/SceneComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/MT2HealthComponent.h"
 #include "AbilitySystemComponent.h"
 #include "Abilities/MT2CoreAttributeSet.h"
@@ -76,6 +77,61 @@ namespace MT2DungeonFixture
 		}
 		void TimerTick(float Seconds) { ++GFrameCounter; World->GetTimerManager().Tick(Seconds); }
 	};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2DungeonUniqueBindingsTest, "Metin2.Dungeons.UniqueBindings",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2DungeonUniqueBindingsTest::RunTest(const FString&)
+{
+	MT2DungeonFixture::FRig Rig;
+	auto* Room = Rig.Room(TEXT("unique.probe")); auto* Player = Rig.Player(TEXT("unique.player"));
+	Room->JoinPlayer(Player); Room->StartEncounter();
+	auto* Boss = Rig.Mob(FVector(100,0,0)); auto* Other = Rig.Mob(FVector(-100,0,0));
+	TestTrue(TEXT("Boss registered"), Room->RegisterEnemy(Boss));
+	TestTrue(TEXT("Second mob registered"), Room->RegisterEnemy(Other));
+	TestTrue(TEXT("Unique lower case"), Room->SetScriptUnique(TEXT("boss"), Boss));
+	TestTrue(TEXT("Unique upper case"), Room->SetScriptUnique(TEXT("BOSS"), Other));
+	FMT2QuestContext Context; Context.Manager = Room->GetScriptExecutor(); Context.DungeonRoom = Room;
+	auto Read = [&](const TCHAR* Expression)
+	{
+		bool bOk = false; auto Value = FMT2QuestExpression::Evaluate(Expression, Context, bOk);
+		TestTrue(FString(TEXT("Evaluate ")) + Expression, bOk); return Value;
+	};
+	Boss->GetHealthComponent()->SetHealth(50.f);
+	TestEqual(TEXT("Unique HP percentage"), Read(TEXT("d.unique_get_hp_perc('boss')")).Number, 50.0);
+	TestEqual(TEXT("Names keep distinct entity IDs"), Room->GetScriptUnique(TEXT("BOSS")), Other);
+	TestFalse(TEXT("Live unique not dead"), Read(TEXT("d.is_unique_dead('boss')")).AsBool());
+	Read(TEXT("d.kill_unique('boss')"));
+	TestTrue(TEXT("Unique kill updates health"), Boss->GetHealthComponent()->IsDead());
+	TestTrue(TEXT("Killed unique removed"), Read(TEXT("d.is_unique_dead('boss')")).AsBool());
+	TestEqual(TEXT("Only one monster remains"), Read(TEXT("d.count_monster()")).Number, 1.0);
+	Read(TEXT("d.purge_unique('BOSS')"));
+	TestEqual(TEXT("Purge removes room ownership"), Room->GetRemainingEnemies(), 0);
+	TestNull(TEXT("Purged unique no longer resolves"), Room->GetScriptUnique(TEXT("BOSS")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2DungeonScriptTransitionTest, "Metin2.Dungeons.ScriptTransition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2DungeonScriptTransitionTest::RunTest(const FString&)
+{
+	MT2DungeonFixture::FRig Rig;
+	auto* Floor = Rig.World->SpawnActor<AActor>();
+	auto* Surface = NewObject<UBoxComponent>(Floor); Floor->SetRootComponent(Surface);
+	Surface->SetBoxExtent(FVector(10000,10000,10)); Surface->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	Surface->SetCollisionObjectType(ECC_WorldStatic); Surface->SetCollisionResponseToAllChannels(ECR_Block);
+	Surface->RegisterComponent(); Floor->SetActorLocation(FVector(0,0,-10));
+	auto* Room = Rig.Room(TEXT("jump.first")); auto* Next = Rig.Room(TEXT("jump.second"), FVector(5000,0,0));
+	auto* Player = Rig.Player(TEXT("jump.player"), FVector(0,0,100), true);
+	TestTrue(TEXT("Source membership"), Room->JoinPlayer(Player));
+	Room->SetScriptFlag(TEXT("level"), 2); Room->StartEncounter();
+	TestTrue(TEXT("Collision-backed shared jump"), Room->JumpScriptMembers(Next, FVector2D(5000,0)));
+	TestEqual(TEXT("Destination owns moved player"), Rig.World->GetSubsystem<UMT2DungeonSubsystem>()->GetPlayerRoom(Player), Next);
+	TestEqual(TEXT("Stage flags transferred into idle destination"), Next->GetScriptFlag(TEXT("level")), 2);
+	TestEqual(TEXT("Source stage completes"), Room->GetPhase(), EMT2DungeonRoomPhase::Completed);
+	TestEqual(TEXT("Destination starts once"), Next->GetPhase(), EMT2DungeonRoomPhase::Active);
+	TestFalse(TEXT("Unconfigured/outside destination rejected"), Next->JumpScriptMembers(Room, FVector2D(50000,0)));
+	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2DungeonSharedRoomTest, "Metin2.Dungeons.SharedRoom",

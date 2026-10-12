@@ -11,6 +11,8 @@
 
 #include "Characters/MT2PlayerCharacter.h"
 #include "Dungeons/MT2DungeonSubsystem.h"
+#include "Dungeons/MT2DungeonRoom.h"
+#include "Player/MT2PlayerController.h"
 #include "Components/MT2HealthComponent.h"
 #include "Components/MT2ManaComponent.h"
 #include "Components/MT2StatusEffectComponent.h"
@@ -341,6 +343,13 @@ namespace
 	const TSet<FString>& GetFunctionNames()
 	{
 		static const TSet<FString> Names = {
+			TEXT("d.select"), TEXT("d.find"), TEXT("d.getf"), TEXT("d.setf"), TEXT("d.get_map_index"),
+			TEXT("d.set_unique"), TEXT("d.get_unique_vid"), TEXT("d.is_unique_dead"), TEXT("d.count_monster"),
+			TEXT("d.purge"), TEXT("d.kill_all"), TEXT("d.setqf2"), TEXT("party.is_in_dungeon"),
+			TEXT("d.regen_file"), TEXT("d.set_regen_file"), TEXT("d.clear_regen"), TEXT("d.spawn_mob"),
+			TEXT("d.jump_all"), TEXT("d.new_jump_all"), TEXT("d.new_jump_party"),
+			TEXT("d.set_warp_at_eliminate"), TEXT("d.check_eliminated"), TEXT("d.set_warp_location"), TEXT("d.exit_all"),
+			TEXT("d.kill_unique"), TEXT("d.purge_unique"), TEXT("d.unique_get_hp_perc"), TEXT("d.getf_from_map_index"), TEXT("d.spawn_mob_dir"),
 			// player
 			TEXT("pc.get_level"), TEXT("pc.count_item"), TEXT("pc.countitem"), TEXT("pc.getqf"),
 			TEXT("pc.get_empire"), TEXT("pc.get_money"), TEXT("pc.get_gold"), TEXT("pc.get_job"),
@@ -423,6 +432,127 @@ namespace
 			return Arguments.IsValidIndex(Index) ? Arguments[Index] : FMT2QuestValue();
 		};
 
+		if (Name.StartsWith(TEXT("d.")) || Name == TEXT("party.is_in_dungeon"))
+		{
+			UWorld* World = Context.Manager ? Context.Manager->GetWorld() : nullptr;
+			auto* Dungeon = World ? World->GetSubsystem<UMT2DungeonSubsystem>() : nullptr;
+			auto* Room = Context.Manager ? Context.Manager->GetQuestDungeon(Context) : nullptr;
+			if (Name == TEXT("d.select") || Name == TEXT("d.find"))
+			{
+				double Index = 0;
+				auto* Found = Dungeon && TryNumericValue(Argument(0), Index) && FMath::IsFinite(Index) && Index > 0 && Index <= MAX_int32
+					? Dungeon->FindQuestDungeon(static_cast<int32>(Index)) : nullptr;
+				if (Name == TEXT("d.select") && Context.Manager) Context.Manager->SelectQuestDungeon(Found);
+				return FMT2QuestValue::Boolean(Found != nullptr);
+			}
+			if (Name == TEXT("d.new_jump_all") || Name == TEXT("d.new_jump_party"))
+			{
+				double MapIndex = 0, X = 0, Y = 0;
+				if (!TryNumericValue(Argument(0), MapIndex) || !TryNumericValue(Argument(1), X) || !TryNumericValue(Argument(2), Y) ||
+					!FMath::IsFinite(MapIndex) || MapIndex <= 0 || MapIndex > MAX_int32 || !FMath::IsFinite(X) || !FMath::IsFinite(Y)) { bOutOk = false; return FMT2QuestValue(); }
+				const auto* Tables = GetQuestTables(); const auto* Map = Tables ? Tables->FindMapByIndex(static_cast<int32>(MapIndex)) : nullptr;
+				const FVector2D XY = Map ? Map->ToUnrealPosition(FVector2D(X,Y)*100.) : FVector2D::ZeroVector;
+				auto* Destination = Map && Dungeon ? Dungeon->FindQuestRoomAtPosition(Map->MapIndex, XY) : nullptr;
+				TArray<TWeakObjectPtr<AMT2PlayerState>> Players;
+				if (Name == TEXT("d.new_jump_party") && State && State->GetParty())
+				{
+					for (const auto& Member : State->GetParty()->GetMemberStates()) if (IsValid(Member) && Member->GetWorld() == World) Players.Add(Member.Get());
+				}
+				else if (Room) Players = Room->GetScriptMembers();
+				else if (Context.PlayerState) Players.Add(Context.PlayerState);
+				if (!Destination || !Destination->JumpScriptPlayers(Players, XY)) { bOutOk = false; return FMT2QuestValue(); }
+				Context.Manager->AdvanceQuestDungeon(Destination); return FMT2QuestValue();
+			}
+			if (Name == TEXT("party.is_in_dungeon"))
+				return FMT2QuestValue::Boolean(State && State->GetParty() && Room != nullptr);
+			if (Name == TEXT("d.get_map_index")) return FMT2QuestValue(Room ? Room->GetQuestDungeonIndex() : 0);
+			if (Name == TEXT("d.getf_from_map_index"))
+			{
+				double Index = 0;
+				auto* Found = Dungeon && TryNumericValue(Argument(1), Index) && FMath::IsFinite(Index) && Index > 0 && Index <= MAX_int32
+					? Dungeon->FindQuestDungeon(static_cast<int32>(Index)) : nullptr;
+				return FMT2QuestValue(Found && Argument(0).bIsText ? Found->GetScriptFlag(Argument(0).Text) : 0);
+			}
+			if (Name == TEXT("d.getf")) return FMT2QuestValue(Room && Argument(0).bIsText ? Room->GetScriptFlag(Argument(0).Text) : 0);
+			if (Name == TEXT("d.count_monster")) return FMT2QuestValue(Room ? Room->GetScriptMonsterCount() : MAX_int32);
+			if (Name == TEXT("d.get_unique_vid") || Name == TEXT("d.is_unique_dead") || Name == TEXT("d.unique_get_hp_perc"))
+			{
+				auto* Mob = Room && Argument(0).bIsText ? Room->GetScriptUnique(Argument(0).Text) : nullptr;
+				if (Name == TEXT("d.is_unique_dead")) return FMT2QuestValue::Boolean(Room && Argument(0).bIsText && (!Mob || !Mob->GetHealthComponent() || Mob->GetHealthComponent()->IsDead()));
+				if (Name == TEXT("d.unique_get_hp_perc")) return FMT2QuestValue(Mob && Mob->GetHealthComponent() ? Mob->GetHealthComponent()->GetHealthNormalized()*100. : 0.);
+				auto* Entities = World ? World->GetSubsystem<UMT2QuestEntitySubsystem>() : nullptr;
+				return FMT2QuestValue(Entities && Mob ? Entities->GetEntityId(Mob) : 0);
+			}
+			if (!Room || !Room->HasAuthority()) { bOutOk = false; return FMT2QuestValue(); }
+			if (Name == TEXT("d.kill_unique") || Name == TEXT("d.purge_unique"))
+			{
+				if (!Argument(0).bIsText) bOutOk = false;
+				else Room->RemoveScriptUnique(Argument(0).Text, Name == TEXT("d.kill_unique"));
+				return FMT2QuestValue();
+			}
+			if (Name == TEXT("d.regen_file") || Name == TEXT("d.set_regen_file"))
+			{
+				if (!Argument(0).bIsText || !Room->SpawnScriptRegen(Argument(0).Text, Name == TEXT("d.set_regen_file"))) bOutOk = false;
+				return FMT2QuestValue();
+			}
+			if (Name == TEXT("d.clear_regen")) { Room->ClearScriptRegen(); return FMT2QuestValue(); }
+			if (Name == TEXT("d.check_eliminated")) { Room->CheckScriptElimination(); return FMT2QuestValue(); }
+			if (Name == TEXT("d.exit_all")) { Room->ExitScriptMembers(); return FMT2QuestValue(); }
+			if (Name == TEXT("d.jump_all") || Name == TEXT("d.spawn_mob") || Name == TEXT("d.spawn_mob_dir") || Name == TEXT("d.set_warp_at_eliminate") || Name == TEXT("d.set_warp_location"))
+			{
+				const bool bSpawn = Name == TEXT("d.spawn_mob") || Name == TEXT("d.spawn_mob_dir");
+				const bool bElimination = Name == TEXT("d.set_warp_at_eliminate");
+				const int32 Offset = bElimination ? 2 : bSpawn || Name == TEXT("d.set_warp_location") ? 1 : 0;
+				double X = 0, Y = 0, First = 0;
+				if (!TryNumericValue(Argument(Offset), X) || !TryNumericValue(Argument(Offset+1), Y) || !FMath::IsFinite(X) || !FMath::IsFinite(Y) ||
+					(Offset && (!TryNumericValue(Argument(0), First) || !FMath::IsFinite(First) || First < 0 || First > MAX_int32))) { bOutOk = false; return FMT2QuestValue(); }
+				const auto* Tables = GetQuestTables(); const auto* Map = Tables ? Tables->FindMapByIndex(Room->LegacyMapIndex) : nullptr;
+				if (!Map) { bOutOk = false; return FMT2QuestValue(); }
+				if (Name == TEXT("d.set_warp_location")) { Room->SetScriptExit(static_cast<int32>(First), FVector2D(X,Y)); return FMT2QuestValue(); }
+				const FVector2D XY = bSpawn ? FVector2D(Map->WorldSize.X-X*100., -Y*100.) : Map->ToUnrealPosition(FVector2D(X,Y)*100.);
+				if (bSpawn)
+				{
+					double Direction = 0;
+					if (Name == TEXT("d.spawn_mob_dir") && (!TryNumericValue(Argument(3), Direction) || !FMath::IsFinite(Direction) || Direction < 0 || Direction > 8))
+					{ bOutOk = false; return FMT2QuestValue(); }
+					auto* Mob = Room->SpawnScriptMob(static_cast<int32>(First), XY, static_cast<float>(Direction > 0 ? (Direction-1)*45.+90. : FMath::FRandRange(0.f,360.f)));
+					auto* Entities = World->GetSubsystem<UMT2QuestEntitySubsystem>();
+					if (!Mob) bOutOk = false;
+					return FMT2QuestValue(Mob && Entities ? Entities->GetEntityId(Mob) : 0);
+				}
+				if (bElimination)
+				{
+					double Index = 0;
+					if (!TryNumericValue(Argument(1), Index) || Index != Room->GetQuestDungeonIndex() || First > MAX_flt ||
+						(!Argument(4).bIsNil && !Argument(4).bIsText)) { bOutOk = false; return FMT2QuestValue(); }
+					Room->SetScriptElimination(static_cast<float>(First), XY, Argument(4).Text); return FMT2QuestValue();
+				}
+				auto* Destination = Dungeon ? Dungeon->FindQuestRoomAtPosition(Map->MapIndex, XY) : nullptr;
+				if (!Destination || !Room->JumpScriptMembers(Destination, XY)) { bOutOk = false; return FMT2QuestValue(); }
+				Context.Manager->AdvanceQuestDungeon(Destination); return FMT2QuestValue();
+			}
+			double Value = 0;
+			if (Name == TEXT("d.setf") || Name == TEXT("d.setqf2"))
+			{
+				const int32 ValueIndex = Name == TEXT("d.setf") ? 1 : 2;
+				if (!Argument(0).bIsText || !TryNumericValue(Argument(ValueIndex), Value) || !FMath::IsFinite(Value) || Value < MIN_int32 || Value > MAX_int32 ||
+					(ValueIndex == 2 && !Argument(1).bIsText)) { bOutOk = false; return FMT2QuestValue(); }
+				if (ValueIndex == 1) Room->SetScriptFlag(Argument(0).Text, static_cast<int32>(Value));
+				else for (auto Member : Room->GetScriptMembers()) if (Member.IsValid())
+					Member->GetQuestManagerComponent()->SetQuestFlag(FName(*(Argument(0).Text + TEXT(".") + Argument(1).Text)), static_cast<int32>(Value));
+				return FMT2QuestValue();
+			}
+			if (Name == TEXT("d.set_unique"))
+			{
+				auto* Entities = World->GetSubsystem<UMT2QuestEntitySubsystem>();
+				if (!Argument(0).bIsText || !TryNumericValue(Argument(1), Value) || !FMath::IsFinite(Value) || Value <= 0 || Value > MAX_int32 ||
+					!Room->SetScriptUnique(Argument(0).Text, Entities ? Cast<AMT2Mob>(Entities->FindEntity(static_cast<int32>(Value))) : nullptr)) bOutOk = false;
+				return FMT2QuestValue();
+			}
+			if (Name == TEXT("d.purge")) { Room->PurgeScriptEnemies(); return FMT2QuestValue(); }
+			if (Name == TEXT("d.kill_all")) { Room->KillScriptEnemies(); return FMT2QuestValue(); }
+			bOutOk = false; return FMT2QuestValue();
+		}
 		// ---- player ----
 		if (Name == TEXT("pc.enough_inventory"))
 		{
@@ -774,6 +904,8 @@ namespace
 		}
 		if (Name == TEXT("pc.get_map_index"))
 		{
+			if (auto* Room = Context.Manager ? Context.Manager->GetQuestDungeon(Context) : nullptr)
+				if (Room->GetQuestDungeonIndex() > 0) return FMT2QuestValue(Room->GetQuestDungeonIndex());
 			if (Player)
 			{
 				for (TActorIterator<AMT2MapPresentationActor> It(Player->GetWorld()); It; ++It)
@@ -1287,6 +1419,8 @@ namespace
 			const TArray<FMT2ItemSlot>* Slots = Inventory ? &Inventory->GetSlots() : nullptr;
 			const FMT2ItemSlot* Slot = Slots && Slots->IsValidIndex(Context.EventItemSlot)
 				? &(*Slots)[Context.EventItemSlot] : nullptr;
+			if (!Slot && Context.Event == EMT2QuestEvent::ItemPick && Context.bHasEventItemSnapshot)
+				Slot = &Context.EventItemSnapshot;
 			if (!Slot || Slot->IsEmpty())
 			{
 				if (Name == TEXT("item.get_level_limit")) { return FMT2QuestValue(); }

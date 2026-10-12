@@ -567,6 +567,7 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Notice")
 	FText Message;
+	UPROPERTY(EditAnywhere, Category = "Notice") bool bDungeonScoped = false;
 };
 
 // Quest-journal operations (the old q.start / q.set_title / q.done / send_letter / makequestbutton
@@ -698,6 +699,8 @@ public:
 	// Empty clears every timer this quest started.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timer")
 	FName TimerName;
+	UPROPERTY(EditAnywhere, Category = "Timer") bool bServerTimer = false;
+	UPROPERTY(EditAnywhere, Category = "Timer") FString ArgumentExpression;
 };
 
 // item.set_socket(index, value): writes the scripted numeric value of a socket on the item that raised

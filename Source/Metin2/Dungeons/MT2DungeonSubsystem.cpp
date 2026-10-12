@@ -4,12 +4,22 @@
 #include "Mobs/MT2Mob.h"
 #include "Components/BoxComponent.h"
 #include "GameFramework/Pawn.h"
+#include "World/MT2MapPresentationActor.h"
+#include "EngineUtils.h"
 
 bool UMT2DungeonSubsystem::RegisterRoom(AMT2DungeonRoom* Room)
 {
 	check(IsInGameThread());
 	if (!IsValid(Room) || !Room->HasAuthority() || Room->GetWorld() != GetWorld() || Room->RoomId.IsNone()) return false;
 	if (AMT2DungeonRoom* Existing = FindRoom(Room->RoomId); Existing && Existing != Room) return false;
+	if (Room->LegacyMapIndex <= 0)
+		for (TActorIterator<AMT2MapPresentationActor> It(GetWorld()); It; ++It)
+			if (It->MapIndex > 0) { Room->LegacyMapIndex = It->MapIndex; break; }
+	if (Room->LegacyMapIndex > 0 && Room->LegacyMapIndex <= MAX_int32 / 10000 && NextQuestDungeonSerial < 10000)
+	{
+		const int64 Index = int64(Room->LegacyMapIndex) * 10000 + NextQuestDungeonSerial;
+		if (Index <= MAX_int32) { ++NextQuestDungeonSerial; Room->SetQuestDungeonIndex(static_cast<int32>(Index)); QuestDungeons.Add(static_cast<int32>(Index), Room); }
+	}
 	Rooms.Add(Room->RoomId, Room); return true;
 }
 void UMT2DungeonSubsystem::UnregisterRoom(AMT2DungeonRoom* Room)
@@ -17,6 +27,7 @@ void UMT2DungeonSubsystem::UnregisterRoom(AMT2DungeonRoom* Room)
 	if (!Room) return;
 	const auto* Existing = Rooms.Find(Room->RoomId);
 	if (Existing && Existing->Get() == Room) Rooms.Remove(Room->RoomId);
+	QuestDungeons.Remove(Room->GetQuestDungeonIndex());
 	for (auto It = Players.CreateIterator(); It; ++It) if (!It.Value().IsValid() || It.Value() == Room) It.RemoveCurrent();
 	for (auto It = Enemies.CreateIterator(); It; ++It) if (!It.Value().IsValid() || It.Value() == Room) It.RemoveCurrent();
 }
@@ -24,6 +35,35 @@ AMT2DungeonRoom* UMT2DungeonSubsystem::FindRoom(FName Id) const
 {
 	const auto* Value = Rooms.Find(Id); AMT2DungeonRoom* Room = Value ? Value->Get() : nullptr;
 	return IsValid(Room) && !Room->IsActorBeingDestroyed() ? Room : nullptr;
+}
+AMT2DungeonRoom* UMT2DungeonSubsystem::FindQuestDungeon(int32 Index) const
+{
+	const auto* Value = QuestDungeons.Find(Index);
+	AMT2DungeonRoom* Room = Value ? Value->Get() : nullptr;
+	return IsValid(Room) && !Room->IsActorBeingDestroyed() ? Room : nullptr;
+}
+AMT2DungeonRoom* UMT2DungeonSubsystem::FindRoomAtLocation(FVector Location) const
+{
+	AMT2DungeonRoom* Match = nullptr;
+	for (const auto& Pair : Rooms)
+		if (auto* Room = Pair.Value.Get(); IsValid(Room) && !Room->IsActorBeingDestroyed() && Room->ContainsLocation(Location))
+		{
+			if (Match) return nullptr; // Ambiguous overlapping stage bounds must not choose arbitrarily.
+			Match = Room;
+		}
+	return Match;
+}
+AMT2DungeonRoom* UMT2DungeonSubsystem::FindQuestRoomAtPosition(int32 MapIndex, FVector2D XY) const
+{
+	AMT2DungeonRoom* Match = nullptr;
+	for (const auto& Pair : Rooms)
+		if (auto* Room = Pair.Value.Get(); IsValid(Room) && !Room->IsActorBeingDestroyed() && Room->LegacyMapIndex == MapIndex &&
+			Room->ContainsLocation(FVector(XY, Room->Bounds->GetComponentLocation().Z)))
+		{
+			if (Match) return nullptr;
+			Match = Room;
+		}
+	return Match;
 }
 AMT2DungeonRoom* UMT2DungeonSubsystem::GetPlayerRoom(const AMT2PlayerState* Player) const
 {
@@ -77,5 +117,5 @@ void UMT2DungeonSubsystem::RemoveEnemy(AMT2Mob* Mob, AMT2DungeonRoom* Room)
 }
 void UMT2DungeonSubsystem::Deinitialize()
 {
-	Rooms.Reset(); Players.Reset(); Enemies.Reset(); Super::Deinitialize();
+	Rooms.Reset(); QuestDungeons.Reset(); Players.Reset(); Enemies.Reset(); Super::Deinitialize();
 }

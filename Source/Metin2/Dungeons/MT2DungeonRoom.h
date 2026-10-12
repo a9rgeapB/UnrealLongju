@@ -7,6 +7,16 @@ class UArrowComponent;
 class UPrimitiveComponent;
 class AMT2PlayerState;
 class AMT2Mob;
+class UMT2QuestManagerComponent;
+class UMT2MobSpawnComponent;
+
+template<typename ValueType>
+struct FMT2DungeonScriptKeyFuncs : TDefaultMapKeyFuncs<FString, ValueType, false>
+{
+	using KeyInitType = typename TDefaultMapKeyFuncs<FString, ValueType, false>::KeyInitType;
+	static bool Matches(KeyInitType A, KeyInitType B) { return A.Equals(B, ESearchCase::CaseSensitive); }
+	static uint32 GetKeyHash(KeyInitType Key) { return FCrc::StrCrc32(*Key); }
+};
 
 UENUM(BlueprintType)
 enum class EMT2DungeonRoomPhase : uint8 { Idle, Active, Completed, Failed };
@@ -34,6 +44,29 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dungeon") FName RoomId;
+	// Base legacy map identity. Script-facing instance indices are logical handles, not new maps.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dungeon|Quests") int32 LegacyMapIndex = 0;
+	int32 GetQuestDungeonIndex() const { return QuestDungeonIndex; }
+	void SetQuestDungeonIndex(int32 Index) { QuestDungeonIndex = Index; }
+	int32 GetScriptFlag(const FString& Name) const { return ScriptFlags.FindRef(Name); }
+	void SetScriptFlag(const FString& Name, int32 Value);
+	bool SetScriptUnique(const FString& Name, AMT2Mob* Mob);
+	AMT2Mob* GetScriptUnique(const FString& Name) const;
+	void RemoveScriptUnique(const FString& Name, bool bKill);
+	TArray<TWeakObjectPtr<AMT2PlayerState>> GetScriptMembers() const { return Members.Array(); }
+	void PurgeScriptEnemies();
+	void KillScriptEnemies();
+	bool SpawnScriptRegen(const FString& Path, bool bRespawning);
+	void ClearScriptRegen();
+	bool JumpScriptMembers(AMT2DungeonRoom* Destination, const FVector2D& XY);
+	bool JumpScriptPlayers(const TArray<TWeakObjectPtr<AMT2PlayerState>>& Players, const FVector2D& XY);
+	AMT2Mob* SpawnScriptMob(int32 Vnum, const FVector2D& XY, float Yaw = 0.f);
+	void SetScriptElimination(float Delay, const FVector2D& XY, const FString& Regen);
+	void CheckScriptElimination();
+	void SetScriptExit(int32 MapIndex, FVector2D Position);
+	void ExitScriptMembers();
+	int32 GetScriptMonsterCount() const;
+	UMT2QuestManagerComponent* GetScriptExecutor() const { return ScriptExecutor; }
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Dungeon") TObjectPtr<UBoxComponent> Bounds;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Dungeon") TObjectPtr<UArrowComponent> Entrance;
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category="Dungeon") TObjectPtr<AMT2DungeonRoom> NextRoom;
@@ -63,7 +96,7 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category="Dungeon") void EncounterCompleted();
 	UFUNCTION(BlueprintImplementableEvent, Category="Dungeon") void EncounterFailed();
 protected:
-	virtual bool CompletesOnElimination() const { return true; }
+	virtual bool CompletesOnElimination() const { return !bScriptControlled; }
 	virtual void OnEncounterStarted() {}
 	virtual void OnEncounterMobSpawned(const FMT2DungeonSpawn& Spawn, AMT2Mob* Mob) {}
 	virtual void OnSummonedEnemy(AMT2Mob* Mob, AMT2Mob* Source) {}
@@ -103,4 +136,17 @@ private:
 	bool bRegistered = false;
 	bool bSpawning = false;
 	bool bResetting = false;
+	int32 QuestDungeonIndex = 0;
+	TMap<FString, int32, FDefaultSetAllocator, FMT2DungeonScriptKeyFuncs<int32>> ScriptFlags;
+	TMap<FString, TWeakObjectPtr<AMT2Mob>, FDefaultSetAllocator, FMT2DungeonScriptKeyFuncs<TWeakObjectPtr<AMT2Mob>>> ScriptUniques;
+	UPROPERTY(Transient) TObjectPtr<UMT2QuestManagerComponent> ScriptExecutor;
+	UPROPERTY(Transient) TArray<TObjectPtr<UMT2MobSpawnComponent>> ScriptRegens;
+	TSet<FString> ScriptRegenPaths;
+	bool bScriptControlled = false;
+	float ScriptEliminationDelay = -1.f;
+	FVector2D ScriptEliminationXY;
+	FString ScriptEliminationRegen;
+	FTimerHandle ScriptEliminationTimer;
+	int32 ScriptExitMap = 0;
+	FVector2D ScriptExitPosition;
 };

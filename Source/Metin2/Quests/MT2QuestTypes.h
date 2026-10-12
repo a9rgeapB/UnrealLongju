@@ -17,6 +17,7 @@ class UMT2QuestNode;
 class UMT2QuestManagerComponent;
 class AMT2PlayerCharacter;
 class AMT2PlayerState;
+class AMT2DungeonRoom;
 class AActor;
 
 // One quest dialog page sent server -> client: the accumulated say()/say_title() text plus the
@@ -70,7 +71,9 @@ enum class EMT2QuestEvent : uint8
 	ServerTimer, // scheduled server-side timer fired
 	ItemTake,   // item offered to an NPC (filter = NPC vnum, not item vnum)
 	TargetClick, // named target clicked; appended to preserve serialized event values
-	TargetDie    // tracked entity disappeared
+	TargetDie,   // tracked entity disappeared
+	ItemPick,    // successful ground pickup; appended for asset compatibility
+	SpecialItemUse // special-item-group identifier, not the item's template vnum
 };
 
 // Result of running one quest node, driving the resumable executor.
@@ -128,4 +131,8 @@ struct METIN2_API FMT2QuestContext
 	// The quest whose block is running (a /Game/Quests Blueprint CDO).
 	UPROPERTY(BlueprintReadOnly, Category = "Quest")
 	TObjectPtr<const class UMT2Quest> Quest = nullptr;
+
+	// A server timer has no player. Its selected logical room is weak and world-local.
+	UPROPERTY(Transient)
+	TWeakObjectPtr<AMT2DungeonRoom> DungeonRoom;
 };

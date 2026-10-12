@@ -11,6 +11,7 @@
 
 #include "Characters/MT2PlayerCharacter.h"
 #include "Dungeons/MT2DungeonSubsystem.h"
+#include "Dungeons/MT2DungeonRoom.h"
 #include "Dungeons/MT2DevilTowerRoom.h"
 #include "Items/MT2InventoryComponent.h"
 #include "EngineUtils.h"
@@ -148,6 +149,7 @@ void UMT2QuestManagerComponent::BeginPlay()
 	{
 		return;
 	}
+	if (!Cast<AMT2PlayerState>(GetOwner())) return; // Room executors have no player entry/arrival polling.
 	// The pawn and the restored quest flags both arrive after this component does, so poll briefly
 	// until the player is actually in the world.
 	GetWorld()->GetTimerManager().SetTimer(
@@ -460,6 +462,70 @@ bool UMT2QuestManagerComponent::DispatchEvent(
 	return DispatchEventInternal(Event, Vnum, NAME_None, TargetActor, ItemSlot);
 }
 
+bool UMT2QuestManagerComponent::NotifyItemPicked(const FMT2ItemSlot& PickedItem)
+{
+	return !PickedItem.IsEmpty() && DispatchEventInternal(EMT2QuestEvent::ItemPick, PickedItem.Vnum,
+		NAME_None, nullptr, INDEX_NONE, NAME_None, &PickedItem);
+}
+
+AMT2DungeonRoom* UMT2QuestManagerComponent::GetQuestDungeon(const FMT2QuestContext& Context) const
+{
+	if (bQuestDungeonSelected) return SelectedQuestDungeon.IsValid() && !SelectedQuestDungeon->IsActorBeingDestroyed() ? SelectedQuestDungeon.Get() : nullptr;
+	if (Context.DungeonRoom.IsValid()) return !Context.DungeonRoom->IsActorBeingDestroyed() ? Context.DungeonRoom.Get() : nullptr;
+	const auto* Dungeon = GetWorld() ? GetWorld()->GetSubsystem<UMT2DungeonSubsystem>() : nullptr;
+	return Dungeon ? Dungeon->GetPlayerRoom(Context.PlayerState) : nullptr;
+}
+void UMT2QuestManagerComponent::SelectQuestDungeon(AMT2DungeonRoom* Room)
+{
+	bQuestDungeonSelected = true;
+	SelectedQuestDungeon = IsValid(Room) && Room->GetWorld() == GetWorld() && Room->HasAuthority() ? Room : nullptr;
+}
+void UMT2QuestManagerComponent::ResetDungeonExecution()
+{
+	if (!Cast<AMT2DungeonRoom>(GetOwner())) return;
+	CancelConversation();
+	ClearDungeonTimers(); QuestScriptVariables.Reset(); ScriptVariables.Reset();
+	bQuestDungeonSelected = false; SelectedQuestDungeon.Reset();
+}
+void UMT2QuestManagerComponent::ClearDungeonTimers()
+{
+	if (!Cast<AMT2DungeonRoom>(GetOwner())) return;
+	for (auto& Timer : QuestTimers) if (GetWorld()) GetWorld()->GetTimerManager().ClearTimer(Timer.Handle);
+	QuestTimers.Reset();
+}
+void UMT2QuestManagerComponent::AdvanceQuestDungeon(AMT2DungeonRoom* Room)
+{
+	SelectQuestDungeon(Room);
+	if (Room && ActiveContext.Event == EMT2QuestEvent::ServerTimer)
+	{
+		ActiveContext.DungeonRoom = Room;
+		ActiveTimerArgument = FMT2QuestValue(Room->GetQuestDungeonIndex());
+	}
+}
+void UMT2QuestManagerComponent::DispatchDungeonTimer(AMT2DungeonRoom* Room, const UMT2Quest* Quest, FName TimerName, const FMT2QuestValue& Argument)
+{
+	if (!IsValid(Room) || !Room->HasAuthority() || Room->GetWorld() != GetWorld() || !Quest || bRunning) return;
+	CancelConversation(); bQuestDungeonSelected = false; SelectedQuestDungeon.Reset();
+	FMT2QuestContext Context; Context.Manager = this; Context.Quest = Quest; Context.DungeonRoom = Room;
+	Context.Event = EMT2QuestEvent::ServerTimer;
+	ActiveContext = Context; ActiveTimerArgument = Argument;
+	for (const auto& State : Quest->States)
+		for (const auto& Trigger : State.Triggers)
+			if (Trigger.Event == EMT2QuestEvent::ServerTimer && Trigger.TriggerName == TimerName && PassesTrigger(Trigger, Context))
+			{
+				ScriptVariables.Reset();
+				for (const auto& Constant : Quest->Constants)
+				{
+					bool bOk = false; const auto Value = FMT2QuestExpression::Evaluate(Constant.Expression, Context, bOk);
+					if (bOk) ScriptVariables.Add(Constant.Name, Value);
+				}
+				PushFrame(Trigger.Nodes); RunPendingFrames();
+				if (!CallStack.IsEmpty()) { UE_LOG(LogMT2QuestRuntime, Error, TEXT("Room server timer attempted player dialogue.")); CancelConversation(); }
+				ActiveTimerArgument = FMT2QuestValue(); return;
+			}
+	ActiveTimerArgument = FMT2QuestValue();
+}
+
 bool UMT2QuestManagerComponent::DispatchNpcInteraction(int32 NpcVnum, AActor* Npc, bool bNpcHasShop)
 {
 	AMT2PlayerState* State = Cast<AMT2PlayerState>(GetOwner());
@@ -533,6 +599,7 @@ bool UMT2QuestManagerComponent::DispatchNpcInteraction(int32 NpcVnum, AActor* Np
 			continue;
 		}
 		Context.Quest = Quest;
+		bQuestDungeonSelected = false; SelectedQuestDungeon.Reset();
 		const FMT2QuestState* QuestState = Quest->FindState(GetQuestState(Quest));
 		if (!QuestState)
 		{
@@ -646,7 +713,7 @@ bool UMT2QuestManagerComponent::DispatchNamedEvent(
 }
 
 bool UMT2QuestManagerComponent::DispatchEventInternal(
-	EMT2QuestEvent Event, int32 Vnum, FName EventName, AActor* TargetActor, int32 ItemSlot, FName QuestId)
+	EMT2QuestEvent Event, int32 Vnum, FName EventName, AActor* TargetActor, int32 ItemSlot, FName QuestId, const FMT2ItemSlot* PickedItem)
 {
 	AMT2PlayerState* State = Cast<AMT2PlayerState>(GetOwner());
 	if (!State || !State->HasAuthority() || bRunning)
@@ -679,6 +746,8 @@ bool UMT2QuestManagerComponent::DispatchEventInternal(
 	Context.Event = Event;
 	Context.EventVnum = Vnum;
 	Context.EventItemSlot = ItemSlot;
+	bQuestDungeonSelected = false; SelectedQuestDungeon.Reset();
+	if (PickedItem) { Context.EventItemSnapshot = *PickedItem; Context.bHasEventItemSnapshot = true; }
 	Context.bPreservePIESpawn = bPreservePIESpawnDuringDispatch;
 	const auto* Dungeon = State->GetWorld()->GetSubsystem<UMT2DungeonSubsystem>();
 	const bool bNativeTower = Dungeon && Cast<AMT2DevilTowerRoom>(Dungeon->FindRoom(TEXT("DevilTower.Floor1")));
@@ -726,6 +795,7 @@ bool UMT2QuestManagerComponent::DispatchEventInternal(
 		// login guard that would eject everybody above floor one. Entrance dialogue outside stays intact.
 		if (bNativeTower && Quest->GetQuestId() == TEXT("deviltower_zone")) continue;
 		Context.Quest = Quest;
+		bQuestDungeonSelected = false; SelectedQuestDungeon.Reset();
 		if (Event == EMT2QuestEvent::Enter)
 		{
 			// A broadcast Enter (initial login/map entry) satisfies a pending state Enter too. Consume it
@@ -1001,8 +1071,13 @@ void UMT2QuestManagerComponent::HandleQuestTimerFired(FName TimerName, FName Que
 		QuestTimers.RemoveAt(FoundIndex);
 	}
 
-	DispatchNamedEvent(
-		bServerTimer ? EMT2QuestEvent::ServerTimer : EMT2QuestEvent::Timer, TimerName);
+	if (auto* Room = Cast<AMT2DungeonRoom>(GetOwner()); Room && bServerTimer)
+	{
+		auto* GI = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+		auto* Registry = GI ? GI->GetSubsystem<UMT2QuestRegistrySubsystem>() : nullptr;
+		DispatchDungeonTimer(Room, Registry ? Registry->FindQuest(QuestId) : nullptr, TimerName, ActiveTimerArgument);
+	}
+	else DispatchNamedEvent(bServerTimer ? EMT2QuestEvent::ServerTimer : EMT2QuestEvent::Timer, TimerName);
 	ActiveTimerArgument = FMT2QuestValue();
 }
 
@@ -1409,7 +1484,11 @@ void UMT2QuestManagerComponent::RestoreIteratorLocals(const FQuestFrame& Frame)
 
 bool UMT2QuestManagerComponent::PassesTrigger(const FMT2QuestTrigger& Trigger, const FMT2QuestContext& Context)
 {
-	if (bRunning || HasPendingConversation() || !Context.PlayerState || !Context.PlayerState->HasAuthority()) { return false; }
+	const bool bAuthority = Context.PlayerState ? Context.PlayerState->HasAuthority() :
+		Context.Event == EMT2QuestEvent::ServerTimer && Context.DungeonRoom.IsValid() && Context.DungeonRoom->HasAuthority() && GetOwner() == Context.DungeonRoom.Get();
+	if (bRunning || HasPendingConversation() || !bAuthority) { return false; }
+	const auto SavedDungeon = SelectedQuestDungeon; const bool bSavedDungeonSelected = bQuestDungeonSelected;
+	bQuestDungeonSelected = false; SelectedQuestDungeon.Reset();
 	const uint64 LockCheckpoint = GetNpcLockCheckpoint();
 	TGuardValue<bool> RunGuard(bRunning, true);
 	TGuardValue<bool> GateGuard(bEvaluatingTriggerGate, true);
@@ -1459,7 +1538,7 @@ bool UMT2QuestManagerComponent::PassesTrigger(const FMT2QuestTrigger& Trigger, c
 	ScriptVariables = MoveTemp(SavedVariables);
 	LoopIterations = MoveTemp(SavedLoops);
 	PendingLines = MoveTemp(SavedLines);
-	if (!bPassed) { ReleaseNpcLocksAfter(LockCheckpoint); }
+	if (!bPassed) { ReleaseNpcLocksAfter(LockCheckpoint); SelectedQuestDungeon = SavedDungeon; bQuestDungeonSelected = bSavedDungeonSelected; }
 	return bPassed;
 }
 

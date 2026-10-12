@@ -14,6 +14,12 @@
 #include "Persistence/MT2PersistenceComponent.h"
 #include "Player/MT2PlayerState.h"
 #include "TimerManager.h"
+#include "Quests/MT2QuestManagerComponent.h"
+#include "Quests/MT2QuestTableAsset.h"
+#include "Quests/MT2QuestNode.h"
+#include "Mobs/MT2MobSpawnComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMT2Dungeon, Log, All);
 
@@ -27,6 +33,8 @@ AMT2DungeonRoom::AMT2DungeonRoom()
 	Bounds->SetGenerateOverlapEvents(true);
 	Entrance = CreateDefaultSubobject<UArrowComponent>(TEXT("Entrance")); Entrance->SetupAttachment(Bounds);
 	Entrance->SetRelativeLocation(FVector(0,0,100));
+	ScriptExecutor = CreateDefaultSubobject<UMT2QuestManagerComponent>(TEXT("DungeonQuestExecutor"));
+	ScriptExecutor->SetIsReplicated(false);
 }
 void AMT2DungeonRoom::BeginPlay()
 {
@@ -44,6 +52,7 @@ void AMT2DungeonRoom::BeginPlay()
 }
 void AMT2DungeonRoom::EndPlay(const EEndPlayReason::Type Reason)
 {
+	ClearScriptRegen();
 	bRegistered = false;
 	GetWorld()->GetTimerManager().ClearAllTimersForObject(this);
 	Bounds->OnComponentBeginOverlap.RemoveDynamic(this, &ThisClass::OnOverlap);
@@ -132,12 +141,13 @@ bool AMT2DungeonRoom::StartEncounter()
 	if (!HasAuthority() || !bRegistered || bResetting || Phase != EMT2DungeonRoomPhase::Idle || Members.IsEmpty() ||
 		!FMath::IsFinite(EncounterSeconds) || EncounterSeconds < 0.f) return false;
 	RunSerial = RunSerial == MAX_int32 ? 1 : RunSerial + 1;
+	const float RunSeconds = bScriptControlled ? 0.f : EncounterSeconds;
 	EligiblePlayers.Reset(); ClaimedPlayers.Reset();
 	for (auto Member : Members) { const FString Id = PlayerIdentity(Member.Get()); if (!Id.IsEmpty()) EligiblePlayers.Add(Id); }
-	SetPhase(EMT2DungeonRoomPhase::Active); Deadline = EncounterSeconds > 0.f ? GetWorld()->GetTimeSeconds() + EncounterSeconds : 0.0;
+	SetPhase(EMT2DungeonRoomPhase::Active); Deadline = RunSeconds > 0.f ? GetWorld()->GetTimeSeconds() + RunSeconds : 0.0;
 	const int32 Epoch = RunSerial;
-	if (EncounterSeconds > 0.f) GetWorld()->GetTimerManager().SetTimer(EncounterTimer, FTimerDelegate::CreateWeakLambda(this, [this, Epoch]()
-		{ if (RunSerial == Epoch) FailEncounter(); }), EncounterSeconds, false);
+	if (RunSeconds > 0.f) GetWorld()->GetTimerManager().SetTimer(EncounterTimer, FTimerDelegate::CreateWeakLambda(this, [this, Epoch]()
+		{ if (RunSerial == Epoch) FailEncounter(); }), RunSeconds, false);
 	bSpawning = true;
 	auto* GI = GetGameInstance(); auto* Vnums = GI ? GI->GetSubsystem<UMT2VnumRegistrySubsystem>() : nullptr;
 	TMap<int32, TArray<AMT2Mob*>> Groups;
@@ -238,6 +248,7 @@ void AMT2DungeonRoom::OnEnemyDeath()
 	{ Killed.Add(*It); It.RemoveCurrent(); }
 	RemainingEnemies = AliveEnemies.Num(); ForceNetUpdate();
 	for (auto Mob : Killed) if (Mob.IsValid() && Phase == EMT2DungeonRoomPhase::Active) OnEnemyKilled(Mob.Get());
+	if (bScriptControlled && !bSpawning) CheckScriptElimination();
 	if (CompletesOnElimination() && !bSpawning && RemainingEnemies == 0 && !Enemies.IsEmpty()) CompleteEncounter();
 }
 void AMT2DungeonRoom::OnEnemyEndPlay(AActor* Actor, EEndPlayReason::Type Reason)
@@ -303,7 +314,178 @@ bool AMT2DungeonRoom::ResetWhenEmpty()
 	bResetting = true;
 	GetWorld()->GetTimerManager().ClearTimer(EncounterTimer); GetWorld()->GetTimerManager().ClearTimer(ResetTimer);
 	EligiblePlayers.Reset(); ClaimedPlayers.Reset(); Deadline = 0.0;
-	OnEncounterReset(); ClearEnemies(true); SetPhase(EMT2DungeonRoomPhase::Idle); bResetting = false; ForceNetUpdate(); return true;
+	OnEncounterReset(); ClearEnemies(true); ScriptFlags.Reset(); ScriptUniques.Reset(); ScriptExecutor->ResetDungeonExecution();
+	ClearScriptRegen(); ScriptEliminationDelay = -1.f; GetWorld()->GetTimerManager().ClearTimer(ScriptEliminationTimer); bScriptControlled = false;
+	SetPhase(EMT2DungeonRoomPhase::Idle); bResetting = false; ForceNetUpdate(); return true;
+}
+
+void AMT2DungeonRoom::SetScriptFlag(const FString& Name, int32 Value)
+{
+	if (HasAuthority() && !Name.IsEmpty()) { bScriptControlled = true; ScriptFlags.Add(Name, Value); }
+}
+bool AMT2DungeonRoom::SetScriptUnique(const FString& Name, AMT2Mob* Mob)
+{
+	if (!HasAuthority() || Name.IsEmpty() || !IsValid(Mob) || !Enemies.Contains(Mob)) return false;
+	ScriptUniques.Add(Name, Mob); return true;
+}
+AMT2Mob* AMT2DungeonRoom::GetScriptUnique(const FString& Name) const
+{
+	const auto* Value = ScriptUniques.Find(Name);
+	return Value && Value->IsValid() && !(*Value)->IsActorBeingDestroyed() ? Value->Get() : nullptr;
+}
+void AMT2DungeonRoom::RemoveScriptUnique(const FString& Name, bool bKill)
+{
+	if (!HasAuthority()) return;
+	auto* Mob = GetScriptUnique(Name); ScriptUniques.Remove(Name);
+	if (!Mob) return;
+	if (bKill) Mob->GetHealthComponent()->SetHealth(0.f);
+	else PurgeEnemy(Mob);
+}
+void AMT2DungeonRoom::PurgeScriptEnemies() { if (HasAuthority()) ClearEnemies(true); }
+void AMT2DungeonRoom::KillScriptEnemies()
+{
+	if (!HasAuthority()) return;
+	for (auto Enemy : AliveEnemies.Array()) if (Enemy.IsValid()) Enemy->GetHealthComponent()->SetHealth(0.f);
+}
+
+bool AMT2DungeonRoom::SpawnScriptRegen(const FString& Path, bool bRespawning)
+{
+	if (!HasAuthority() || !bRegistered) return false;
+	FString Key = Path.TrimStartAndEnd(); FPaths::NormalizeFilename(Key);
+	const auto* Tables = LoadObject<UMT2QuestTableAsset>(nullptr, UMT2QuestTableAsset::GetAssetPath());
+	const auto* Map = Tables ? Tables->FindMapByIndex(LegacyMapIndex) : nullptr;
+	const auto* Regen = Tables ? Tables->DungeonRegens.FindByPredicate([&](const auto& Row) { return Row.Path == Key; }) : nullptr;
+	if (!Map || !Regen) { UE_LOG(LogMT2Dungeon, Error, TEXT("Room %s has no cooked regen '%s' for map %d."), *RoomId.ToString(), *Key, LegacyMapIndex); return false; }
+	// Joining an already-running shared stage must not duplicate its initial wave.
+	if (ScriptRegenPaths.Contains(Key)) return true;
+	bScriptControlled = true;
+	if (Phase == EMT2DungeonRoomPhase::Idle && !StartEncounter()) return false;
+	if (Phase != EMT2DungeonRoomPhase::Active) return false;
+	TArray<FMT2MobSpawnEntry> Entries = Regen->Entries;
+	for (auto& Entry : Entries)
+	{
+		Entry.Center.X += Map->WorldSize.X; Entry.Center.Z = Entrance->GetComponentLocation().Z;
+		if (!ContainsLocation(Entry.Center)) { UE_LOG(LogMT2Dungeon, Error, TEXT("Regen '%s' extends outside room %s."), *Key, *RoomId.ToString()); return false; }
+		if (!bRespawning) Entry.RespawnDelay = 0.f;
+	}
+	auto* Spawner = NewObject<UMT2MobSpawnComponent>(this);
+	Spawner->SpawnRegistration.BindUObject(this, &AMT2DungeonRoom::RegisterEnemy);
+	Spawner->SetSpawnEntries(Entries); ScriptRegens.Add(Spawner); ScriptRegenPaths.Add(Key);
+	AddInstanceComponent(Spawner); Spawner->RegisterComponent(); Spawner->ProcessSpawns(); return true;
+}
+void AMT2DungeonRoom::ClearScriptRegen()
+{
+	for (const auto& Spawner : ScriptRegens) if (IsValid(Spawner)) Spawner->DestroyComponent();
+	ScriptRegens.Reset(); ScriptRegenPaths.Reset();
+}
+AMT2Mob* AMT2DungeonRoom::SpawnScriptMob(int32 Vnum, const FVector2D& XY, float Yaw)
+{
+	if (!HasAuthority() || !bRegistered || Vnum <= 0) return nullptr;
+	bScriptControlled = true;
+	if (Phase == EMT2DungeonRoomPhase::Idle && !StartEncounter()) return nullptr;
+	const FVector Center = Bounds->GetComponentLocation(), Extent = Bounds->GetScaledBoxExtent();
+	FHitResult Hit; FCollisionQueryParams Query(SCENE_QUERY_STAT(MT2DungeonScriptSpawn), false, this);
+	if (!GetWorld()->LineTraceSingleByChannel(Hit, FVector(XY, Center.Z + Extent.Z), FVector(XY, Center.Z - Extent.Z), ECC_WorldStatic, Query)) return nullptr;
+	FMT2DungeonSpawn Spawn; Spawn.Vnum = Vnum;
+	Spawn.LocalTransform.SetLocation(GetActorTransform().InverseTransformPosition(Hit.ImpactPoint + FVector(0,0,100)));
+	Spawn.LocalTransform.SetRotation(GetActorQuat().Inverse() * FRotator(0,Yaw,0).Quaternion());
+	return SpawnEncounterMob(Spawn);
+}
+bool AMT2DungeonRoom::JumpScriptMembers(AMT2DungeonRoom* Destination, const FVector2D& XY)
+{
+	if (!HasAuthority() || !IsValid(Destination) || Destination->GetWorld() != GetWorld() || !Destination->bRegistered ||
+		Destination->Phase == EMT2DungeonRoomPhase::Failed) return false;
+	const FVector Center = Destination->Bounds->GetComponentLocation();
+	if (!Destination->ContainsLocation(FVector(XY, Center.Z))) return false;
+	const bool bInitialize = Destination != this && Destination->Phase == EMT2DungeonRoomPhase::Idle;
+	if (bInitialize) { Destination->ScriptFlags = ScriptFlags; Destination->bScriptControlled = true; }
+	const bool bMoved = Destination->JumpScriptPlayers(GetScriptMembers(), XY);
+	if (bMoved && Destination != this)
+	{
+		ClearScriptRegen(); ScriptExecutor->ClearDungeonTimers();
+		ScriptEliminationDelay = -1.f; GetWorld()->GetTimerManager().ClearTimer(ScriptEliminationTimer);
+		if (Phase == EMT2DungeonRoomPhase::Active) CompleteEncounter();
+	}
+	return bMoved;
+}
+bool AMT2DungeonRoom::JumpScriptPlayers(const TArray<TWeakObjectPtr<AMT2PlayerState>>& Players, const FVector2D& XY)
+{
+	if (!HasAuthority() || !bRegistered || Phase == EMT2DungeonRoomPhase::Failed || !FMath::IsFinite(XY.X) || !FMath::IsFinite(XY.Y)) return false;
+	AMT2DungeonRoom* Destination = this;
+	const FVector Center = Bounds->GetComponentLocation(), Extent = Bounds->GetScaledBoxExtent();
+	if (!ContainsLocation(FVector(XY, Center.Z))) return false;
+	bScriptControlled = true;
+	bool bMoved = false;
+	for (auto Member : Players)
+	{
+		auto* Player = Member.IsValid() ? Cast<AMT2PlayerCharacter>(Member->GetPawn()) : nullptr;
+		if (!Player) continue;
+		bool bTeleported = false;
+		for (int32 Attempt = 0; Attempt < 256 && !bTeleported; ++Attempt)
+		{
+			const FVector2D Offset = Attempt == 0 ? FVector2D::ZeroVector : FVector2D((Attempt % 16 - 8)*100., (Attempt / 16 - 8)*100.);
+			const FVector2D Candidate = XY + Offset;
+			FHitResult Hit; FCollisionQueryParams Query(SCENE_QUERY_STAT(MT2DungeonScriptJump), false, Player);
+			if (!GetWorld()->LineTraceSingleByChannel(Hit, FVector(Candidate, Center.Z + Extent.Z), FVector(Candidate, Center.Z - Extent.Z), ECC_WorldStatic, Query)) continue;
+			const FVector Position = Hit.ImpactPoint + FVector(0,0,Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight()+2);
+			if (!Destination->ContainsLocation(Position)) continue;
+			Player->GetCharacterMovement()->StopMovementImmediately();
+			bTeleported = Player->TeleportTo(Position, Player->GetActorRotation(), false, false);
+		}
+		if (!bTeleported) { UE_LOG(LogMT2Dungeon, Error, TEXT("Room %s could not move a member to %s."), *RoomId.ToString(), *Destination->RoomId.ToString()); continue; }
+		if (auto* Registry = GetWorld()->GetSubsystem<UMT2DungeonSubsystem>())
+			if (auto* Previous = Registry->GetPlayerRoom(Member.Get()); Previous && Previous != this) Previous->LeavePlayer(Member.Get());
+		if (!JoinPlayer(Member.Get())) { UE_LOG(LogMT2Dungeon, Error, TEXT("Script jump could not register a player in room %s."), *RoomId.ToString()); continue; }
+		bMoved = true;
+	}
+	if (bMoved && Phase == EMT2DungeonRoomPhase::Idle) StartEncounter();
+	return bMoved;
+}
+void AMT2DungeonRoom::SetScriptElimination(float Delay, const FVector2D& XY, const FString& Regen)
+{
+	if (!HasAuthority() || !FMath::IsFinite(Delay) || Delay < 0.f) return;
+	bScriptControlled = true; ScriptEliminationDelay = Delay; ScriptEliminationXY = XY; ScriptEliminationRegen = Regen;
+}
+void AMT2DungeonRoom::CheckScriptElimination()
+{
+	if (!HasAuthority() || ScriptEliminationDelay < 0.f || GetScriptMonsterCount() > 0 || GetWorld()->GetTimerManager().IsTimerActive(ScriptEliminationTimer)) return;
+	const auto Perform = [this]()
+	{
+		auto* Registry = GetWorld()->GetSubsystem<UMT2DungeonSubsystem>();
+		auto* Destination = Registry ? Registry->FindQuestRoomAtPosition(LegacyMapIndex, ScriptEliminationXY) : nullptr;
+		const FString Regen = ScriptEliminationRegen; ScriptEliminationDelay = -1.f;
+		ClearScriptRegen();
+		if (!Destination || !JumpScriptMembers(Destination, ScriptEliminationXY)) { UE_LOG(LogMT2Dungeon, Error, TEXT("Room %s elimination transition failed."), *RoomId.ToString()); return; }
+		if (!Regen.IsEmpty()) Destination->SpawnScriptRegen(Regen, false);
+	};
+	if (ScriptEliminationDelay == 0.f) Perform();
+	else GetWorld()->GetTimerManager().SetTimer(ScriptEliminationTimer, FTimerDelegate::CreateWeakLambda(this, Perform), ScriptEliminationDelay, false);
+}
+void AMT2DungeonRoom::SetScriptExit(int32 MapIndex, FVector2D Position)
+{
+	if (HasAuthority() && MapIndex >= 0 && FMath::IsFinite(Position.X) && FMath::IsFinite(Position.Y))
+	{ ScriptExitMap = MapIndex; ScriptExitPosition = Position; }
+}
+void AMT2DungeonRoom::ExitScriptMembers()
+{
+	if (!HasAuthority()) return;
+	for (auto Member : GetScriptMembers()) if (Member.IsValid())
+	{
+		FMT2QuestContext Context; Context.PlayerState = Member.Get(); Context.Player = Cast<AMT2PlayerCharacter>(Member->GetPawn());
+		Context.Manager = Member->GetQuestManagerComponent();
+		auto* Warp = NewObject<UMT2QuestNode_Warp>(this);
+		Warp->bToEmpireVillage = ScriptExitMap == 0;
+		Warp->MapIndexExpression = FString::FromInt(ScriptExitMap);
+		Warp->Position = ScriptExitPosition * 100.;
+		Warp->Execute(Context);
+	}
+}
+int32 AMT2DungeonRoom::GetScriptMonsterCount() const
+{
+	int32 Count = 0;
+	for (auto Mob : AliveEnemies) if (Mob.IsValid() &&
+		(Mob->GetMobType() == EMT2MobType::Monster || Mob->IsMetinStone())) ++Count;
+	return Count;
 }
 bool AMT2DungeonRoom::TryClaimCompletion(AMT2PlayerState* Player)
 {

@@ -8,7 +8,10 @@
 */
 
 #include "Importers/MT2QuestImporter.h"
+#include "Importers/MT2ItemProtoReader.h"
+#include "Importers/MT2MapTerrainImporter.h"
 #include "Config/MT2PathSettings.h"
+#include "Config/MT2GameplaySettings.h"
 #include "MT2QuestExpressionSyntax.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -1101,7 +1104,8 @@ namespace
 	bool ParseTriggerSpec(
 		const FString& Spec, const TMap<FString, FString>& Locale,
 		EMT2QuestEvent& OutEvent, int32& OutVnum, FText& OutChatOption,
-		const TMap<FString, int32>* NamedVnums = nullptr, FName* OutTriggerName = nullptr)
+		const TMap<FString, int32>* NamedVnums = nullptr, FName* OutTriggerName = nullptr,
+		const TMap<FString, int32>* ItemAliases = nullptr)
 	{
 		if (OutTriggerName) { *OutTriggerName = NAME_None; }
 		OutVnum = 0;
@@ -1123,6 +1127,13 @@ namespace
 			}
 		}
 		Working = Working.TrimStartAndEnd();
+		// Some authored target triggers omit the dot before "target" or the target verb.
+		if (Working.StartsWith(TEXT("__TARGET")))
+		{
+			Working.ReplaceInline(TEXT("__target."), TEXT("__.target."), ESearchCase::CaseSensitive);
+			if (Working.EndsWith(TEXT("__.click")))
+				Working = Working.LeftChop(6) + TEXT(".target.click");
+		}
 
 		TArray<FString> Parts;
 		Working.ParseIntoArray(Parts, TEXT("."), true);
@@ -1138,6 +1149,12 @@ namespace
 			PartIndex = 1;
 		}
 		// `when MOB1_1.kill` names a `define`d constant instead of the raw vnum; resolve it.
+		else if (Parts.Num() > 1 && (Parts[1] == TEXT("use") || Parts[1] == TEXT("pick")) && ItemAliases && ItemAliases->Contains(Parts[0]))
+		{
+			OutVnum = (*ItemAliases)[Parts[0]];
+			if (OutVnum <= 0) return false;
+			PartIndex = 1;
+		}
 		else if (NamedVnums && NamedVnums->Contains(Parts[0]))
 		{
 			OutVnum = (*NamedVnums)[Parts[0]];
@@ -1166,6 +1183,8 @@ namespace
 			{TEXT("button"),  EMT2QuestEvent::Button},
 			{TEXT("info"),    EMT2QuestEvent::Info},
 			{TEXT("use"),     EMT2QuestEvent::ItemUse},
+			{TEXT("pick"),    EMT2QuestEvent::ItemPick},
+			{TEXT("sig_use"), EMT2QuestEvent::SpecialItemUse},
 			{TEXT("take"),    EMT2QuestEvent::ItemTake},
 			{TEXT("timer"),   EMT2QuestEvent::Timer},
 			{TEXT("letter"),  EMT2QuestEvent::Letter},
@@ -2637,6 +2656,16 @@ namespace
 			FString Arguments;
 
 			// Anonymous table callbacks are function frames, not generic for-loops: return nil
+			if (Line.StartsWith(TEXT("d.")) && !Line.StartsWith(TEXT("d.notice")))
+			{
+				FlushSay(); FString Call = Line;
+				TArray<TObjectPtr<UMT2QuestNode>> Prelude;
+				if (ExtractRuntimeFunctionCalls(Lines, Call, State, Prelude, true)) Nodes.Append(Prelude);
+				else RecordUnconverted(State, Nodes, Raw, StatementStart);
+				continue;
+			}
+
+			// Anonymous table callbacks are function frames, not generic for-loops: return nil
 			// continues iteration while any other return ends only this table call.
 			if (Line.Contains(TEXT("table.foreach")))
 			{
@@ -3904,6 +3933,13 @@ namespace
 				const TArray<FString> Parts = SplitArguments(Arguments);
 				FlushSay();
 				UMT2QuestNode_ClearTimer* Node = NewObject<UMT2QuestNode_ClearTimer>(State.Outer);
+				Node->bServerTimer = Line.StartsWith(TEXT("clear_server_timer"));
+				if (Parts.Num() >= 2)
+				{
+					FString Reason;
+					if (!CanConvertExpression(Parts[1], State, Reason)) { RecordUnconverted(State, Nodes, Raw, Index); continue; }
+					Node->ArgumentExpression = Parts[1];
+				}
 				if (Parts.Num() >= 1)
 				{
 					Node->TimerName = FName(*Parts[0].Replace(TEXT("\""), TEXT("")).Replace(TEXT("'"), TEXT("")));
@@ -4167,6 +4203,7 @@ namespace
 				bool bResolved = false;
 				FlushSay();
 				UMT2QuestNode_Notice* Node = NewObject<UMT2QuestNode_Notice>(State.Outer);
+				Node->bDungeonScoped = Line.StartsWith(TEXT("d.notice"));
 				Node->Message = FText::FromString(ResolveDisplayText(Arguments, *State.Locale));
 				Nodes.Add(Node);
 				++State.Result->NodesCreated;
@@ -4566,6 +4603,26 @@ bool FMT2QuestImporter::Import(
 	// click/chat events. Import the same registry instead of leaving those triggers with vnum zero.
 	TMap<FString, int32> QuestNpcAliases;
 	LoadQuestNpcAliases(SourceRoot / UMT2PathSettings::Path(TEXT("Part_questnpc")), QuestNpcAliases);
+	// Resolve named item-use triggers from the original proto, never from a display label.
+	FMT2ItemProtoReadResult ItemNames;
+	TMap<FString, int32> QuestItemAliases;
+	FString ItemNamesError;
+	if (FMT2ItemProtoReader::Read(ClientSourceRoot / UMT2PathSettings::Path(TEXT("Part_locale_en_item_proto")), ItemNames, ItemNamesError))
+	{
+		for (const auto& Item : ItemNames.Definitions)
+			if (!Item.InternalName.IsEmpty())
+			{
+				const auto* Previous = QuestItemAliases.Find(Item.InternalName);
+				QuestItemAliases.Add(Item.InternalName, Previous && *Previous != Item.Vnum ? 0 : Item.Vnum);
+			}
+	}
+	else { OutResult.Warnings.Add(TEXT("Item trigger names unavailable: ") + ItemNamesError); }
+	for (const auto& Alias : UMT2GameplaySettings::Get().QuestItemTriggerAliases)
+	{
+		if (Alias.Key.IsEmpty() || Alias.Value <= 0 || !ItemNames.Definitions.ContainsByPredicate([&](const auto& Item) { return Item.Vnum == Alias.Value; }))
+		{ OutResult.Warnings.Add(FString::Printf(TEXT("Invalid quest item alias '%s' -> %d: item proto entry required."), *Alias.Key, Alias.Value)); continue; }
+		QuestItemAliases.Add(Alias.Key, Alias.Value);
+	}
 
 	TArray<FString> ScriptFiles;
 	const FString ActiveQuestList = SourceRoot / UMT2PathSettings::Path(TEXT("Part_locale_list"));
@@ -4798,7 +4855,7 @@ bool FMT2QuestImporter::Import(
 				int32 Vnum = 0;
 				FText ChatOption;
 				FName TriggerName;
-				if (!ParseTriggerSpec(EventSpec, Locale, Event, Vnum, ChatOption, &NamedVnums, &TriggerName))
+				if (!ParseTriggerSpec(EventSpec, Locale, Event, Vnum, ChatOption, &NamedVnums, &TriggerName, &QuestItemAliases))
 				{
 					OutResult.ConversionReport.Add(FString::Printf(
 						TEXT("%s: unsupported trigger '%s'"), *ScriptName, *EventSpec));
@@ -4897,6 +4954,40 @@ bool FMT2QuestImporter::Import(
 
 	if (SharedTableAsset)
 	{
+		SharedTableAsset->DungeonRegens.Reset();
+		const FString ShareRoot = FPaths::ConvertRelativePathToFull(LocaleRoot / TEXT("../.."));
+		TArray<FString> RegenFiles;
+		IFileManager::Get().FindFilesRecursive(RegenFiles, *(ShareRoot / TEXT("data/dungeon")), TEXT("*.txt"), true, false);
+		for (const FString& Filename : RegenFiles)
+		{
+			FMT2MapTerrainInfo Map; // Width zero: bake only -X; runtime adds the active map width.
+			TArray<FMT2MobSpawnEntry> Entries; TArray<FString> Warnings;
+			if (!FMT2MapTerrainImporter::ReadDungeonRegen(LocaleRoot, Filename, Map, Entries, Warnings) || !Warnings.IsEmpty())
+			{
+				for (const auto& Warning : Warnings) OutResult.Warnings.Add(Filename + TEXT(": ") + Warning);
+				continue;
+			}
+			if (Entries.IsEmpty()) continue;
+			auto& Regen = SharedTableAsset->DungeonRegens.AddDefaulted_GetRef();
+			Regen.Path = FPaths::ConvertRelativePathToFull(Filename);
+			FPaths::MakePathRelativeTo(Regen.Path, *(ShareRoot + TEXT("/")));
+			FPaths::NormalizeFilename(Regen.Path); Regen.Entries = MoveTemp(Entries);
+		}
+		SharedTableAsset->QuestSpecialItemGroups.Reset();
+		TArray<FString> GroupLines;
+		FFileHelper::LoadFileToStringArray(GroupLines, *(FPaths::GetPath(SourceRoot) / TEXT("special_item_group.txt")));
+		int32 GroupId = 0; bool bQuestGroup = false; TArray<int32> GroupItems;
+		for (const FString& RawGroupLine : GroupLines)
+		{
+			TArray<FString> Tokens; StripComment(RawGroupLine).ParseIntoArrayWS(Tokens);
+			if (Tokens.IsEmpty()) continue;
+			if (Tokens[0] == TEXT("{")) { GroupId = 0; bQuestGroup = false; GroupItems.Reset(); }
+			else if (Tokens[0] == TEXT("}") && bQuestGroup && GroupId > 0)
+				for (int32 Item : GroupItems) SharedTableAsset->QuestSpecialItemGroups.Add(Item, GroupId);
+			else if (Tokens.Num() >= 2 && Tokens[0].Equals(TEXT("Vnum"), ESearchCase::IgnoreCase)) GroupId = FCString::Atoi(*Tokens[1]);
+			else if (Tokens.Num() >= 2 && Tokens[0].Equals(TEXT("Type"), ESearchCase::IgnoreCase)) bQuestGroup = Tokens[1].Equals(TEXT("Quest"), ESearchCase::IgnoreCase);
+			else if (Tokens.Num() >= 2 && Tokens[0].IsNumeric()) GroupItems.Add(FCString::Atoi(*Tokens[1]));
+		}
 		SharedTableAsset->ActiveQuestIds.Reset();
 		for (const FString& QuestName : InitializedQuestNames)
 		{
