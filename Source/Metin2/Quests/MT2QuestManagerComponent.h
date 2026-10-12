@@ -259,6 +259,7 @@ private:
 	friend class FMT2QuestFunctionsTest;
 	friend class FMT2QuestLoweringTest;
 	friend class FMT2QuestCompactReturnTest;
+	friend class FMT2QuestRewardHelperTest;
 	friend class FMT2QuestStringImportTest;
 	friend class FMT2QuestResultListImportTest;
 	friend class FMT2QuestTargetDispatchTest;

@@ -2616,12 +2616,19 @@ namespace
 			{
 				int32 Balance = CountUnclosedParens(Line);
 				int32 Lookahead = Index;
-				while (Balance > 0 && Lookahead + 1 < End)
+				// Lua permits a newline between an assignment's '=' and its value.
+				// Do not consume block punctuation when the value is missing.
+				bool bNeedsValue = Line.EndsWith(TEXT("=")) && !Line.EndsWith(TEXT("==")) &&
+					!Line.EndsWith(TEXT("~=")) && !Line.EndsWith(TEXT("<=")) && !Line.EndsWith(TEXT(">="));
+				while ((Balance > 0 || bNeedsValue) && Lookahead + 1 < End)
 				{
+					const FString Continuation = StripComment(Lines[Lookahead + 1]).TrimStartAndEnd();
+					if (bNeedsValue && (LineHasWord(Continuation, TEXT("end")) ||
+						LineHasWord(Continuation, TEXT("else")) || LineHasWord(Continuation, TEXT("elseif")))) { break; }
 					++Lookahead;
-					const FString Continuation = StripComment(Lines[Lookahead]).TrimStartAndEnd();
 					Line += TEXT(" ") + Continuation;
 					Balance += CountUnclosedParens(Continuation);
+					bNeedsValue &= Continuation.IsEmpty();
 				}
 				Index = Lookahead; // the joined lines are consumed by this statement
 			}
@@ -3414,13 +3421,16 @@ namespace
 				ExtractCallArguments(Line, TEXT("pc.changemoney"), Arguments))
 			{
 				const TArray<FString> Parts = SplitArguments(Arguments);
-				const FString AmountArgument = Parts.Num() > 0 ? Parts.Last() : Arguments;
+				FString AmountArgument = Parts.Num() > 0 ? Parts.Last() : Arguments;
+				TArray<TObjectPtr<UMT2QuestNode>> Prelude;
 				int64 Amount = 0;
 				FString Reason;
 				const bool bLiteral = ParseInt64(AmountArgument, Amount);
-				if (bLiteral || CanConvertExpression(AmountArgument, State, Reason))
+				if (bLiteral || (ExtractRuntimeFunctionCalls(Lines, AmountArgument, State, Prelude) &&
+					CanConvertExpression(AmountArgument, State, Reason)))
 				{
 					FlushSay();
+					Nodes.Append(Prelude);
 					UMT2QuestNode_GiveReward* Node = NewObject<UMT2QuestNode_GiveReward>(State.Outer);
 					const bool bExperience = Line.Contains(TEXT("give_exp2"));
 					if (bLiteral)

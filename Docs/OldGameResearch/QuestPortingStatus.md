@@ -27,6 +27,8 @@ Unconverted nodes retain source locations. Some stop execution; others allow sur
 - While/repeat/numeric-for lowering and `ipairs` sequence iteration. Iterator state survives dialogue suspension and restores shadowed variables; traversal stops at the first missing integer key and has an execution budget.
 - Supported inline table callbacks and runtime-built menus through `select_table`.
 - Quest-local functions, parameter frames, returns and ordered result lists. Bare local declarations initialize to nil.
+- Assignments may continue after `=` across blank/comment lines and multiline call arguments. Missing values remain diagnostics rather than consuming the next block terminator.
+- EXP and money rewards accept resumable quest-local helper expressions. Helpers execute in expression order before the authoritative reward node, including after dialogue suspension.
 - Compact Lua returns such as `return({...})[race]`, including multiline parenthesized tables.
 - Simultaneous assignments evaluate supported right-hand values before publishing destinations. Native final-call expansion and nil padding follow the supported Lua list rules.
 - Resumable quest-function result destinations publish after frame unwinding restores parameters. Cancellation or failure does not publish a successful return.

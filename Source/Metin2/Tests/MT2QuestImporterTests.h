@@ -60,6 +60,47 @@ bool FMT2QuestCompactReturnTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2QuestRewardHelperTest, "Metin2.Quests.Importer.RewardHelpers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FMT2QuestRewardHelperTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	if (!TestNotNull(TEXT("World"), World)) { return false; }
+	ON_SCOPE_EXIT { World->DestroyWorld(false); };
+	AMT2PlayerState* Player = World->SpawnActor<AMT2PlayerState>();
+	if (!TestNotNull(TEXT("Player"), Player)) { return false; }
+	UMT2QuestManagerComponent* Manager = Player->GetQuestManagerComponent();
+	FMT2QuestContext Context; Context.Manager = Manager; Context.PlayerState = Player;
+	Manager->ActiveContext = Context;
+	const TArray<FString> Lines = {
+		TEXT("calls = calls + 1"), TEXT("return 7"),
+		TEXT("local amount ="), TEXT("-- continuation comment"), TEXT("math.max("), TEXT("3, 5)"),
+		TEXT("pc.change_money(amount + probe.reward())"), TEXT("pc.give_exp2(probe.reward())")};
+	const TArray<FParsedFunction> Functions = {{TEXT("reward"), {}, 0, 2}};
+	const TMap<FString, FString> Locale;
+	FMT2QuestImportResult Result; FTranslateState State;
+	State.Locale = &Locale; State.Outer = Manager; State.Result = &Result;
+	State.ScriptName = State.QuestName = TEXT("probe"); State.Functions = &Functions;
+	State.KnownVariables.Add(TEXT("calls"));
+	Manager->SetScriptVariable(TEXT("calls"), FMT2QuestValue(0.0));
+	const auto Nodes = TranslateBlock(Lines, 2, Lines.Num(), State);
+	TestEqual(TEXT("Continued assignment and reward helpers translate"), Result.StatementsUnconverted, 0);
+	const int64 GoldBefore = Player->GetYang(), ExperienceBefore = Player->GetExperience();
+	Manager->PushFrame(Nodes); Manager->RunPendingFrames();
+	TestEqual(TEXT("Assignment joins comments and parenthesized continuation"), Manager->GetScriptVariable(TEXT("amount")).Number, 5.0);
+	TestEqual(TEXT("Gold uses evaluated helper result"), Player->GetYang() - GoldBefore, int64(12));
+	TestEqual(TEXT("Experience uses evaluated helper result"), Player->GetExperience() - ExperienceBefore, int64(7));
+	TestEqual(TEXT("Each reward helper executes once"), Manager->GetScriptVariable(TEXT("calls")).Number, 2.0);
+	const TArray<FString> Invalid = {TEXT("local missing ="), TEXT("end"), TEXT("pc.change_money(3)"),
+		TEXT("pc.change_money(unknown.reward())")};
+	const auto InvalidNodes = TranslateBlock(Invalid, 0, Invalid.Num(), State);
+	TestEqual(TEXT("Malformed assignment and unsupported helper remain diagnostic"), Result.StatementsUnconverted, 2);
+	TestTrue(TEXT("Statement after missing value is preserved"), InvalidNodes.ContainsByPredicate(
+		[](const TObjectPtr<UMT2QuestNode>& Node) { return Node && Node->IsA<UMT2QuestNode_GiveReward>(); }));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2QuestPartyFlagTest, "Metin2.Quests.Importer.PartyFlags",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
