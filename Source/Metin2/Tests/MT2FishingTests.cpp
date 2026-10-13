@@ -40,6 +40,8 @@
 #include "Blueprint/WidgetTree.h"
 #include "Components/ScrollBox.h"
 #include "Components/CanvasPanel.h"
+#include "Layout/ArrangedChildren.h"
+#include "Widgets/SWidget.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2FishingRulesTest, "Metin2.Fishing.LegacyRules", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FMT2FishingRulesTest::RunTest(const FString&)
@@ -260,6 +262,39 @@ bool FMT2NotificationRoutingTest::RunTest(const FString&)
 	Widget->WidgetTree->RootWidget = Widget->HistoryPanel;
 	Widget->HistoryPanel->AddChild(Widget->HistoryBox);
 	Widget->HistoryPanel->AddChild(Widget->RewardHistoryBox);
+	const auto CheckBottomAlignment = [this](UScrollBox* Box, const TCHAR* Label)
+	{
+		const TSharedRef<SWidget> SlateBox = Box->TakeWidget();
+		SlateBox->SlatePrepass();
+		TFunction<TSharedPtr<SWidget>(TSharedRef<SWidget>)> FindPanel;
+		FindPanel = [&FindPanel](TSharedRef<SWidget> Widget) -> TSharedPtr<SWidget>
+		{
+			if (Widget->GetTypeAsString() == TEXT("SScrollPanel")) { return Widget; }
+			FChildren* Children = Widget->GetChildren();
+			for (int32 Index = 0; Index < Children->Num(); ++Index)
+			{
+				if (TSharedPtr<SWidget> Panel = FindPanel(Children->GetChildAt(Index))) { return Panel; }
+			}
+			return nullptr;
+		};
+		const TSharedPtr<SWidget> Panel = FindPanel(SlateBox);
+		if (!TestTrue(TEXT("History has a scroll panel"), Panel.IsValid())) { return; }
+		FArrangedChildren Arranged(EVisibility::Visible);
+		Panel->ArrangeChildren(FGeometry::MakeRoot(FVector2D(400.f, 400.f), FSlateLayoutTransform()), Arranged);
+		if (!TestTrue(TEXT("History has arranged entries"), Arranged.Num() > 0)) { return; }
+		const FGeometry& Last = Arranged[Arranged.Num() - 1].Geometry;
+		TestTrue(Label, FMath::IsNearlyEqual(Last.LocalToAbsolute(Last.GetLocalSize()).Y, 400.f, .1f));
+		FArrangedChildren Overflow(EVisibility::Visible);
+		Panel->ArrangeChildren(FGeometry::MakeRoot(FVector2D(400.f, 1.f), FSlateLayoutTransform()), Overflow);
+		TestEqual(TEXT("Overflow keeps every history row"), Overflow.Num(), Box->GetChildrenCount());
+		if (Overflow.Num() > 0)
+		{
+			TestTrue(TEXT("Overflow does not squash the oldest row"), FMath::IsNearlyEqual(
+				Overflow[0].Geometry.GetLocalSize().Y, Box->GetChildAt(0)->GetDesiredSize().Y, .1f));
+			TestTrue(TEXT("Overflow starts at the top for scrollback"), FMath::IsNearlyZero(
+				Overflow[0].Geometry.LocalToAbsolute(FVector2D::ZeroVector).Y, .1f));
+		}
+	};
 	Controller->ChatWidget = Widget;
 	Controller->ClientSystemChatMessage_Implementation(TEXT("Fishing cast\nSafezone area"));
 	TestEqual(TEXT("System notifications do not enter player chat"), Widget->HistoryBox->GetChildrenCount(), 0);
@@ -270,6 +305,8 @@ bool FMT2NotificationRoutingTest::RunTest(const FString&)
 	Widget->AddGlobalLine(EMT2Empire::Shinsoo, TEXT("Admin"), TEXT("hello"), true);
 	TestEqual(TEXT("Player/guild/admin chat remains in chat history"), Widget->HistoryBox->GetChildrenCount(), 2);
 	TestEqual(TEXT("Player chat does not enter loot log"), Widget->RewardHistoryBox->GetChildrenCount(), 3);
+	CheckBottomAlignment(Widget->HistoryBox, TEXT("Short chat history ends at the bottom"));
+	CheckBottomAlignment(Widget->RewardHistoryBox, TEXT("Short reward history ends at the bottom"));
 	Controller->ClientAdminCommandMessage_Implementation(TEXT("[OK] Command completed\nCommand details"));
 	TestEqual(TEXT("Admin command feedback enters chat"), Widget->HistoryBox->GetChildrenCount(), 4);
 	TestEqual(TEXT("Admin command feedback never enters info log"), Widget->RewardHistoryBox->GetChildrenCount(), 3);
@@ -278,6 +315,7 @@ bool FMT2NotificationRoutingTest::RunTest(const FString&)
 	TestEqual(TEXT("Dungeon notices do not enter info log"), Widget->RewardHistoryBox->GetChildrenCount(), 3);
 	for (int32 Index = 0; Index < 20; ++Index) { Controller->AddInfoChatLine(TEXT("Notification")); }
 	TestEqual(TEXT("Notification history remains bounded"), Widget->RewardHistoryBox->GetChildrenCount(), 8);
+	CheckBottomAlignment(Widget->RewardHistoryBox, TEXT("Reward history stays bottom aligned after trimming"));
 	Widget->HistoryVisibleUntil = 0; Widget->RewardVisibleUntil = 10;
 	Widget->UpdateHistoryVisibility(5);
 	TestEqual(TEXT("Chat fades independently"), Widget->HistoryBox->GetRenderOpacity(), 0.f);

@@ -19,6 +19,7 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/PanelWidget.h"
 #include "Components/ScrollBox.h"
+#include "Components/ScrollBoxSlot.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -29,6 +30,17 @@
 
 namespace
 {
+	void BottomAlignHistory(UScrollBox* History)
+	{
+		if (History->GetChildrenCount() == 0) { return; }
+		if (UScrollBoxSlot* FirstSlot = Cast<UScrollBoxSlot>(History->GetChildAt(0)->Slot))
+		{
+			// Only the oldest row absorbs spare height. Overflow retains natural row sizes.
+			FirstSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			FirstSlot->SetVerticalAlignment(VAlign_Bottom);
+		}
+	}
+
 	struct FMT2ChatCommandInfo
 	{
 		const TCHAR* Command;
@@ -193,6 +205,7 @@ void UMT2ChatWidget::AddLine(const FString& Line)
 	Text->SetShadowOffset(FVector2D(1.0f));
 	Text->SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 0.8f));
 	HistoryBox->AddChild(Text);
+	BottomAlignHistory(HistoryBox);
 	HistoryBox->ScrollToEnd();
 	KeepHistoryVisible();
 }
@@ -217,6 +230,7 @@ void UMT2ChatWidget::AddRewardLine(const FString& Line)
 	Text->SetShadowOffset(FVector2D(1.0f));
 	Text->SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 0.8f));
 	RewardHistoryBox->AddChild(Text);
+	BottomAlignHistory(RewardHistoryBox);
 	RewardHistoryBox->ScrollToEnd();
 	RewardHistoryBox->SetRenderOpacity(1.0f);
 	const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
@@ -262,6 +276,7 @@ void UMT2ChatWidget::AddGlobalLine(
 	}
 
 	HistoryBox->AddChild(Row);
+	BottomAlignHistory(HistoryBox);
 	HistoryBox->ScrollToEnd();
 	KeepHistoryVisible();
 }
