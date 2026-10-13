@@ -38,16 +38,6 @@ For documentation scope and system guides, see [Documentation Status](Docs/Docum
 
 For implementation details, start with [Runtime Architecture](Docs/Architecture.md), [Distributed Server Architecture](Docs/DistributedServerArchitecture.md), and [Persistence Architecture](Docs/PersistenceArchitecture.md).
 
-## Star History
-
-<a href="https://star-history.dera.page/iamBVC/UnrealLongju">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=iamBVC/UnrealLongju&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=iamBVC/UnrealLongju" />
-   <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=iamBVC/UnrealLongju" />
- </picture>
-</a>
-
 ## Requirements
 
 The documented development workflow targets **Windows x64**.
