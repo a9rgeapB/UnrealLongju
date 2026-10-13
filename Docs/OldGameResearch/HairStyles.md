@@ -1,12 +1,12 @@
 # Hair looks and quests
 
-Hair appearance is authoritative, persistent, and independent of the body mesh. `AMT2PlayerState` saves a hair shape and an absolute expiry time. Observers receive the shape, not inventory contents. Equipped costume hair in wear slot 20 overrides the underlying hairstyle; removing it reveals that hairstyle again. The character-selection preview uses the same catalog and precedence.
+Hair appearance is authoritative, persistent, and independent of the body mesh. `AMT2PlayerState` saves a hair shape and an absolute expiry time. Observers receive the shape, not inventory contents. Classic hairstyle items (including client-proto hair costumes in the 73001–75619 range) consume one item per successful use, including repeated uses of the current look. They never swap a previous look back into the bag. A classic hairstyle already stored in wear slot 20 is discarded when a new look is applied. Separate wearable hair costumes still override the underlying hairstyle; removing those reveals that hairstyle again. The character-selection preview uses the same catalog and precedence.
 
 ## Legacy behavior
 
 The client resolves `PART_HAIR` (3) through each race/sex `.msm` file's `HairData` entries. Each entry specifies a model and its replacement skin. Shape numbers are not item vnums.
 
-- Cosmetic `ITEM_TYPE_HAIR` items use the player's job offset: Warrior 72000, Assassin 71250, Sura 70500, Shaman 69750. For example, Warrior item 73001 selects shape 1001. Reusing the current look does not consume another item. Item restrictions still apply.
+- Cosmetic `ITEM_TYPE_HAIR` items use the player's job offset: Warrior 72000, Assassin 71250, Sura 70500, Shaman 69750. For example, Warrior item 73001 selects shape 1001. The original server did not consume repeated uses of the current look; this project consumes every successful use. Imported costume-form hairstyle items use their `HairShapeId`. Item restrictions still apply.
 - `hair.quest` handles the bonus hair items starting at 74001, 74251, 74501, 74751 and their alternate-sex ranges. Its table controls the shape, apply type, value and duration. The source grants 30-day class bonuses or seven-day HP/SP/monster bonuses and consumes the item.
 - Hair bonuses use affect 514. Expiry resets the look to normal and removes the bonus. Time spent offline counts toward expiry. The hairdresser and Halloween quest retain their source conditions and dialogue.
 

@@ -1301,9 +1301,16 @@ namespace
 			if (!State || !TryNumericValue(Argument(0), Part) || Part != 3 ||
 				(Name == TEXT("pc.set_part") && (!Player || !Player->HasAuthority() ||
 				!TryNumericValue(Argument(1), Shape) || !FMath::IsFinite(Shape) || Shape < 0 || Shape > MAX_int32 ||
-				FMath::FloorToDouble(Shape) != Shape))) { bOutOk = false; return FMT2QuestValue(); }
+				FMath::FloorToDouble(Shape) != Shape)))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Quest %s rejected pc.set_part/get_part: part=%g shape=%g item slot=%d."),
+					Context.Quest ? *Context.Quest->GetQuestId().ToString() : TEXT("None"),
+					Argument(0).Number, Argument(1).Number, Context.EventItemSlot);
+				bOutOk = false; return FMT2QuestValue();
+			}
 			if (Name == TEXT("pc.get_part")) return FMT2QuestValue(State->GetHairShape());
 			bOutOk = Context.PlayerState->SetHairShape(static_cast<int32>(Shape));
+			if (!bOutOk) UE_LOG(LogTemp, Warning, TEXT("Quest rejected hair shape %d for item slot %d."), static_cast<int32>(Shape), Context.EventItemSlot);
 			return FMT2QuestValue();
 		}
 		if (Name == TEXT("pc.get_wear"))

@@ -20,6 +20,7 @@ namespace MT2ItemUtils
 	METIN2_API int32 GetInventorySize(const UObject* WorldContextObject, int32 Vnum);
 	METIN2_API FText GetDisplayName(const UMT2ItemTemplate* Template, int32 FallbackVnum = 0);
 	METIN2_API bool HaveSameInstanceData(const FMT2ItemSlot& Left, const FMT2ItemSlot& Right);
+	METIN2_API bool IsConsumableHairLook(const UMT2ItemTemplate* Template);
 
 	template <typename T>
 	const T* ResolveTemplate(const UObject* WorldContextObject, int32 Vnum)

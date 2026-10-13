@@ -1332,7 +1332,7 @@ bool FMT2QuestHairTest::RunTest(const FString& Parameters)
 	Manager->ActiveContext = Context;
 	const TMap<FString, FString> Locale;
 	const TArray<FString> Lines = {
-		TEXT("hair_list = {}"), TEXT("hair_list [74001] = {1001, 43, 10, 604800}"),
+		TEXT("hair_list = {}"), TEXT("hair_list [74001] = {1001, apply.ATTBONUS_WARRIOR, 10, 604800}"),
 		TEXT("return hair_list[vnum][index]"),
 		TEXT("x = 20"), TEXT("return 604800"),
 		TEXT("local shape = hair.My_hair_item(74001, 1)"),

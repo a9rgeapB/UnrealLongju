@@ -1450,7 +1450,10 @@ namespace
 			{TEXT("DEX"), 6}, {TEXT("ATT_SPEED"), 7}, {TEXT("MOV_SPEED"), 8},
 			{TEXT("HP_REGEN"), 10}, {TEXT("CRITICAL_PCT"), 15},
 			{TEXT("ATTBONUS_ANIMAL"), 18}, {TEXT("ATT_GRADE_BONUS"), 53},
-			{TEXT("DEF_GRADE_BONUS"), 54}, {TEXT("MELEE_MAGIC_ATTBONUS_PER"), 86}};
+			{TEXT("DEF_GRADE_BONUS"), 54}, {TEXT("MELEE_MAGIC_ATTBONUS_PER"), 86},
+			{TEXT("ATTBONUS_WARRIOR"), 59}, {TEXT("ATTBONUS_ASSASSIN"), 60},
+			{TEXT("ATTBONUS_SURA"), 61}, {TEXT("ATTBONUS_SHAMAN"), 62},
+			{TEXT("ATTBONUS_MONSTER"), 63}, {TEXT("MAX_HP_PCT"), 69}, {TEXT("MAX_SP_PCT"), 70}};
 		if (!bPointType)
 		{
 			if (const int32* Found = ApplyTypes.Find(Name)) { OutApplyType = *Found; return true; }
@@ -1553,7 +1556,12 @@ namespace
 					++Index;
 				}
 				const FString Token = Source.Mid(TokenStart, Index - TokenStart);
-				if (const FString* LocaleText = Locale.Find(Token))
+				int32 ApplyType = 0;
+				if (Token.StartsWith(TEXT("apply.")) && ResolveLegacyAffectType(Token, false, ApplyType))
+				{
+					Resolved += FString::FromInt(ApplyType);
+				}
+				else if (const FString* LocaleText = Locale.Find(Token))
 				{
 					FString Escaped = *LocaleText;
 					Escaped.ReplaceInline(TEXT("\\"), TEXT("\\\\"));

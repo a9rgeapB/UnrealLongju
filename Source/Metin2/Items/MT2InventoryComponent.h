@@ -102,6 +102,8 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Sockets")
 	bool SetItemSocketValue(int32 InventorySlot, int32 SocketIndex, int32 Value);
 	bool StartItemRealtimeExpiry(int32 InventorySlot);
+	// Retire a classic hairstyle left in the wear slot by an existing save, without refunding it.
+	void DiscardEquippedHairLook();
 
 	// Server-only old item.set_value: writes one intrinsic attribute slot on the item that raised a
 	// quest event. Slots 0-4 are normal attributes and 5-6 are rare attributes.

@@ -123,7 +123,7 @@ int32 UMT2InventoryComponent::GetWearPosition(int32 Vnum) const
 {
 	if (Cast<UMT2ItemRodTemplate>(ResolveTemplate(Vnum))) { return static_cast<int32>(EMT2ItemWearFlag::Weapon); }
 	const UMT2ItemEquipmentTemplate* EquipmentTemplate = Cast<UMT2ItemEquipmentTemplate>(ResolveTemplate(Vnum));
-	if (Cast<UMT2ItemHairTemplate>(EquipmentTemplate)) return INDEX_NONE;
+	if (MT2ItemUtils::IsConsumableHairLook(EquipmentTemplate)) return INDEX_NONE;
 	if (!EquipmentTemplate || EquipmentTemplate->Vnum <= 0)
 	{
 		return INDEX_NONE;
@@ -564,6 +564,8 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 	{
 		return false;
 	}
+	const bool bHairLook = MT2ItemUtils::IsConsumableHairLook(ItemTemplate);
+	if (bHairLook && !CanEquipTemplate(ItemTemplate)) return false;
 	const UMT2ItemActionTemplate* ActionTemplate = Cast<UMT2ItemActionTemplate>(ItemTemplate);
 	auto ExecuteAction = [&]() -> bool
 	{
@@ -606,16 +608,16 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 	{
 		return ExecuteAction();
 	}
-	if (ItemTemplate->IsA<UMT2ItemHairTemplate>() && Slots[InventorySlot].Vnum >= 73001 && Slots[InventorySlot].Vnum <= 73762)
+	if (bHairLook)
 	{
-		if (!CanEquipTemplate(ItemTemplate)) return false;
 		AMT2PlayerState* State = Character->GetPlayerState<AMT2PlayerState>();
 		if (!State) return false;
 		static const int32 Offsets[] = {72000, 71250, 70500, 69750};
 		const int32 Race = static_cast<int32>(State->GetCharacterAppearance().Race);
 		if (Race < 0 || Race >= UE_ARRAY_COUNT(Offsets)) return false;
-		const int32 Shape = Slots[InventorySlot].Vnum - Offsets[Race];
-		if (State->GetHairShape() == Shape) return true;
+		const UMT2ItemCostumeTemplate* Costume = Cast<UMT2ItemCostumeTemplate>(ItemTemplate);
+		const int32 Shape = Costume ? Costume->HairShapeId : Slots[InventorySlot].Vnum - Offsets[Race];
+		if (Shape <= 0) return false;
 		if (!State->SetHairShape(Shape)) return false;
 		return ConsumeItemAtSlot(InventorySlot);
 	}
@@ -892,6 +894,16 @@ int32 UMT2InventoryComponent::RemoveItemByVnum(int32 Vnum, int32 Count)
 	}
 	OnInventoryChanged.Broadcast();
 	return Count - Remaining;
+}
+
+void UMT2InventoryComponent::DiscardEquippedHairLook()
+{
+	constexpr int32 WearHair = 20;
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !Equipment.IsValidIndex(WearHair) ||
+		Equipment[WearHair].IsEmpty() || !MT2ItemUtils::IsConsumableHairLook(ResolveTemplate(Equipment[WearHair].Vnum))) return;
+	Equipment[WearHair] = FMT2ItemSlot();
+	OnEquipmentChanged.Broadcast();
+	OnInventoryChanged.Broadcast();
 }
 
 bool UMT2InventoryComponent::StartItemRealtimeExpiry(int32 InventorySlot)

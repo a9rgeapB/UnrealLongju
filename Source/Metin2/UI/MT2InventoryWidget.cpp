@@ -384,7 +384,7 @@ void UMT2InventoryWidget::HandleGridSlotRightClicked(int32 SlotIndex, EMT2Invent
 		{
 			Player->ServerOpenInventoryLootCrate(SlotIndex, INDEX_NONE);
 		}
-		else if (Cast<UMT2ItemHairTemplate>(Template))
+		else if (MT2ItemUtils::IsConsumableHairLook(Template))
 		{
 			Player->ServerUseInventoryItem(SlotIndex);
 		}

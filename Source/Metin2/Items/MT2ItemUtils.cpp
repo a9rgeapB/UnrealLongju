@@ -29,6 +29,15 @@ const UMT2ItemTemplate* MT2ItemUtils::ResolveTemplate(const UObject* WorldContex
 	return TemplateClass.GetDefaultObject();
 }
 
+bool MT2ItemUtils::IsConsumableHairLook(const UMT2ItemTemplate* Template)
+{
+	if (Cast<UMT2ItemHairTemplate>(Template)) return true;
+	const UMT2ItemCostumeTemplate* Costume = Cast<UMT2ItemCostumeTemplate>(Template);
+	// The client proto classifies classic cosmetic/bonus hairstyles as costumes. They are
+	// consumed looks in this project; separate, newer hair costumes remain wearable.
+	return Costume && Costume->CostumeSubType == 1 && Costume->Vnum >= 73001 && Costume->Vnum <= 75619;
+}
+
 int32 MT2ItemUtils::GetInventorySize(const UObject* WorldContextObject, int32 Vnum)
 {
 	const UMT2ItemTemplate* Template = ResolveTemplate(WorldContextObject, Vnum);

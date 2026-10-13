@@ -681,8 +681,11 @@ bool AMT2PlayerState::SetHairShape(int32 Shape)
 {
 	if (!HasAuthority() || Shape < 0 || (Shape != 0 &&
 		!GetDefault<UMT2CharacterAppearanceSettings>()->FindHair(Shape, CharacterAppearance))) return false;
-	if (HairShape == Shape) return true;
+	const bool bChanged = HairShape != Shape;
 	HairShape = Shape;
+	if (AMT2PlayerCharacter* Character = Cast<AMT2PlayerCharacter>(GetPawn()))
+		Character->GetInventoryComponent()->DiscardEquippedHairLook();
+	if (!bChanged) return true;
 	if (Shape == 0) SetHairExpiry(0);
 	OnRep_HairShape();
 	ForceNetUpdate();

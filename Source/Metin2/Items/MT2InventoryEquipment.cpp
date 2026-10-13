@@ -13,6 +13,7 @@
 #include "Fishing/MT2FishingComponent.h"
 #include "Items/MT2InventoryLayout.h"
 #include "Items/MT2ItemTemplate.h"
+#include "Items/MT2ItemUtils.h"
 #include "Player/MT2PlayerState.h"
 #include "Stats/MT2PrimaryStatsComponent.h"
 
@@ -24,6 +25,7 @@ bool UMT2InventoryComponent::EquipItemFromSlot(int32 InventorySlot)
 		return false;
 	}
 	const UMT2ItemTemplate* Template = ResolveTemplate(Slots[InventorySlot].Vnum);
+	if (MT2ItemUtils::IsConsumableHairLook(Template)) return UseItem(InventorySlot);
 	if (!CanEquipTemplate(Template))
 	{
 		return false;
@@ -105,6 +107,13 @@ bool UMT2InventoryComponent::UnequipItem(int32 WearPosition)
 		return false;
 	}
 	const int32 Size = GetItemSize(Equipment[WearPosition].Vnum);
+	if (WearPosition == 20 && MT2ItemUtils::IsConsumableHairLook(ResolveTemplate(Equipment[WearPosition].Vnum)))
+	{
+		if (auto* Player = Cast<AMT2PlayerCharacter>(GetOwner()))
+			if (auto* State = Player->GetPlayerState<AMT2PlayerState>()) State->SetHairShape(0);
+		DiscardEquippedHairLook();
+		return true;
+	}
 	if (auto* Player = Cast<AMT2PlayerCharacter>(GetOwner())) { Player->GetFishingComponent()->CancelFishing(); }
 	for (int32 TopSlot = 0; TopSlot < Slots.Num(); ++TopSlot)
 	{
