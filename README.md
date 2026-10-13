@@ -40,11 +40,11 @@ For implementation details, start with [Runtime Architecture](Docs/Architecture.
 
 ## Star History
 
-<a href="https://star-history.dera.page/nanaism/yomiyasu?compare=iamBVC/UnrealLongju">
+<a href="https://star-history.dera.page/iamBVC/UnrealLongju">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=nanaism/yomiyasu,iamBVC/UnrealLongju&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=nanaism/yomiyasu,iamBVC/UnrealLongju" />
-   <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=nanaism/yomiyasu,iamBVC/UnrealLongju" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=iamBVC/UnrealLongju&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=iamBVC/UnrealLongju" />
+   <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=iamBVC/UnrealLongju" />
  </picture>
 </a>
 
