@@ -8,6 +8,7 @@
 */
 
 #include "Game/MT2GameModeBase.h"
+#include "Authentication/MT2OfflineSessionSubsystem.h"
 
 #include "Characters/MT2PlayerCharacter.h"
 #include "Components/CapsuleComponent.h"
@@ -249,7 +250,7 @@ FString AMT2GameModeBase::InitNewPlayer(
 	return FString();
 }
 
-bool AMT2GameModeBase::RepairPlayerSpawn(APlayerController* PlayerController, bool bForceTownSpawn) const
+bool AMT2GameModeBase::RepairPlayerSpawn(APlayerController* PlayerController, bool bForceTownSpawn, bool bRequireGround) const
 {
 	APawn* Pawn = PlayerController ? PlayerController->GetPawn() : nullptr;
 	if (!Pawn || !GetWorld()) return false;
@@ -271,7 +272,7 @@ bool AMT2GameModeBase::RepairPlayerSpawn(APlayerController* PlayerController, bo
 	// position when it's already valid on this map.
 	FVector2D TargetXY;
 	FVector2D PendingXY;
-	if (bForceTownSpawn)
+	if (bForceTownSpawn || (bRequireGround && Pawn->GetActorLocation().ContainsNaN()))
 	{
 		TargetXY = Presentation->GetTownSpawn(PlayerState ? PlayerState->GetEmpire() : EMT2Empire::None);
 	}
@@ -281,7 +282,9 @@ bool AMT2GameModeBase::RepairPlayerSpawn(APlayerController* PlayerController, bo
 	}
 	else if (Presentation->ContainsWorldLocation(Pawn->GetActorLocation()))
 	{
-		return true;
+		if (!bRequireGround) return true;
+		const FVector Location = Pawn->GetActorLocation();
+		TargetXY = FVector2D(Location.X, Location.Y);
 	}
 	else
 	{
@@ -365,7 +368,8 @@ void AMT2GameModeBase::RecoverPlayersOutsideMap()
 void AMT2GameModeBase::PostLogin(APlayerController* NewPlayer)
 {
 #if WITH_EDITOR
-	if (GetWorld() && GetWorld()->WorldType == EWorldType::PIE && NewPlayer)
+	const auto* Offline = GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>();
+	if (GetWorld() && GetWorld()->WorldType == EWorldType::PIE && NewPlayer && (!Offline || !Offline->IsActive()))
 	{
 		if (AMT2PlayerState* MT2PlayerState = NewPlayer->GetPlayerState<AMT2PlayerState>())
 		{
@@ -396,6 +400,12 @@ void AMT2GameModeBase::PostLogin(APlayerController* NewPlayer)
 
 void AMT2GameModeBase::Logout(AController* Exiting)
 {
+	if (auto* Offline = GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>(); Offline && Offline->IsActive() && Offline->IsPlayerLoaded())
+	{
+		FString Error;
+		if (!Offline->SavePlayer(Cast<AMT2PlayerController>(Exiting), Error)) UE_LOG(LogGameMode, Error, TEXT("Offline logout save failed: %s"), *Error);
+		Offline->MarkPlayerLoaded(false);
+	}
 	// AController destroys and clears its PlayerState immediately after this callback returns.
 	// Capture the final character snapshot here; PlayerController::EndPlay is too late for a
 	// normal network disconnect and remains only as a fallback for other world teardown paths.
@@ -421,6 +431,19 @@ void AMT2GameModeBase::Logout(AController* Exiting)
 
 void AMT2GameModeBase::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
 {
+	if (auto* Offline = GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>(); Offline && Offline->IsActive())
+	{
+		if (Offline->HasSelectedCharacter())
+		{
+			TWeakObjectPtr<AMT2GameModeBase> WeakThis(this);
+			TWeakObjectPtr<APlayerController> WeakPlayer(NewPlayer);
+			GetWorldTimerManager().SetTimerForNextTick([WeakThis, WeakPlayer]
+			{
+				if (WeakThis.IsValid() && WeakPlayer.IsValid()) WeakThis->StartOfflinePlayer(WeakPlayer.Get());
+			});
+		}
+		return;
+	}
 	const UMT2ServerRuntimeSubsystem* Runtime = GetGameInstance()
 		? GetGameInstance()->GetSubsystem<UMT2ServerRuntimeSubsystem>() : nullptr;
 	if (Runtime && (Runtime->IsGateway() || Runtime->IsMapServer()))
@@ -456,4 +479,64 @@ void AMT2GameModeBase::HandleStartingNewPlayer_Implementation(APlayerController*
 		}
 	}
 #endif
+}
+
+void AMT2GameModeBase::StartOfflinePlayer(APlayerController* Controller)
+{
+	auto* Offline = GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>();
+	auto* State = Controller ? Controller->GetPlayerState<AMT2PlayerState>() : nullptr;
+	auto* Persistence = State ? State->GetPersistenceComponent() : nullptr;
+	if (!Offline || !Offline->IsActive() || !Offline->HasSelectedCharacter() || !Persistence || GetNetMode() != NM_Standalone) return;
+	Offline->MarkPlayerLoaded(false);
+	Persistence->PrepareForExplicitLoad();
+	const auto Handle = MakeShared<FDelegateHandle>();
+	TWeakObjectPtr<AMT2GameModeBase> WeakThis(this);
+	TWeakObjectPtr<APlayerController> WeakPlayer(Controller);
+	TWeakObjectPtr<UMT2PersistenceComponent> WeakPersistence(Persistence);
+	*Handle = Persistence->OnLoadFinishedNative.AddLambda(
+		[WeakThis, WeakPlayer, WeakPersistence, Handle](bool bSucceeded, bool bFound, bool bHasWorldPosition, const FString& Error)
+		{
+			// Removing this binding can destroy its captures while the callback is executing.
+			const TWeakObjectPtr<AMT2GameModeBase> Mode = WeakThis;
+			const TWeakObjectPtr<APlayerController> Player = WeakPlayer;
+			const FDelegateHandle CompletedHandle = *Handle;
+			if (WeakPersistence.IsValid()) WeakPersistence->OnLoadFinishedNative.Remove(CompletedHandle);
+			if (!Mode.IsValid() || !Player.IsValid()) return;
+			auto* Session = Mode->GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>();
+			if (!bSucceeded || !bFound)
+			{
+				Session->AbortWorldEntry(Cast<AMT2PlayerController>(Player.Get()), Error.IsEmpty() ? TEXT("The selected character could not be loaded.") : Error);
+				return;
+			}
+			Mode->RestartPlayer(Player.Get());
+			if (Mode.IsValid() && Player.IsValid()) Mode->FinishOfflineSpawn(Player.Get(), !bHasWorldPosition, 0);
+		});
+	State->SetPersistenceIdentity(Offline->GetSelectedCharacter().CharacterId, Offline->GetAccountId());
+	Persistence->RequestLoad();
+}
+
+void AMT2GameModeBase::FinishOfflineSpawn(APlayerController* Controller, bool bForceTownSpawn, int32 Attempt)
+{
+	auto* Offline = GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>();
+	if (!Offline || !Offline->IsActive() || !Controller || !Offline->HasSelectedCharacter()) return;
+	if (!Controller->GetPawn()) { Offline->AbortWorldEntry(Cast<AMT2PlayerController>(Controller), TEXT("The playable character could not be spawned.")); return; }
+	if (!RepairPlayerSpawn(Controller, bForceTownSpawn, true))
+	{
+		if (Attempt >= 50) { Offline->AbortWorldEntry(Cast<AMT2PlayerController>(Controller), TEXT("Ground collision at the character spawn did not become ready.")); return; }
+		TWeakObjectPtr<AMT2GameModeBase> WeakThis(this);
+		TWeakObjectPtr<APlayerController> WeakPlayer(Controller);
+		FTimerHandle Retry;
+		GetWorldTimerManager().SetTimer(Retry, [WeakThis, WeakPlayer, bForceTownSpawn, Attempt]
+		{
+			if (WeakThis.IsValid() && WeakPlayer.IsValid()) WeakThis->FinishOfflineSpawn(WeakPlayer.Get(), bForceTownSpawn, Attempt + 1);
+		}, .1f, false);
+		return;
+	}
+	Offline->MarkPlayerLoaded(true);
+	Controller->GetPlayerState<AMT2PlayerState>()->GetPersistenceComponent()->EnableSaveOnEndPlay();
+	if (auto* MT2Controller = Cast<AMT2PlayerController>(Controller))
+	{
+		MT2Controller->SendFullMapNpcSnapshot();
+		MT2Controller->ClientWorldReady();
+	}
 }

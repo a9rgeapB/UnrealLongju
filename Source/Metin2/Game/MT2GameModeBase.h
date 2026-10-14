@@ -36,9 +36,12 @@ public:
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
 	virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
-	bool RepairPlayerSpawn(APlayerController* PlayerController, bool bForceTownSpawn) const;
+	bool RepairPlayerSpawn(APlayerController* PlayerController, bool bForceTownSpawn, bool bRequireGround = false) const;
+	void StartOfflinePlayer(APlayerController* Controller);
 
 private:
+	friend class FMT2OfflineRestoreTest;
+	void FinishOfflineSpawn(APlayerController* Controller, bool bForceTownSpawn, int32 Attempt);
 	struct FPendingAdmission
 	{
 		FMT2TransferClaimResult Result;

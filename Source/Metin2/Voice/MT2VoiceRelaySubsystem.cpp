@@ -8,6 +8,7 @@
 */
 
 #include "Voice/MT2VoiceRelaySubsystem.h"
+#include "Authentication/MT2OfflineSessionSubsystem.h"
 
 #include "Common/UdpSocketBuilder.h"
 #include "Common/UdpSocketReceiver.h"
@@ -103,9 +104,16 @@ void UMT2VoiceRelaySubsystem::Tick(float DeltaTime)
 {
 	UWorld* World = GetWorld();
 	// The relay runs wherever the authoritative world lives: dedicated server, listen server, or
-	// standalone (harmless there - a lone player has nobody in range).
+	// direct gameplay PIE. Offline sessions do not expose a voice listener.
 	if (!World || !World->IsGameWorld() || World->GetNetMode() == NM_Client)
 	{
+		return;
+	}
+	const auto* Offline = World->GetGameInstance()
+		? World->GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>() : nullptr;
+	if (Offline && Offline->IsActive())
+	{
+		if (Socket) CloseSocket();
 		return;
 	}
 	const UMT2ServerRuntimeSubsystem* Runtime = World->GetGameInstance()

@@ -140,6 +140,7 @@ public:
 	void ClientNotifyItemReceived(int32 Vnum, int32 Count, int32 SkillVnum);
 
 protected:
+	friend class UMT2OfflineSessionSubsystem;
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void SetupInputComponent() override;

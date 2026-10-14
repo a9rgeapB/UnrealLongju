@@ -55,12 +55,44 @@ void UMT2PersistenceManager::Deinitialize()
 {
 	bShuttingDown.Store(true);
 	Backend.Reset();
+	bOfflinePersistence = false;
 	Super::Deinitialize();
 }
 
 bool UMT2PersistenceManager::IsPersistenceEnabled() const
 {
 	return CanIssueRequests();
+}
+
+bool UMT2PersistenceManager::EnableOfflinePersistence(const FString& RootDirectory, FString& OutError)
+{
+	check(IsInGameThread());
+	const UMT2ServerRuntimeSubsystem* Runtime = GetGameInstance()->GetSubsystem<UMT2ServerRuntimeSubsystem>();
+	if (Runtime && (Runtime->IsCoordinator() || Runtime->IsGateway() || Runtime->IsMapServer()))
+	{
+		OutError = TEXT("Offline storage cannot be opened by an online server runtime.");
+		return false;
+	}
+	if (Backend.IsValid()) return IsOfflinePersistence();
+	FMT2PersistenceBackendConfig Config;
+	Config.RootDirectory = RootDirectory;
+	Config.Filename = TEXT("offline.sqlite");
+	Config.bOffline = true;
+	const auto NewBackend = MakeShared<FMT2PersistenceBackend, ESPMode::ThreadSafe>(MoveTemp(Config));
+	if (!NewBackend->Initialize(OutError)) return false;
+	Backend = NewBackend;
+	bOfflinePersistence = true;
+	bShuttingDown.Store(false);
+	return true;
+}
+
+void UMT2PersistenceManager::LoadOfflineProfile(TFunction<void(FMT2AccountLoginResult&&)> Completion)
+{
+	check(IsInGameThread());
+	if (IsOfflinePersistence() && CanIssueRequests()) { Completion(Backend->LoadOfflineProfile()); return; }
+	FMT2AccountLoginResult Result;
+	Result.Error = TEXT("Offline storage is unavailable.");
+	Completion(MoveTemp(Result));
 }
 
 UMT2PersistenceManager* UMT2PersistenceManager::Get(const UObject* WorldContextObject)
@@ -82,6 +114,7 @@ void UMT2PersistenceManager::LoadRecord(
 		return;
 	}
 	UMT2ServerRuntimeSubsystem* Runtime = GetGameInstance()->GetSubsystem<UMT2ServerRuntimeSubsystem>();
+	if (IsOfflinePersistence()) { Completion(Backend->Load(EntityType, EntityId)); return; }
 	if (Runtime && Runtime->IsMapServer())
 	{
 		Runtime->RequestPersistenceLoad(EntityType, EntityId, MoveTemp(Completion));
@@ -113,6 +146,7 @@ void UMT2PersistenceManager::SaveRecord(
 		return;
 	}
 	UMT2ServerRuntimeSubsystem* Runtime = GetGameInstance()->GetSubsystem<UMT2ServerRuntimeSubsystem>();
+	if (IsOfflinePersistence()) { Completion(Backend->Save(Record)); return; }
 	if (Runtime && Runtime->IsMapServer())
 	{
 		Runtime->RequestPersistenceSave(Record, MoveTemp(Completion));
@@ -208,6 +242,7 @@ void UMT2PersistenceManager::CreateCharacter(
 		Completion(MoveTemp(Result));
 		return;
 	}
+	if (IsOfflinePersistence()) { Completion(Backend->CreateCharacter(AccountId, CharacterName, Appearance, Empire, InitialMapId)); return; }
 	const TSharedPtr<FMT2PersistenceBackend, ESPMode::ThreadSafe> ActiveBackend = Backend;
 	TWeakObjectPtr<UMT2PersistenceManager> WeakThis(this);
 	Async(EAsyncExecution::ThreadPool,
@@ -235,6 +270,7 @@ void UMT2PersistenceManager::FindCharacter(
 		Completion(MoveTemp(Result));
 		return;
 	}
+	if (IsOfflinePersistence()) { Completion(Backend->FindCharacter(AccountId, CharacterId)); return; }
 	const TSharedPtr<FMT2PersistenceBackend, ESPMode::ThreadSafe> ActiveBackend = Backend;
 	TWeakObjectPtr<UMT2PersistenceManager> WeakThis(this);
 	Async(EAsyncExecution::ThreadPool,
@@ -304,6 +340,7 @@ void UMT2PersistenceManager::FlushDatabase(TFunction<void(bool, FString&&)> Comp
 bool UMT2PersistenceManager::CanIssueRequests() const
 {
 	if (bShuttingDown.Load()) return false;
+	if (IsOfflinePersistence()) return GetGameInstance()->GetWorld() && GetGameInstance()->GetWorld()->GetNetMode() == NM_Standalone;
 	const UMT2ServerRuntimeSubsystem* Runtime = GetGameInstance()->GetSubsystem<UMT2ServerRuntimeSubsystem>();
 	return Runtime && (Runtime->IsMapServer() || (Runtime->IsCoordinator() && Backend.IsValid()));
 }

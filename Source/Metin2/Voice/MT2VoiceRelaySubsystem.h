@@ -35,6 +35,7 @@ public:
 	virtual TStatId GetStatId() const override;
 
 private:
+	friend class FMT2OfflineVoiceTest;
 	struct FClientEndpoint
 	{
 		FIPv4Endpoint Endpoint;

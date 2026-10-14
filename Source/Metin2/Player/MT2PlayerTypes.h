@@ -66,6 +66,8 @@ enum class EMT2Empire : uint8
 	Jinno = 3 UMETA(DisplayName = "Jinno (Blue)")
 };
 
+METIN2_API FString MT2GetEmpireStartMap(EMT2Empire Empire);
+
 USTRUCT(BlueprintType)
 struct METIN2_API FMT2CharacterAppearance
 {

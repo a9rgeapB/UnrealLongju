@@ -8,6 +8,8 @@
 */
 
 #include "Core/MT2GameInstance.h"
+#include "Authentication/MT2OfflineSessionSubsystem.h"
+#include "Player/MT2PlayerController.h"
 
 #include "Engine/World.h"
 #include "Engine/Engine.h"
@@ -62,6 +64,12 @@ void UMT2GameInstance::OnStart()
 
 void UMT2GameInstance::Shutdown()
 {
+	if (auto* Offline = GetSubsystem<UMT2OfflineSessionSubsystem>(); Offline && Offline->IsActive() && Offline->IsPlayerLoaded())
+	{
+		FString Error;
+		if (!Offline->SavePlayer(Cast<AMT2PlayerController>(GetFirstLocalPlayerController()), Error))
+			UE_LOG(LogTemp, Error, TEXT("Offline shutdown save failed: %s"), *Error);
+	}
 	if (ApplicationActivationHandle.IsValid() && FSlateApplication::IsInitialized())
 	{
 		FSlateApplication::Get().OnApplicationActivationStateChanged()

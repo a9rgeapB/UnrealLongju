@@ -66,17 +66,6 @@ namespace
 		return FNetworkVersion::GetProjectVersion();
 	}
 
-	FString GetEmpireStartMap(EMT2Empire Empire)
-	{
-		switch (Empire)
-		{
-		case EMT2Empire::Shinsoo: return TEXT("yongan");
-		case EMT2Empire::Chunjo: return TEXT("joan");
-		case EMT2Empire::Jinno: return TEXT("pyungmoo");
-		default: return FString();
-		}
-	}
-
 	FString NormalizeMapId(const FString& Value)
 	{
 		FString MapId = Value.TrimStartAndEnd().ToLower();
@@ -1793,7 +1782,7 @@ void UMT2ServerRuntimeSubsystem::HandleCharacterCreationRequest(
 	TWeakObjectPtr<UMT2ServerRuntimeSubsystem> WeakThis(this);
 	Manager->CreateCharacter(
 		AccountId, GetStringField(Message, TEXT("character_name")), Appearance,
-		Empire, GetEmpireStartMap(Empire),
+		Empire, MT2GetEmpireStartMap(Empire),
 		[WeakThis, InstanceId, RequestId](FMT2CharacterCreateResult&& Result)
 		{
 			if (!WeakThis.IsValid()) return;

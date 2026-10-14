@@ -8,6 +8,7 @@
 */
 
 #include "UI/MT2SystemMenuWidget.h"
+#include "Authentication/MT2OfflineSessionSubsystem.h"
 #include "Config/MT2PathSettings.h"
 
 #include "Audio/MT2AudioUserSettings.h"
@@ -255,6 +256,11 @@ void UMT2SystemMenuWidget::HandleDisconnectClicked()
 		return;
 	}
 	FString GatewayAddress = FallbackGatewayAddress;
+	if (auto* Offline = Controller->GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>(); Offline && Offline->IsActive())
+	{
+		Offline->ReturnToCharacterSelection(Controller);
+		return;
+	}
 	if (const UMT2ClientSessionSubsystem* Session = Controller->GetGameInstance()
 		? Controller->GetGameInstance()->GetSubsystem<UMT2ClientSessionSubsystem>() : nullptr)
 	{
@@ -268,6 +274,19 @@ void UMT2SystemMenuWidget::HandleDisconnectClicked()
 
 void UMT2SystemMenuWidget::HandleExitClicked()
 {
+	if (auto* Controller = Cast<AMT2PlayerController>(GetOwningPlayer()))
+	{
+		if (auto* Offline = Controller->GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>(); Offline && Offline->IsActive())
+		{
+			FString Error;
+			if (!Offline->SavePlayer(Controller, Error))
+			{
+				Controller->ClientMessage(Error);
+				UE_LOG(LogTemp, Error, TEXT("Offline exit save failed: %s"), *Error);
+				return;
+			}
+		}
+	}
 	// Old exit_button: net.ExitApplication().
 	UKismetSystemLibrary::QuitGame(this, GetOwningPlayer(), EQuitPreference::Quit, false);
 }

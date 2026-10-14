@@ -8,6 +8,7 @@
 */
 
 #include "Server/MT2AdminSubsystem.h"
+#include "Authentication/MT2OfflineSessionSubsystem.h"
 
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -33,6 +34,15 @@ void UMT2AdminSubsystem::QueryAdminStatus(
 {
 	if (IsPIEWorld(World))
 	{
+		Completion(true);
+		return;
+	}
+	const auto* Offline = GetGameInstance()
+		? GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>() : nullptr;
+	if (World && World->GetGameInstance() == GetGameInstance() && World->GetNetMode() == NM_Standalone &&
+		Offline && Offline->IsReady())
+	{
+		// Offline characters belong to the local profile; no online admin registry is changed.
 		Completion(true);
 		return;
 	}

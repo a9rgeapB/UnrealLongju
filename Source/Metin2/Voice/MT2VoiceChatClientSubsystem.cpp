@@ -8,6 +8,8 @@
 */
 
 #include "Voice/MT2VoiceChatClientSubsystem.h"
+#include "Authentication/MT2OfflineSessionSubsystem.h"
+#include "Engine/GameInstance.h"
 
 #include "Audio/MT2AudioUserSettings.h"
 #include "Common/UdpSocketBuilder.h"
@@ -216,6 +218,14 @@ void UMT2VoiceChatClientSubsystem::Tick(float DeltaTime)
 	{
 		return;
 	}
+	const auto* Offline = World->GetGameInstance()
+		? World->GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>() : nullptr;
+	if (Offline && Offline->IsActive())
+	{
+		StopTalking();
+		if (Socket) CloseSocket();
+		return;
+	}
 	const int32 LocalPlayerId = GetLocalPlayerId();
 	if (LocalPlayerId == INDEX_NONE || !EnsureNetworkReady())
 	{
@@ -270,6 +280,9 @@ bool UMT2VoiceChatClientSubsystem::IsPlayerSpeaking(int32 PlayerId) const
 
 void UMT2VoiceChatClientSubsystem::StartTalking()
 {
+	const auto* Offline = GetWorld() && GetWorld()->GetGameInstance()
+		? GetWorld()->GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>() : nullptr;
+	if (Offline && Offline->IsActive()) return;
 	if (bTalking)
 	{
 		return;

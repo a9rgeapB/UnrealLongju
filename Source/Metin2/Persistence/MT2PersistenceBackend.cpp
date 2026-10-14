@@ -828,6 +828,18 @@ FMT2PersistenceSaveResult FMT2PersistenceBackend::Save(const FMT2PersistentRecor
 	FMT2PersistenceSaveResult Result;Result.Error=FString::Printf(TEXT("No relational persistence adapter for entity type '%s'."),*Type);return Result;
 }
 
+FMT2AccountLoginResult FMT2PersistenceBackend::LoadOfflineProfile()
+{
+	FScopeLock Lock(&Impl->Mutex);
+	FMT2AccountLoginResult Result;
+	if (!Config.bOffline) { Result.Error = TEXT("Offline profiles are unavailable in the online database."); return Result; }
+	if (!Impl->Execute(TEXT("INSERT INTO accounts(account_id,username_normalized,display_name,password_algorithm,password_salt,password_hash) "
+		"VALUES ('offline-local','offline-local','Offline Player','disabled','','') ON CONFLICT(account_id) DO NOTHING;"), Result.Error)) return Result;
+	Result.AccountId = TEXT("offline-local");
+	Result.bSucceeded = Impl->ReadCharacters(Result.AccountId, Result.Characters, Result.Error);
+	return Result;
+}
+
 FMT2AccountRegistrationResult FMT2PersistenceBackend::RegisterAccount(const FString& Username,const FString& Salt,const FString& Hash)
 {
 	FRAMEPRO_NAMED_SCOPE("MT2.Persistence.RegisterAccount");

@@ -8,6 +8,7 @@
 */
 
 #include "Player/MT2PlayerController.h"
+#include "Authentication/MT2OfflineSessionSubsystem.h"
 #include "Duel/MT2DuelComponent.h"
 #include "Config/MT2PathSettings.h"
 
@@ -503,11 +504,21 @@ void AMT2PlayerController::Login(const FString& Username, const FString& Passwor
 void AMT2PlayerController::CreateCharacter(
 	const FString& CharacterName, const FMT2CharacterAppearance& Appearance, EMT2Empire Empire)
 {
+	if (auto* Offline = GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>(); Offline && Offline->IsActive())
+	{
+		Offline->CreateCharacter(this, CharacterName, Appearance, Empire);
+		return;
+	}
 	if (IsLocalPlayerController()) ServerCreateCharacter(CharacterName, Appearance, Empire);
 }
 
 void AMT2PlayerController::SelectCharacter(const FString& CharacterId, int32 PreferredChannel)
 {
+	if (auto* Offline = GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>(); Offline && Offline->IsActive())
+	{
+		Offline->SelectCharacter(this, CharacterId);
+		return;
+	}
 	if (IsLocalPlayerController()) ServerSelectCharacter(CharacterId, PreferredChannel);
 }
 

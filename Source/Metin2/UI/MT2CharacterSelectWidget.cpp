@@ -8,6 +8,7 @@
 */
 
 #include "UI/MT2CharacterSelectWidget.h"
+#include "Authentication/MT2OfflineSessionSubsystem.h"
 #include "Config/MT2PathSettings.h"
 
 #include "Authentication/MT2ClientSessionSubsystem.h"
@@ -77,6 +78,10 @@ AMT2PlayerController* UMT2CharacterSelectWidget::GetMT2Controller() const
 
 void UMT2CharacterSelectWidget::RefreshCharacterList()
 {
+	const auto* Offline = GetGameInstance() ? GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>() : nullptr;
+	const bool bAvailable = !Offline || !Offline->IsActive() || Offline->IsReady();
+	if (StartButton) StartButton->SetIsEnabled(bAvailable);
+	if (CreateButton) CreateButton->SetIsEnabled(bAvailable);
 	// The session subsystem caches the last character list the gateway sent.
 	if (const UGameInstance* GameInstance = GetGameInstance())
 	{

@@ -23,6 +23,7 @@ struct FMT2PersistenceBackendConfig
 	FString SynchronousMode = TEXT("FULL");
 	int32 BusyTimeoutMilliseconds = 5000;
 	bool bCheckIntegrity = true;
+	bool bOffline = false;
 };
 
 class FMT2PersistenceBackend : public TSharedFromThis<FMT2PersistenceBackend, ESPMode::ThreadSafe>
@@ -33,6 +34,7 @@ public:
 
 	bool Initialize(FString& OutError);
 	bool Flush(FString& OutError);
+	FMT2AccountLoginResult LoadOfflineProfile();
 	FMT2PersistenceLoadResult Load(FName EntityType, const FString& EntityId);
 	FMT2PersistenceSaveResult Save(const FMT2PersistentRecord& Record);
 	FMT2AccountRegistrationResult RegisterAccount(

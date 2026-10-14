@@ -54,6 +54,7 @@
 #include "Engine/Texture2D.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectHash.h"
+#include "MT2EffectImporterTests.h"
 
 namespace
 {
@@ -1142,6 +1143,12 @@ namespace
 FMT2EffectImporter::FMT2EffectImporter()
 	: FMT2ImporterBase(EMT2ImportDomain::Effects, TEXT("EffectImporter"))
 {
+}
+
+bool FMT2EffectImporter::RepairModuleOwnership(UParticleSystem* ParticleSystem, FString& OutError)
+{
+	OutError.Reset();
+	return NormalizeCascadeModuleOuters(ParticleSystem, OutError);
 }
 
 bool FMT2EffectImporter::Discover(const FMT2ImportContext& Context, const FMT2AssetScanResult& ScanResult, FMT2ImportDiscovery& OutDiscovery) const

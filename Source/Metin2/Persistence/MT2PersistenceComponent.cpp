@@ -8,6 +8,7 @@
 */
 
 #include "Persistence/MT2PersistenceComponent.h"
+#include "Authentication/MT2OfflineSessionSubsystem.h"
 
 #include "Engine/World.h"
 #include "Persistence/MT2Persistable.h"
@@ -142,6 +143,9 @@ void UMT2PersistenceComponent::RequestLoad()
 
 void UMT2PersistenceComponent::RequestSave(bool bForce)
 {
+	if (const auto* Offline = GetWorld() && GetWorld()->GetGameInstance()
+		? GetWorld()->GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>() : nullptr;
+		Offline && Offline->IsActive() && !Offline->IsPlayerLoaded()) return;
 	AActor* Owner = GetOwner();
 	UMT2PersistenceManager* Manager = UMT2PersistenceManager::Get(this);
 	if (!Owner || !Owner->HasAuthority() || !Manager || !Manager->IsPersistenceEnabled() ||

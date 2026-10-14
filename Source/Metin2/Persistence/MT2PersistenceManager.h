@@ -28,6 +28,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Persistence")
 	bool IsPersistenceEnabled() const;
+	bool EnableOfflinePersistence(const FString& RootDirectory, FString& OutError);
+	bool IsOfflinePersistence() const { return bOfflinePersistence && Backend.IsValid(); }
+	void LoadOfflineProfile(TFunction<void(FMT2AccountLoginResult&&)> Completion);
 
 	UFUNCTION(BlueprintPure, Category = "Persistence", meta = (WorldContext = "WorldContextObject"))
 	static UMT2PersistenceManager* Get(const UObject* WorldContextObject);
@@ -76,4 +79,5 @@ private:
 
 	TSharedPtr<FMT2PersistenceBackend, ESPMode::ThreadSafe> Backend;
 	TAtomic<bool> bShuttingDown = false;
+	bool bOfflinePersistence = false;
 };

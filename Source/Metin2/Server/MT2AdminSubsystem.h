@@ -16,7 +16,8 @@
 // Server-side admin (GM) registry, mirroring the old game's gm.cpp: admins live in a separate
 // `admins` table in the coordinator's unified SQLite database, keyed by lowercased character name
 // just like the old name-keyed g_map_GM. PIE sessions grant admin to everyone, replicating the
-// old server's "if (test_server) return GM_IMPLEMENTOR" test-server rule.
+// old server's "if (test_server) return GM_IMPLEMENTOR" test-server rule. Active offline
+// standalone sessions also grant admin locally without writing an admin registry entry.
 UCLASS()
 class METIN2_API UMT2AdminSubsystem : public UGameInstanceSubsystem
 {
@@ -24,7 +25,7 @@ class METIN2_API UMT2AdminSubsystem : public UGameInstanceSubsystem
 
 public:
 	// Async lookup: Completion(true) if the character name has an admin record. Runs the completion
-	// on the game thread. PIE worlds complete synchronously with true.
+	// on the game thread. PIE and ready offline standalone sessions complete synchronously with true.
 	void QueryAdminStatus(
 		const UWorld* World, const FString& CharacterName, TFunction<void(bool)> Completion);
 

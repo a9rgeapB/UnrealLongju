@@ -12,6 +12,8 @@
 #include "CoreMinimal.h"
 #include "API/MT2ImporterInterface.h"
 
+class UParticleSystem;
+
 class FMT2EffectImporter : public FMT2ImporterBase
 {
 public:
@@ -22,4 +24,5 @@ public:
 
 	static FString BuildDestinationPath(const FMT2ImportContext& Context, const FMT2AssetRecord& Record);
 	static FString BuildObjectPath(const FMT2ImportContext& Context, const FMT2AssetRecord& Record);
+	static bool RepairModuleOwnership(UParticleSystem* ParticleSystem, FString& OutError);
 };

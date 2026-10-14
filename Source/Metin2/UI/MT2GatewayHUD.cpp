@@ -12,6 +12,11 @@
 
 #include "Audio/MT2AudioUserSettings.h"
 #include "Authentication/MT2ClientSessionSubsystem.h"
+#include "Authentication/MT2OfflineSessionSubsystem.h"
+#include "Player/MT2PlayerController.h"
+#include "HAL/PlatformProperties.h"
+#include "Misc/CommandLine.h"
+#include "Engine/World.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/AudioComponent.h"
 #include "Engine/GameInstance.h"
@@ -42,22 +47,29 @@ void AMT2GatewayHUD::BeginPlay()
 			MusicComponent->SetVolumeMultiplier(FMT2AudioUserSettings::GetMusicVolume());
 		}
 	});
-	LoginWidget = CreateGatewayWidget<UMT2LoginWidget>(TEXT("MT2Login"));
-	RegistrationWidget = CreateGatewayWidget<UMT2AccountRegistrationWidget>(TEXT("MT2AccountRegistration"));
+	const bool bOffline = UMT2OfflineSessionSubsystem::ShouldUseOfflineFlow(GetNetMode(),
+		FPlatformProperties::IsClientOnly(), FPlatformProperties::IsServerOnly(), FCommandLine::Get());
+	if (!bOffline)
+	{
+		LoginWidget = CreateGatewayWidget<UMT2LoginWidget>(TEXT("MT2Login"));
+		RegistrationWidget = CreateGatewayWidget<UMT2AccountRegistrationWidget>(TEXT("MT2AccountRegistration"));
+	}
 	CharacterSelectWidget = CreateGatewayWidget<UMT2CharacterSelectWidget>(TEXT("MT2CharacterSelect"));
 	CharacterCreateWidget = CreateGatewayWidget<UMT2CharacterCreateWidget>(TEXT("MT2CharacterCreate"));
 	LoadingScreenWidget = CreateGatewayWidget<UMT2LoadingScreenWidget>(TEXT("MT2LoadingScreen"));
-	if (!LoginWidget || !RegistrationWidget || !CharacterSelectWidget || !CharacterCreateWidget ||
+	if ((!bOffline && (!LoginWidget || !RegistrationWidget)) || !CharacterSelectWidget || !CharacterCreateWidget ||
 		!LoadingScreenWidget)
 	{
 		return;
 	}
 
-	LoginWidget->OnLoginSucceeded.AddUniqueDynamic(this, &AMT2GatewayHUD::ShowCharacterSelect);
-	LoginWidget->OnRegistrationRequested.AddUniqueDynamic(this, &AMT2GatewayHUD::ShowRegistration);
-	RegistrationWidget->OnRegistrationSucceeded.AddUniqueDynamic(
-		this, &AMT2GatewayHUD::HandleRegistrationSucceeded);
-	RegistrationWidget->OnBackRequested.AddUniqueDynamic(this, &AMT2GatewayHUD::ShowLogin);
+	if (!bOffline)
+	{
+		LoginWidget->OnLoginSucceeded.AddUniqueDynamic(this, &AMT2GatewayHUD::ShowCharacterSelect);
+		LoginWidget->OnRegistrationRequested.AddUniqueDynamic(this, &AMT2GatewayHUD::ShowRegistration);
+		RegistrationWidget->OnRegistrationSucceeded.AddUniqueDynamic(this, &AMT2GatewayHUD::HandleRegistrationSucceeded);
+		RegistrationWidget->OnBackRequested.AddUniqueDynamic(this, &AMT2GatewayHUD::ShowLogin);
+	}
 	CharacterSelectWidget->OnCreateRequested.AddUniqueDynamic(this, &AMT2GatewayHUD::ShowCharacterCreate);
 	CharacterCreateWidget->OnFinished.AddUniqueDynamic(this, &AMT2GatewayHUD::ShowCharacterSelect);
 	if (UMT2ClientSessionSubsystem* Session = GetGameInstance()
@@ -73,15 +85,25 @@ void AMT2GatewayHUD::BeginPlay()
 		}
 	}
 
-	SetOnlyVisible(LoginWidget);
-	SetBackgroundMusic(LoginMusic);
-	LoadingScreenWidget->SetVisibility(ESlateVisibility::Collapsed);
-	LoginWidget->PrepareForDisplay(FString());
-	if (const UMT2ClientSessionSubsystem* Session = GetGameInstance()
-		? GetGameInstance()->GetSubsystem<UMT2ClientSessionSubsystem>() : nullptr;
-		Session && Session->GetState() == EMT2ClientSessionState::Failed)
+	if (bOffline)
 	{
-		LoginWidget->ShowError(Session->GetLastError());
+		GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>()->BeginCharacterSelection(Cast<AMT2PlayerController>(OwningController));
+		ShowCharacterSelect();
+		const auto* Session = GetGameInstance()->GetSubsystem<UMT2ClientSessionSubsystem>();
+		if (Session && !Session->GetLastError().IsEmpty()) CharacterSelectWidget->ShowError(Session->GetLastError());
+	}
+	else
+	{
+		SetOnlyVisible(LoginWidget);
+		SetBackgroundMusic(LoginMusic);
+		LoadingScreenWidget->SetVisibility(ESlateVisibility::Collapsed);
+		LoginWidget->PrepareForDisplay(FString());
+		if (const UMT2ClientSessionSubsystem* Session = GetGameInstance()
+			? GetGameInstance()->GetSubsystem<UMT2ClientSessionSubsystem>() : nullptr;
+			Session && Session->GetState() == EMT2ClientSessionState::Failed)
+		{
+			LoginWidget->ShowError(Session->GetLastError());
+		}
 	}
 
 	OwningController->bShowMouseCursor = true;
@@ -200,6 +222,12 @@ void AMT2GatewayHUD::HandleSessionStateChanged(
 		LoadingScreenWidget->SetVisibility(ESlateVisibility::Collapsed);
 		if (State == EMT2ClientSessionState::Failed && !Error.IsEmpty())
 		{
+			if (const auto* Offline = GetGameInstance()->GetSubsystem<UMT2OfflineSessionSubsystem>(); Offline && Offline->IsActive())
+			{
+				ShowCharacterSelect();
+				if (CharacterSelectWidget) CharacterSelectWidget->ShowError(Error);
+				return;
+			}
 			SetOnlyVisible(LoginWidget);
 			SetBackgroundMusic(LoginMusic);
 			if (LoginWidget) LoginWidget->ShowError(Error);

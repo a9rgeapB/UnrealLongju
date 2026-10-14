@@ -49,6 +49,8 @@ public:
 	// Forces the newest actor state to durable storage. If a load/save is already running, the
 	// callback waits for it and any follow-up dirty save instead of silently skipping the request.
 	void Flush(TFunction<void(bool, const FString&)> Completion);
+	void PrepareForExplicitLoad() { bAutoLoad = false; bCreateIfMissing = false; bSaveOnEndPlay = false; }
+	void EnableSaveOnEndPlay() { bSaveOnEndPlay = true; }
 
 	UFUNCTION(BlueprintPure, Category = "Persistence")
 	EMT2PersistenceState GetPersistenceState() const { return State; }

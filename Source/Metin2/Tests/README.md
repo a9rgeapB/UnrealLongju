@@ -1,5 +1,9 @@
 # Metin2 automation tests
 
+`Metin2.Editor.Effects.ImportedModuleOwnership` checks representative imported Cascade assets for module ownership that remains valid when saved/cooked. The editor commandlet `MT2RepairParticleOwnership` audits all imported particle systems and can repair invalid ownership with backups; see [offline play](../../../Docs/OfflinePlay.md).
+
+`Metin2.Offline` covers standalone/online launch isolation, credential-free local profiles, four-slot creation and validation, roster reopening, safe map selection, player restoration/saving, and local admin permissions without registry writes. Fixtures use separate databases under `Saved/Automation/Offline`; they do not modify the user's offline profile or coordinator database. Full packaged visual play and subsequent gameplay map transfers require separate validation. See [offline play](../../../Docs/OfflinePlay.md).
+
 `Metin2.Dungeons.DevilTowerMessages` checks entry/late-entry objectives, duplicate-admission suppression, per-participant completion, outsider exclusion and completed-stage arrival. `Metin2.UI.NotificationRouting` also verifies that multiline dungeon messages use chat history rather than the info/loot history.
 
 `MT2HeldAttackTests.cpp` covers melee through overlap-only dungeon volumes versus solid walls, held-attack fallback without animation callbacks, retries across an activation blocker, and preservation/release of keyboard intent during automatic target changes. Packaged input, stun/knockback recovery and network prediction still require gameplay validation.
