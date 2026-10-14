@@ -6,6 +6,8 @@ The **UnrealLongju Game target** runs a local authoritative game in one process.
 
 On Windows, run `Scripts/BuildOfflineDevelopment.bat` to build, cook, and stage the offline Game target. Then run `Scripts/StartOfflineDevelopment.bat`. Distribute the complete `Saved/StagedOffline/Windows` directory, not just its executable. `UE_ROOT` can override the build script's default engine root, `F:/Engine2`.
 
+For Shipping, use `Scripts/BuildOfflineShipping.bat` followed by `Scripts/StartOfflineShipping.bat`. Its separate output is `Saved/StagedOfflineShipping/Windows`; distribute that complete directory. Debug files are not staged, and the launcher does not force a log window. Shipping and Development share the local offline profile and saves. The first Shipping compilation may take substantially longer if the engine's Shipping binaries are not already built.
+
 The build script requests iterative cooking and deployment. Unchanged cooked assets can be reused; changed assets, dependencies, or cook settings may still require recooking. Do not delete the cook cache when testing incremental builds.
 
 The gateway startup map opens character selection directly. The existing four slots and character creation controls are reused. Creation commits a local character; Start enters the character's locally cooked map and restores its saved state before enabling normal saves.
