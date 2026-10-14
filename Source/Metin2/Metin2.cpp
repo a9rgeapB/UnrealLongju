@@ -26,7 +26,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogMT2Module, Log, All);
 
 namespace
 {
-#if UE_BUILD_SHIPPING && !UE_SERVER
+#if UE_BUILD_SHIPPING && !UE_SERVER && !WITH_SERVER_CODE
 	constexpr TCHAR PatcherTokenEnvironmentVariable[] = TEXT("MT2UE_PATCHER_TOKEN");
 
 	bool IsAuthorizedPatcherLaunch()
@@ -124,7 +124,7 @@ public:
 			}
 		}
 
-#if UE_BUILD_SHIPPING && !UE_SERVER
+#if UE_BUILD_SHIPPING && !UE_SERVER && !WITH_SERVER_CODE
 		if (!IsAuthorizedPatcherLaunch())
 		{
 			FPlatformMisc::MessageBoxExt(EAppMsgType::Ok,
