@@ -9,6 +9,7 @@
 
 #include "Characters/MT2PlayerCharacter.h"
 #include "Fishing/MT2FishingComponent.h"
+#include "Mining/MT2MiningComponent.h"
 #include "Fishing/MT2FishingSettings.h"
 #include "Config/MT2PathSettings.h"
 #include "World/MT2MapAttributes.h"
@@ -167,6 +168,7 @@ AMT2PlayerCharacter::AMT2PlayerCharacter()
 
 	InventoryComponent = CreateDefaultSubobject<UMT2InventoryComponent>(TEXT("InventoryComponent"));
 	FishingComponent = CreateDefaultSubobject<UMT2FishingComponent>(TEXT("FishingComponent"));
+	MiningComponent = CreateDefaultSubobject<UMT2MiningComponent>(TEXT("MiningComponent"));
 	PrimaryStatsComponent = CreateDefaultSubobject<UMT2PrimaryStatsComponent>(TEXT("PrimaryStatsComponent"));
 	MountComponent = CreateDefaultSubobject<UMT2MountComponent>(TEXT("MountComponent"));
 
@@ -343,6 +345,7 @@ void AMT2PlayerCharacter::Tick(float DeltaSeconds)
 void AMT2PlayerCharacter::Move(const FVector2D& MovementInput)
 {
 	if (!MovementInput.IsNearlyZero() && FishingComponent) { FishingComponent->RequestCancelFishing(); }
+	if (!MovementInput.IsNearlyZero() && MiningComponent) { MiningComponent->RequestCancelMining(); }
 	if (!Controller || IsDead() || IsInteractionUIOpen())
 	{
 		return;
@@ -530,6 +533,7 @@ void AMT2PlayerCharacter::Look(const FVector2D& LookInput)
 
 bool AMT2PlayerCharacter::Attack()
 {
+	if (MiningComponent && MiningComponent->HasPickaxeEquipped()) { return false; }
 	if (FishingComponent && FishingComponent->HasRodEquipped()) { return false; }
 	if (MountComponent && !MountComponent->CanAttackWhileMounted())
 	{
@@ -892,7 +896,8 @@ void AMT2PlayerCharacter::UpdatePawnYawFollowsCamera()
 	// the control rotation; it must win over bOrientRotationToMovement (which only turns the pawn
 	// when there's velocity) while it's on. Third person keeps its old free-look behaviour.
 	// Never override the attack-motion facing lock, which drives its own rotation during a swing.
-	const bool bFollow = bFirstPersonActive && bCameraRotateHeld && !bAttackFacingLocked;
+	const bool bFollow = bFirstPersonActive && bCameraRotateHeld && !bAttackFacingLocked &&
+		(!MiningComponent || !MiningComponent->IsMining());
 	bUseControllerRotationYaw = bFollow;
 	GetCharacterMovement()->bOrientRotationToMovement = !bFollow;
 }
@@ -1163,6 +1168,7 @@ void AMT2PlayerCharacter::HandleDeath()
 	bAttackInputHeld = false;
 	GetCombatComponent()->CancelPendingBasicAttackHits();
 	if (FishingComponent && HasAuthority()) { FishingComponent->CancelFishing(); }
+	if (MiningComponent && HasAuthority()) { MiningComponent->CancelMining(); }
 	DeathLocation = GetActorLocation();
 	if (HasAuthority() && MountComponent)
 	{
@@ -1670,6 +1676,8 @@ void AMT2PlayerCharacter::ServerExecuteChatCommand_Implementation(const FString&
 void AMT2PlayerCharacter::ServerUseSkill_Implementation(int32 SkillVnum)
 {
 	if (SkillVnum == 123) { FishingComponent->RequestToggleFishing(); return; }
+	MiningComponent->RequestCancelMining();
+	if (MiningComponent->HasPickaxeEquipped()) { return; }
 	if (FishingComponent->HasRodEquipped()) { return; }
 	// All the server-side decision logic (gates, cost, buffs, damage, cooldown/lock) lives in the
 	// skill-cast component; the character only owns the shared attack-motion animation multicast.
@@ -2675,6 +2683,14 @@ void AMT2PlayerCharacter::HandleEquipmentChanged()
 			GetEquipmentComponent()->EquipWeapon(Rod->WorldMesh.IsNull() ? GetDefault<UMT2FishingSettings>()->RodMesh : Rod->WorldMesh,
 				bWarrior ? FName(TEXT("equip_right_hand")) : FName(TEXT("equip_right")), INDEX_NONE);
 			SetAnimationSet(TEXT("fishing"));
+		}
+		else if (const UMT2ItemPickTemplate* Pick = Cast<UMT2ItemPickTemplate>(Registry->ResolveItemTemplateClass(WeaponSlot.Vnum).GetDefaultObject()))
+		{
+			const AMT2PlayerState* State = GetPlayerState<AMT2PlayerState>();
+			const bool bWarrior = State && State->GetCharacterAppearance().Race == EMT2CharacterRace::Warrior;
+			GetEquipmentComponent()->EquipWeapon(Pick->WorldMesh,
+				bWarrior ? FName(TEXT("equip_right_hand")) : FName(TEXT("equip_right")), INDEX_NONE);
+			SetAnimationSet(TEXT("general"));
 		}
 		else
 		{

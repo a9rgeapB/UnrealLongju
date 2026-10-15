@@ -29,6 +29,7 @@ public:
 	AMT2Npc();
 
 	virtual bool IsAttackable() const override { return false; }
+	virtual bool CanBeKnockedBack() const override { return false; }
 	virtual void ConfigureFromDefinition(const FMT2MobDefinition& Definition) override;
 
 	UFUNCTION(BlueprintPure, Category = "NPC")

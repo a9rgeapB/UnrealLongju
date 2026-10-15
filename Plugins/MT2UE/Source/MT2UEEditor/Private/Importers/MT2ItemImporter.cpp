@@ -950,6 +950,14 @@ namespace
 					Entry.WorldMeshObjectPath = UMT2PathSettings::Format(TEXT("ymir_work_item_weapon_SM_Name"), TEXT("%s%s"), *MeshStem, *MeshStem);
 				}
 			}
+			else if (Tokens.Num() >= 4 && Tokens[3].Contains(TEXT("item/etc")))
+			{
+				const FString MeshStem = FPaths::GetBaseFilename(Tokens[3]);
+				if (!MeshStem.IsEmpty())
+				{
+					Entry.WorldMeshObjectPath = UMT2PathSettings::Format(TEXT("ymir_work_item_etc_SM_Name"), TEXT("%s%s"), *MeshStem, *MeshStem);
+				}
+			}
 			OutEntries.Add(Vnum, Entry);
 		}
 		return true;
@@ -1244,6 +1252,11 @@ namespace
 			}
 			if (UMT2ItemPickTemplate* Pick = Cast<UMT2ItemPickTemplate>(Defaults))
 			{
+				// Pick vnums start at 29101, not at a multiple of ten. Legacy grade comes from the name.
+				FString BaseName, GradeText;
+				Pick->RefinementLevel = Definition.InternalName.Split(TEXT("+"), &BaseName, &GradeText, ESearchCase::CaseSensitive, ESearchDir::FromEnd)
+					? FMath::Clamp(FCString::Atoi(*GradeText), 0, 9) : 0;
+				Pick->PracticeChanceDenominator = Definition.Values.IsValidIndex(1) ? Definition.Values[1] : 0;
 				Pick->ImprovementPointsRequired =
 					Definition.Values.IsValidIndex(2) ? Definition.Values[2] : 0;
 				Pick->RefinementSuccessPercent =

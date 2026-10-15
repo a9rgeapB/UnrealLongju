@@ -35,6 +35,7 @@ class UMT2SkillVisualEffectComponent;
 class UMT2TargetIndicatorComponent;
 class UMT2InventoryComponent;
 class UMT2FishingComponent;
+class UMT2MiningComponent;
 class UMT2Item;
 class UMT2PrimaryStatsComponent;
 class UMT2MountComponent;
@@ -126,6 +127,7 @@ public:
 	UMT2InventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
 	UFUNCTION(BlueprintPure, Category = "Fishing")
 	UMT2FishingComponent* GetFishingComponent() const { return FishingComponent; }
+	UMT2MiningComponent* GetMiningComponent() const { return MiningComponent; }
 
 	UFUNCTION(BlueprintPure, Category = "Stats|Primary")
 	UMT2PrimaryStatsComponent* GetPrimaryStatsComponent() const { return PrimaryStatsComponent; }
@@ -293,6 +295,7 @@ private:
 	friend class FMT2ObserverReplicationTest;
 	friend class FMT2QuestAlignmentApiTest;
 	friend class FMT2WarriorComboKnockbackTest;
+	friend class UMT2MiningComponent;
 	UFUNCTION(Client, Reliable)
 	void ClientConfirmInventoryAction(int32 Vnum, bool bUseSound);
 
@@ -488,6 +491,8 @@ private:
 	TWeakObjectPtr<AMT2PlayerState> BoundPlayerState;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Fishing", meta=(AllowPrivateAccess="true"))
 	TObjectPtr<UMT2FishingComponent> FishingComponent;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Mining", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UMT2MiningComponent> MiningComponent;
 	TWeakObjectPtr<AActor> AutoMoveTargetActor;
 	// NPC we're walking toward to interact with; consumed by Tick when in range.
 	TWeakObjectPtr<AMT2Npc> PendingInteractNpc;

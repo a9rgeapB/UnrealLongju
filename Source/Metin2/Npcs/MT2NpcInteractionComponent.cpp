@@ -14,11 +14,13 @@
 #include "Npcs/MT2Npc.h"
 #include "Player/MT2PlayerState.h"
 #include "Quests/MT2QuestManagerComponent.h"
+#include "Mining/MT2MiningComponent.h"
+#include "Mining/MT2MiningRules.h"
 
 bool UMT2NpcInteractionComponent::Interact(AMT2PlayerCharacter* Player)
 {
 	AMT2Npc* Npc = Cast<AMT2Npc>(GetOwner());
-	if (!Npc || !Player || !Npc->HasAuthority() || OnClickType == EMT2NpcOnClickType::None)
+	if (!Npc || !Player || !Npc->HasAuthority())
 	{
 		return false;
 	}
@@ -29,6 +31,9 @@ bool UMT2NpcInteractionComponent::Interact(AMT2PlayerCharacter* Player)
 	{
 		return false;
 	}
+
+	if (MT2Mining::RawOre(Npc->GetMobVnum())) { return Player->GetMiningComponent()->StartMining(Npc); }
+	if (OnClickType == EMT2NpcOnClickType::None) { return false; }
 
 	// The old client turns the NPC toward whoever talks to it.
 	FVector ToPlayer = Player->GetActorLocation() - Npc->GetActorLocation();

@@ -37,6 +37,7 @@
 #include "Skills/MT2SkillComponent.h"
 #include "World/MT2MapPresentationActor.h"
 #include "Fishing/MT2FishingSettings.h"
+#include "Mining/MT2MiningComponent.h"
 #include "Items/MT2ItemUtils.h"
 #include "Npcs/MT2Npc.h"
 #include "Misc/PackageName.h"
@@ -398,6 +399,7 @@ namespace
 			TEXT("item.get_count"), TEXT("item.get_cell"), TEXT("item.get_value"),
 			TEXT("item.start_realtime_expire"),
 			TEXT("__fish_real_refine_rod"),
+			TEXT("pc.mining"),
 			TEXT("item.get_type"), TEXT("item.get_sub_type"), TEXT("item.get_level"),
 			TEXT("item.get_level_limit"), TEXT("item.get_refine_vnum"), TEXT("item.next_refine_vnum"),
 			TEXT("party.is_party"), TEXT("party.is_leader"), TEXT("party.get_member_count"),
@@ -1209,6 +1211,10 @@ namespace
 				Inventory->GetSlots()[Slot].Count != Context.EventItemSnapshot.Count ||
 				!MT2ItemUtils::HaveSameInstanceData(Inventory->GetSlots()[Slot], Context.EventItemSnapshot)) { return FMT2QuestValue(2); }
 			return FMT2QuestValue(Player->GetInventoryComponent()->RefineFishingRod(Slot));
+		}
+		if (Name == TEXT("pc.mining"))
+		{
+			return FMT2QuestValue(Player && Player->GetMiningComponent()->StartMining(Cast<AMT2Npc>(Context.TargetActor)) ? 1 : 0);
 		}
 		if (Name == TEXT("get_global_time") || Name == TEXT("get_time"))
 		{

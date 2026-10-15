@@ -13,6 +13,7 @@
 #include "Npcs/MT2NpcInteractionComponent.h"
 #include "Npcs/MT2NpcShopComponent.h"
 #include "UI/MT2QuestArrowComponent.h"
+#include "Mining/MT2MiningRules.h"
 
 AMT2Npc::AMT2Npc()
 {
@@ -44,4 +45,5 @@ void AMT2Npc::BeginPlay()
 	// behavior, matching the old game where NPCs are just mob rows.
 	SetCanBeDamaged(false);
 	GetCharacterMovement()->DisableMovement();
+	if (HasAuthority() && MT2Mining::RawOre(GetMobVnum())) { SetLifeSpan(FMath::RandRange(7*60,15*60)); }
 }

@@ -121,7 +121,7 @@ bool UMT2InventoryComponent::HasEmptySpaceForItem(int32 Vnum) const
 
 int32 UMT2InventoryComponent::GetWearPosition(int32 Vnum) const
 {
-	if (Cast<UMT2ItemRodTemplate>(ResolveTemplate(Vnum))) { return static_cast<int32>(EMT2ItemWearFlag::Weapon); }
+	if (Cast<UMT2ItemRodTemplate>(ResolveTemplate(Vnum)) || Cast<UMT2ItemPickTemplate>(ResolveTemplate(Vnum))) { return static_cast<int32>(EMT2ItemWearFlag::Weapon); }
 	const UMT2ItemEquipmentTemplate* EquipmentTemplate = Cast<UMT2ItemEquipmentTemplate>(ResolveTemplate(Vnum));
 	if (MT2ItemUtils::IsConsumableHairLook(EquipmentTemplate)) return INDEX_NONE;
 	if (!EquipmentTemplate || EquipmentTemplate->Vnum <= 0)

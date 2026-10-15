@@ -630,9 +630,12 @@ class METIN2_API UMT2ItemPickTemplate : public UMT2ItemToolTemplate
 public:
 	virtual int32 GetLegacyQuestValue(int32 Index) const override
 	{
-		return Index == 2 ? ImprovementPointsRequired
+		return Index == 1 ? PracticeChanceDenominator : Index == 2 ? ImprovementPointsRequired
 			: (Index == 3 ? RefinementSuccessPercent : 0);
 	}
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Mining")
+	int32 PracticeChanceDenominator = 0;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Mining")
 	int32 ImprovementPointsRequired = 0;

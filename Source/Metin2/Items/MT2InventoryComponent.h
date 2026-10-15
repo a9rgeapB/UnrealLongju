@@ -135,6 +135,7 @@ public:
 	bool UseItem(int32 InventorySlot);
 	bool ApplyFishingBait(int32 InventorySlot);
 	bool FinishFishingAttempt(bool bPractice);
+	bool FinishMiningAttempt();
 	int32 RefineFishingRod(int32 InventorySlot);
 
 	// Owning-client acknowledgement sent when the new item's tooltip is first displayed.

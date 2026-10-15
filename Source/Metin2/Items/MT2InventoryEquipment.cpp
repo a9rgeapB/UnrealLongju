@@ -53,7 +53,7 @@ bool UMT2InventoryComponent::EquipItemFromSlot(int32 InventorySlot)
 
 bool UMT2InventoryComponent::CanEquipTemplate(const UMT2ItemTemplate* Template) const
 {
-	if (!Cast<UMT2ItemEquipmentTemplate>(Template) && !Cast<UMT2ItemRodTemplate>(Template))
+	if (!Cast<UMT2ItemEquipmentTemplate>(Template) && !Cast<UMT2ItemRodTemplate>(Template) && !Cast<UMT2ItemPickTemplate>(Template))
 	{
 		return false;
 	}
