@@ -68,6 +68,8 @@ public:
 		int32 AutoRecoveryRemainingAmount = -1, bool bAutoRecoveryActive = false,
 		bool bNewlyAcquired = false);
 	void SetItemByVnum(int32 Vnum, int32 Count) { SetItemByVnum(Vnum, Count, {}, {}); }
+	// Shared slots also display trade offers; only owned grids may resolve their index against inventory.
+	void SetInstanceTooltipData(const FMT2ItemSlot& Item, bool bOwnedInventory = false);
 
 	// Marks this cell as hidden under a taller item occupying the cell(s) above it, so the item's icon
 	// (which overflows down from its top cell) shows through cleanly.
@@ -98,6 +100,10 @@ protected:
 	virtual void NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
 private:
+	friend class FMT2AccessoryTooltipTest;
+	UPROPERTY(Transient) FMT2ItemSlot DisplayedItem;
+	bool bResolveOwnedInstance = false;
+	void RefreshInstanceTooltip();
 	void RefreshVisuals();
 	void EnsureSlotEffects();
 

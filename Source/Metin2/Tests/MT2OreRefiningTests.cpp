@@ -84,7 +84,9 @@ bool FMT2AlchemistDialogueTest::RunTest(const FString&)
 	Dialog->ServerAnswerDialog_Implementation(9, Dialog->GetDialogPageId()); // Next page after eight material choices.
 	TestEqual(TEXT("Changing material page cannot charge"), State->GetYang(), int64(10000));
 	Dialog->ServerAnswerDialog_Implementation(4, Dialog->GetDialogPageId()); // Inventory anchor eleven, fourth on page two.
-	TestTrue(TEXT("Page two chooses exact last stone"), Inventory->GetSlots()[11].IsEmpty());
+	// A successful roll may put the refined ore in the freed sacrifice cell.
+	TestTrue(TEXT("Page two chooses exact last stone"), Inventory->GetSlots()[11].Vnum != 28030);
+	TestEqual(TEXT("Page two consumes exactly one stone"), Inventory->CountItemByVnum(28030), 11);
 	TestEqual(TEXT("Other page's stone is preserved"), Inventory->GetSlots()[8].Count, 1);
 	Start(); Dialog->ServerAnswerDialog_Implementation(1, Dialog->GetDialogPageId()); Npc->SetActorLocation(Player->GetActorLocation() + FVector(1000, 0, 0));
 	Dialog->ServerAnswerDialog_Implementation(1, Dialog->GetDialogPageId());

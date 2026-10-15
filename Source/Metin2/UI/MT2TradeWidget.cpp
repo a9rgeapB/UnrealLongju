@@ -75,12 +75,14 @@ void UMT2TradeWidget::RefreshOfferGrid(
 			const int32 OwnerIndex = CoveringItem[Index];
 			const FMT2ItemSlot& Item = Offer[OwnerIndex].Item;
 			Slots[Index]->SetCoveredByItem(OwnerIndex, Item.Vnum, Item.Count, Item.Bonuses, Item.MetinSockets, Item.SkillVnum);
+			Slots[Index]->SetInstanceTooltipData(Item);
 		}
 		else if (Offer.IsValidIndex(Index) && !Offer[Index].Item.IsEmpty())
 		{
 			const FMT2ItemSlot& Item = Offer[Index].Item;
 			Slots[Index]->SetItemByVnum(Item.Vnum, Item.Count, Item.Bonuses,
 				Item.MetinSockets, Item.SkillVnum, Item.AutoRecoveryRemainingAmount);
+			Slots[Index]->SetInstanceTooltipData(Item);
 		}
 		else
 		{

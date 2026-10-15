@@ -68,6 +68,9 @@ protected:
 	void AddApplies(const UMT2ItemTemplate* Template);
 	void AddWearableRaces(const UMT2ItemTemplate* Template);
 	void AddMetinSockets(const TArray<FMT2MetinSocket>* MetinSockets);
+	void AddAccessorySockets(const UMT2ItemTemplate* Template, const FMT2AccessorySocketState& State);
+	void AddSocketRow(EMT2MetinSocketType Type, const UMT2ItemTemplate* Material,
+		const FString& Bonuses, int32 RemainingSeconds = 0, bool bFilled = true);
 
 	// Human-readable "STR +5" / "Movement Speed +10%" for an APPLY ordinal (shared with equip logic).
 	static FString FormatApply(int32 ApplyType, int32 Value);

@@ -104,6 +104,7 @@ void UMT2InventoryGridWidget::RefreshSlots(const TArray<FMT2ItemSlot>& InSlots, 
 				OwnerItem.Bonuses, OwnerItem.MetinSockets, OwnerItem.SkillVnum,
 				OwnerItem.AutoRecoveryRemainingAmount, OwnerItem.bAutoRecoveryActive,
 				OwnerItem.bNewlyAcquired);
+			Slots[LocalIndex]->SetInstanceTooltipData(OwnerItem,true);
 			continue;
 		}
 		const int32 DataIndex = PageStart + LocalIndex;
@@ -116,6 +117,7 @@ void UMT2InventoryGridWidget::RefreshSlots(const TArray<FMT2ItemSlot>& InSlots, 
 				InSlots[DataIndex].AutoRecoveryRemainingAmount,
 				InSlots[DataIndex].bAutoRecoveryActive,
 				InSlots[DataIndex].bNewlyAcquired);
+			Slots[LocalIndex]->SetInstanceTooltipData(InSlots[DataIndex],true);
 		}
 		else
 		{

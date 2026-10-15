@@ -59,6 +59,7 @@ void UMT2EquipmentPanelWidget::RefreshEquipment(const TArray<FMT2ItemSlot>& Equi
 			EquipSlot->SetItemByVnum(Equipment[WearPosition].Vnum,
 				Equipment[WearPosition].Count, Equipment[WearPosition].Bonuses,
 				Equipment[WearPosition].MetinSockets, Equipment[WearPosition].SkillVnum);
+			EquipSlot->SetInstanceTooltipData(Equipment[WearPosition],true);
 		}
 		else
 		{

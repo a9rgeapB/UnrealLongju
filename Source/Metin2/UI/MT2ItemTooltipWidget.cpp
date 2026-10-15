@@ -12,12 +12,16 @@
 #include "Items/MT2InventoryComponent.h"
 #include "Items/MT2ItemUtils.h"
 #include "Characters/MT2PlayerCharacter.h"
+#include "Config/MT2PathSettings.h"
+#include "UI/MT2AtlasImage.h"
 
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
@@ -38,23 +42,13 @@ FString UMT2ItemTooltipWidget::DescribeAccessoryMaterial(const UMT2ItemTemplate*
 {
 	const auto* Use = Cast<UMT2ItemUseTemplate>(Template);
 	if (Use && Use->UseSubType == 20)
-	{ return TEXT("Opens one permanent accessory socket (maximum 3). Success: 50%. Consumed even on failure."); }
+	{ return TEXT("Opens a socket in an accessory.\nSuccess chance: 50%."); }
 	if (Use && Use->UseSubType == 29)
-	{ return TEXT("Belt socket material. Intrinsic bonuses: 10% / 20% / 40% total by grade. Wears only while equipped."); }
-	if (Template && Template->Vnum == 50622) { return TEXT("This mineral has no compatible accessory socket in the legacy catalog."); }
+	{ return TEXT("Fills a belt socket.\nEnhances the belt's bonuses."); }
+	if (Template && Template->Vnum == 50622) { return TEXT("This mineral has no compatible accessory."); }
 	if (!Use || Use->UseSubType != 21) { return {}; }
-	TArray<FString> CompatibleBases;
-	for (int32 Type : {3,5,6})
-	{
-		const int32 Base = Type == 3 ? 14000 : Type == 5 ? 16000 : 17000;
-		for (int32 Offset = 0; Offset <= 560; Offset += 10)
-		{
-			if (MT2AccessorySockets::RequiredMineral(Base + Offset, Type) == Template->Vnum)
-			{ CompatibleBases.Add(FString::FromInt(Base + Offset)); }
-		}
-	}
-	if (CompatibleBases.IsEmpty()) { return TEXT("This mineral has no compatible accessory socket in the legacy catalog."); }
-	return FString::Printf(TEXT("Fills an open matching jewelry socket. Intrinsic bonuses: 10%% / 20%% / 40%% total by grade (minimum +1 / +2 / +3).\nSuccess: 90%% / 80%% / 70%%. Wear time: 24h / 12h / 6h, equipped only. Consumed even on failure.\nCompatible base VNUMs (+0 to +9): %s."), *FString::Join(CompatibleBases,TEXT(", ")));
+	if (Template->Vnum < 50623 || Template->Vnum > 50638) { return TEXT("This mineral has no compatible accessory."); }
+	return TEXT("Fills a socket in matching jewelry.\nEnhances the accessory's bonuses.");
 }
 
 FString UMT2ItemTooltipWidget::AccessoryBonusLines(const UMT2ItemTemplate* Template, int32 FromGrade, int32 ToGrade)
@@ -283,68 +277,104 @@ void UMT2ItemTooltipWidget::AddMetinSockets(
 			AddSpace(7.0f);
 			bAddedSection = true;
 		}
+		AddSocketRow(Socket.Type,Stone,FString());
+	}
+}
 
-		UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(
-			UHorizontalBox::StaticClass());
-		USizeBox* IconSize = WidgetTree->ConstructWidget<USizeBox>(
-			USizeBox::StaticClass());
-		IconSize->SetWidthOverride(32.0f);
-		IconSize->SetHeightOverride(32.0f);
+void UMT2ItemTooltipWidget::AddAccessorySockets(const UMT2ItemTemplate* Template, const FMT2AccessorySocketState& InState)
+{
+	const auto State = MT2AccessorySockets::Normalize(InState);
+	if (!State.MaximumGrade) { return; }
+	const auto* Armor = Cast<UMT2ItemArmorTemplate>(Template);
+	// The client uses the same socket row for jewelry minerals and the belt's dark stone.
+	const int32 MaterialVnum = Armor ? MT2AccessorySockets::RequiredMineral(Template->Vnum,Armor->ArmorSubType) : 18900;
+	const auto* Material = MT2ItemUtils::ResolveTemplate(this,MaterialVnum);
+	AddSpace(7.0f);
+	for (int32 Grade = 1; Grade <= State.MaximumGrade; ++Grade)
+	{
+		const bool bFilled = Grade <= State.CurrentGrade;
+		AddSocketRow(EMT2MetinSocketType::Silver,bFilled ? Material : nullptr,
+			bFilled ? AccessoryBonusLines(Template,Grade-1,Grade) : FString(),
+			bFilled && Grade == State.CurrentGrade ? State.RemainingSeconds : 0,bFilled);
+	}
+}
+
+void UMT2ItemTooltipWidget::AddSocketRow(EMT2MetinSocketType Type, const UMT2ItemTemplate* Material,
+	const FString& Bonuses, int32 RemainingSeconds, bool bFilled)
+{
+	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(
+		UHorizontalBox::StaticClass());
+	USizeBox* IconSize = WidgetTree->ConstructWidget<USizeBox>(
+		USizeBox::StaticClass());
+	IconSize->SetWidthOverride(36.0f);
+	IconSize->SetHeightOverride(36.0f);
+	UOverlay* IconLayers = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
+	UMT2AtlasImage* Frame = WidgetTree->ConstructWidget<UMT2AtlasImage>(UMT2AtlasImage::StaticClass());
+	Frame->SetAtlas(FMT2UIStyle::LoadTexture(UMT2PathSettings::Path(TEXT("UI_WindowsAtlas"))),
+		FMT2AtlasRect(Type == EMT2MetinSocketType::Gold ? 242.f : 278.f,152.f,36.f,36.f));
+	IconLayers->AddChildToOverlay(Frame);
+	if (bFilled && Material)
+	{
 		UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
-		if (UTexture2D* IconTexture = Stone->Icon.LoadSynchronous())
-		{
-			Icon->SetBrushFromTexture(IconTexture, true);
-		}
-		IconSize->SetContent(Icon);
-		if (UHorizontalBoxSlot* IconSlot = Row->AddChildToHorizontalBox(IconSize))
-		{
-			IconSlot->SetPadding(FMargin(0.0f, 1.0f, 7.0f, 1.0f));
-			IconSlot->SetVerticalAlignment(VAlign_Center);
-		}
+		Icon->SetBrushFromTexture(Material->Icon.LoadSynchronous(),true);
+		USizeBox* ItemSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		ItemSize->SetWidthOverride(32.f); ItemSize->SetHeightOverride(32.f); ItemSize->SetContent(Icon);
+		if (UOverlaySlot* IconSlot = IconLayers->AddChildToOverlay(ItemSize))
+		{ IconSlot->SetHorizontalAlignment(HAlign_Center); IconSlot->SetVerticalAlignment(VAlign_Center); }
+	}
+	IconSize->SetContent(IconLayers);
+	if (UHorizontalBoxSlot* IconSlot = Row->AddChildToHorizontalBox(IconSize))
+	{
+		IconSlot->SetPadding(FMargin(0.0f, 1.0f, 7.0f, 1.0f));
+		IconSlot->SetVerticalAlignment(VAlign_Center);
+	}
 
-		UVerticalBox* Details = WidgetTree->ConstructWidget<UVerticalBox>(
-			UVerticalBox::StaticClass());
-		const auto AddDetailLine = [this, Details](
-			const FString& Text, const FLinearColor& Color)
+	UVerticalBox* Details = WidgetTree->ConstructWidget<UVerticalBox>(
+		UVerticalBox::StaticClass());
+	const auto AddDetailLine = [this, Details](
+		const FString& Text, const FLinearColor& Color)
+	{
+		UTextBlock* Line = WidgetTree->ConstructWidget<UTextBlock>(
+			UTextBlock::StaticClass());
+		Line->SetText(FText::FromString(Text));
+		FSlateFontInfo Font = Line->GetFont();
+		Font.Size = 9;
+		Line->SetFont(Font);
+		Line->SetColorAndOpacity(FSlateColor(Color));
+		Line->SetShadowOffset(FVector2D(1.0f));
+		Line->SetShadowColorAndOpacity(
+			FLinearColor(0.0f, 0.0f, 0.0f, 0.8f));
+		Line->SetAutoWrapText(false);
+		if (UVerticalBoxSlot* Slot = Details->AddChildToVerticalBox(Line))
 		{
-			UTextBlock* Line = WidgetTree->ConstructWidget<UTextBlock>(
-				UTextBlock::StaticClass());
-			Line->SetText(FText::FromString(Text));
-			FSlateFontInfo Font = Line->GetFont();
-			Font.Size = 9;
-			Line->SetFont(Font);
-			Line->SetColorAndOpacity(FSlateColor(Color));
-			Line->SetShadowOffset(FVector2D(1.0f));
-			Line->SetShadowColorAndOpacity(
-				FLinearColor(0.0f, 0.0f, 0.0f, 0.8f));
-			Line->SetAutoWrapText(false);
-			if (UVerticalBoxSlot* Slot = Details->AddChildToVerticalBox(Line))
-			{
-				Slot->SetHorizontalAlignment(HAlign_Left);
-			}
-		};
+			Slot->SetHorizontalAlignment(HAlign_Left);
+		}
+	};
 
-		const FString StoneName = Stone->DisplayName.IsEmpty()
-			? Stone->InternalName : Stone->DisplayName.ToString();
-		AddDetailLine(StoneName, NormalColor);
-		for (const FMT2ItemApply& Apply : Stone->Applies)
+	const FString Name = Material ? MT2ItemUtils::GetDisplayName(Material,Material->Vnum).ToString()
+		: bFilled ? TEXT("Filled socket") : TEXT("Empty socket");
+	AddDetailLine(Name, NormalColor);
+	if (const auto* Stone = Cast<UMT2ItemMetinStoneTemplate>(Material))
+	{
+		for (const auto& Apply : Stone->Applies)
 		{
 			if (Apply.Type != EMT2ItemBonusType::None && Apply.Value != 0)
-			{
-				AddDetailLine(
-					FormatApply(static_cast<int32>(Apply.Type), Apply.Value),
-					Apply.Value > 0 ? PositiveColor : NegativeColor);
-			}
+			{ AddDetailLine(FormatApply(static_cast<int32>(Apply.Type),Apply.Value),Apply.Value > 0 ? PositiveColor : NegativeColor); }
 		}
-		if (UHorizontalBoxSlot* DetailsSlot = Row->AddChildToHorizontalBox(Details))
-		{
-			DetailsSlot->SetVerticalAlignment(VAlign_Center);
-		}
-		if (UVerticalBoxSlot* RowSlot = LinesBox->AddChildToVerticalBox(Row))
-		{
-			RowSlot->SetPadding(FMargin(2.0f, 1.0f));
-			RowSlot->SetHorizontalAlignment(HAlign_Left);
-		}
+	}
+	else if (!Bonuses.IsEmpty()) { AddDetailLine(Bonuses,PositiveColor); }
+	if (RemainingSeconds > 0)
+	{
+		AddDetailLine(FString::Printf(TEXT("Remaining: %dh %dm %ds"),RemainingSeconds/3600,RemainingSeconds/60%60,RemainingSeconds%60),NormalColor);
+	}
+	if (UHorizontalBoxSlot* DetailsSlot = Row->AddChildToHorizontalBox(Details))
+	{
+		DetailsSlot->SetVerticalAlignment(VAlign_Center);
+	}
+	if (UVerticalBoxSlot* RowSlot = LinesBox->AddChildToVerticalBox(Row))
+	{
+		RowSlot->SetPadding(FMargin(2.0f, 1.0f));
+		RowSlot->SetHorizontalAlignment(HAlign_Left);
 	}
 }
 
@@ -423,15 +453,7 @@ void UMT2ItemTooltipWidget::BuildTooltip(
 	}
 	if (MT2AccessorySockets::IsAccessory(Template))
 	{
-		const auto State = MT2AccessorySockets::Normalize(AccessorySockets ? *AccessorySockets : FMT2AccessorySocketState());
-		AddLine(FString::Printf(TEXT("Accessory sockets: %d / 3 open, %d filled"),State.MaximumGrade,State.CurrentGrade),NormalColor);
-		for (int32 Grade = 1; Grade <= State.MaximumGrade; ++Grade)
-		{
-			AddLine(FString::Printf(TEXT("Socket %d: %s"),Grade,Grade <= State.CurrentGrade ? TEXT("filled") : TEXT("empty")),NormalColor);
-			if (Grade <= State.CurrentGrade) { AddLine(AccessoryBonusLines(Template,Grade-1,Grade),PositiveColor); }
-		}
-		if (State.CurrentGrade > 0)
-		{ AddLine(FString::Printf(TEXT("Remaining equipped wear: %dh %dm %ds"),State.RemainingSeconds/3600,State.RemainingSeconds/60%60,State.RemainingSeconds%60),NormalColor); }
+		AddAccessorySockets(Template,AccessorySockets ? *AccessorySockets : FMT2AccessorySocketState());
 	}
 	if (const UMT2ItemAutoRecoveryTemplate* AutoRecovery =
 		Cast<UMT2ItemAutoRecoveryTemplate>(Template))

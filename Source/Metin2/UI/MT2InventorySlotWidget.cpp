@@ -140,6 +140,10 @@ void UMT2InventorySlotWidget::SetItemByVnum(
 {
 	EnsureSlotEffects();
 	InteractionSlotIndex = SlotIndex;
+	DisplayedItem = {};
+	DisplayedItem.Vnum = Vnum; DisplayedItem.Count = Count; DisplayedItem.Bonuses = Bonuses; DisplayedItem.MetinSockets = MetinSockets;
+	DisplayedItem.SkillVnum = SkillVnum; DisplayedItem.AutoRecoveryRemainingAmount = AutoRecoveryRemainingAmount;
+	bResolveOwnedInstance = false;
 	SetCovered(false);
 	if (Vnum <= 0 || Count <= 0)
 	{
@@ -176,11 +180,7 @@ void UMT2InventorySlotWidget::SetItemByVnum(
 	// Rich per-type tooltip widget (weapon/armor/accessory/use styles) instead of plain text.
 	if (SlotKind != EMT2InventorySlotKind::Quick)
 	{
-		const AMT2PlayerState* Viewer = GetOwningPlayer()
-			? GetOwningPlayer()->GetPlayerState<AMT2PlayerState>() : nullptr;
-		SetToolTip(UMT2ItemTooltipWidget::Create(
-			GetOwningPlayer(), Template, Count, Viewer, -1, &Bonuses, &MetinSockets,
-			SkillVnum, AutoRecoveryRemainingAmount));
+		RefreshInstanceTooltip();
 	}
 }
 
@@ -195,28 +195,43 @@ void UMT2InventorySlotWidget::SetCoveredByItem(
 	SetCovered(true);
 }
 
+void UMT2InventorySlotWidget::SetInstanceTooltipData(const FMT2ItemSlot& Item, bool bOwnedInventory)
+{
+	DisplayedItem = Item;
+	bResolveOwnedInstance = bOwnedInventory;
+	RefreshInstanceTooltip();
+}
+
+void UMT2InventorySlotWidget::RefreshInstanceTooltip()
+{
+	if (DisplayedItem.IsEmpty() || SlotKind == EMT2InventorySlotKind::Quick) { return; }
+	const auto* Viewer = GetOwningPlayer() ? GetOwningPlayer()->GetPlayerState<AMT2PlayerState>() : nullptr;
+	SetToolTip(UMT2ItemTooltipWidget::Create(GetOwningPlayer(),MT2ItemUtils::ResolveTemplate(this,DisplayedItem.Vnum),DisplayedItem.Count,Viewer,
+		-1,&DisplayedItem.Bonuses,&DisplayedItem.MetinSockets,DisplayedItem.SkillVnum,DisplayedItem.AutoRecoveryRemainingAmount,&DisplayedItem.AccessorySockets));
+}
+
 void UMT2InventorySlotWidget::NativeOnMouseEnter(
 	const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
 	Super::NativeOnMouseEnter(InGeometry, InMouseEvent);
-	if (SlotKind != EMT2InventorySlotKind::Quick)
+	if (bResolveOwnedInstance && SlotKind != EMT2InventorySlotKind::Quick)
 	{
 		const auto* Player = Cast<AMT2PlayerCharacter>(GetOwningPlayerPawn());
 		const auto* Inventory = Player ? Player->GetInventoryComponent() : nullptr;
 		if (Inventory)
 		{
 			const auto& Items = SlotKind == EMT2InventorySlotKind::Equipment ? Inventory->GetEquipment() : Inventory->GetSlots();
-			if (Items.IsValidIndex(InteractionSlotIndex) && !Items[InteractionSlotIndex].IsEmpty())
+			if (Items.IsValidIndex(InteractionSlotIndex) && !Items[InteractionSlotIndex].IsEmpty() && Items[InteractionSlotIndex].Vnum == DisplayedItem.Vnum)
 			{
 				const auto& Item = Items[InteractionSlotIndex];
-				const auto State = SlotKind == EMT2InventorySlotKind::Equipment
-					? Inventory->GetEffectiveAccessoryState(InteractionSlotIndex) : Item.AccessorySockets;
-				SetToolTip(UMT2ItemTooltipWidget::Create(GetOwningPlayer(),MT2ItemUtils::ResolveTemplate(this,Item.Vnum),Item.Count,
-					Player->GetPlayerState<AMT2PlayerState>(),-1,&Item.Bonuses,&Item.MetinSockets,Item.SkillVnum,Item.AutoRecoveryRemainingAmount,&State));
+				DisplayedItem = Item;
+				if (SlotKind == EMT2InventorySlotKind::Equipment)
+				{ DisplayedItem.AccessorySockets = Inventory->GetEffectiveAccessoryState(InteractionSlotIndex); }
 			}
 		}
 	}
-	if (!bCurrentItemNew || SlotKind != EMT2InventorySlotKind::Item)
+	RefreshInstanceTooltip();
+	if (!bResolveOwnedInstance || !bCurrentItemNew || SlotKind != EMT2InventorySlotKind::Item)
 	{
 		return;
 	}

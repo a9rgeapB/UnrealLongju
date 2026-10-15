@@ -80,7 +80,10 @@ bool FMT2FakePlayersTest::RunTest(const FString&)
 	auto* Grid = World->GetSubsystem<UMT2PlayerSpatialGridSubsystem>(); Grid->RebuildPlayerGrid();
 	TArray<APawn*> Nearby; Grid->GetPlayerPawnsInRadius(FVector::ZeroVector, 10000.f, Nearby);
 	for (const auto& Pawn : Pawns) TestTrue(TEXT("Fake avatar participates in spatial queries"), Nearby.Contains(Pawn.Get()));
-	auto* Mob = World->SpawnActor<AMT2Mob>(); Mob->SetActorLocation(Pawns[0]->GetActorLocation() + FVector(200,0,0));
+	// Random spawn positions can already be at the roam boundary; an outward offset can put
+	// the fixture target outside the legitimate home-radius filter.
+	const FVector TargetLocation = FMath::Lerp(Requester->GetActorLocation(), Pawns[0]->GetActorLocation(), .5f);
+	auto* Mob = World->SpawnActor<AMT2Mob>(); Mob->SetActorLocation(TargetLocation);
 	auto* ASC = Mob->GetAbilitySystemComponent();
 	ASC->AddAttributeSetSubobject(NewObject<UMT2CoreAttributeSet>(Mob)); ASC->InitAbilityActorInfo(Mob, Mob);
 	ASC->SetNumericAttributeBase(UMT2CoreAttributeSet::GetMaxHealthAttribute(), 100.f);
@@ -105,7 +108,7 @@ bool FMT2FakePlayersTest::RunTest(const FString&)
 	auto* Stone = World->SpawnActor<AMT2MetinStone>();
 	FMT2MobDefinition StoneDefinition; StoneDefinition.Type = EMT2MobType::Stone;
 	Stone->ConfigureFromDefinition(StoneDefinition);
-	Stone->SetActorLocation(Pawns[0]->GetActorLocation() + FVector(200, 0, 0));
+	Stone->SetActorLocation(TargetLocation);
 	Stone->GetAbilitySystemComponent()->SetNumericAttributeBase(UMT2CoreAttributeSet::GetMaxHealthAttribute(), 100.f);
 	Stone->GetAbilitySystemComponent()->SetNumericAttributeBase(UMT2CoreAttributeSet::GetHealthAttribute(), 100.f);
 	First->Think(5.);

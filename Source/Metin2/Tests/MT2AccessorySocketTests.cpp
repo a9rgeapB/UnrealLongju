@@ -14,6 +14,16 @@
 #include "Engine/World.h"
 #include "Player/MT2PlayerController.h"
 #include "UI/MT2ItemTooltipWidget.h"
+#include "UI/MT2InventorySlotWidget.h"
+#include "UI/MT2AtlasImage.h"
+#include "Config/MT2PathSettings.h"
+#include "Engine/Texture2D.h"
+#include "Items/MT2ItemUtils.h"
+#include "Items/MT2ItemBonusSettings.h"
+#include "Components/PanelWidget.h"
+#include "Components/TextBlock.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/LocalPlayer.h"
 #include "Misc/ScopeExit.h"
 #include "UObject/StrongObjectPtr.h"
 
@@ -62,11 +72,146 @@ bool FMT2AccessoryTooltipTest::RunTest(const FString&)
 	auto* Amber=NewObject<UMT2ItemMaterialTemplate>(); Amber->Vnum=50622;
 	TestTrue(TEXT("Diamond explains opening"),UMT2ItemTooltipWidget::DescribeAccessoryMaterial(Diamond).Contains(TEXT("50%")));
 	TestFalse(TEXT("Diamond does not promise amplification"),UMT2ItemTooltipWidget::DescribeAccessoryMaterial(Diamond).Contains(TEXT("40%")));
-	TestTrue(TEXT("Mineral explains grade scaling"),UMT2ItemTooltipWidget::DescribeAccessoryMaterial(Ore).Contains(TEXT("10% / 20% / 40%")));
+	const FString OreDescription=UMT2ItemTooltipWidget::DescribeAccessoryMaterial(Ore);
+	TestTrue(TEXT("Mineral description stays compact"),OreDescription.Len()<=140);
+	TestFalse(TEXT("Mineral description has no developer VNUM table"),OreDescription.Contains(TEXT("VNUM")));
+	TestTrue(TEXT("Mineral description explains socket use"),OreDescription.Contains(TEXT("socket")));
 	TestTrue(TEXT("Unsupported mineral promises no bonus"),UMT2ItemTooltipWidget::DescribeAccessoryMaterial(Amber).Contains(TEXT("no compatible")));
 	auto* Bracelet=NewObject<UMT2ItemArmorTemplate>(); Bracelet->ArmorSubType=3;
+	TestEqual(TEXT("Intrinsic stamina has a readable flat bonus label"),GetDefault<UMT2ItemBonusSettings>()->FormatBonus(58,10),FString(TEXT("Maximum Stamina +10")));
+	TestEqual(TEXT("Stamina penalties keep their sign"),GetDefault<UMT2ItemBonusSettings>()->FormatBonus(58,-10),FString(TEXT("Maximum Stamina -10")));
+	auto& Stamina=Bracelet->Applies.AddDefaulted_GetRef(); Stamina.Type=EMT2ItemBonusType::MaxStamina; Stamina.Value=10;
+	TestTrue(TEXT("Filled accessory mineral names its stamina bonus"),UMT2ItemTooltipWidget::AccessoryBonusLines(Bracelet,0,1).Contains(TEXT("Maximum Stamina +1")));
 	auto& Apply=Bracelet->Applies.AddDefaulted_GetRef(); Apply.Type=static_cast<EMT2ItemBonusType>(54); Apply.Value=100;
 	TestTrue(TEXT("Third grade preview uses incremental twenty"),UMT2ItemTooltipWidget::AccessoryBonusLines(Bracelet,2,3).Contains(TEXT("20")));
+	TStrongObjectPtr<UGameInstance> GI(NewObject<UGameInstance>(GEngine)); GI->InitializeStandalone();
+	UWorld* World=GI->GetWorld();
+	TStrongObjectPtr<UGameViewportClient> Viewport(NewObject<UGameViewportClient>(GEngine));
+	auto& Context=GEngine->GetWorldContextFromWorldChecked(World); Context.GameViewport=Viewport.Get(); Viewport->Init(Context,GI.Get(),false);
+	ON_SCOPE_EXIT { GI->Shutdown(); World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+	FString Error; auto* LocalPlayer=GI->CreateLocalPlayer(0,Error,false);
+	auto* Controller=World->SpawnActor<AMT2PlayerController>(); Controller->SetPlayer(LocalPlayer);
+	// This intentionally unstarted world has not run the controller registration hook.
+	World->AddController(Controller);
+	auto* State=World->SpawnActor<AMT2PlayerState>(); Controller->SetPlayerState(State);
+	State->GetAbilitySystemComponent()->AddAttributeSetSubobject(State->GetCoreAttributes());
+	auto* Player=World->SpawnActor<AMT2PlayerCharacter>(); Controller->Possess(Player);
+	TArray<FMT2ItemSlot> Local; Local.SetNum(180); Local[0].Vnum=14000; Local[0].Count=1;
+	Player->GetInventoryComponent()->RestoreItems(Local,{});
+	auto* PartnerCell=CreateWidget<UMT2InventorySlotWidget>(Controller,UMT2InventorySlotWidget::StaticClass());
+	if (!TestNotNull(TEXT("Actual shared trade slot widget"),PartnerCell)) { return false; }
+	PartnerCell->InitializeSlot(0,EMT2InventorySlotKind::Item,FText::GetEmpty()); PartnerCell->SetItemByVnum(50623,1);
+	const auto TooltipText=[](UWidget* Widget)
+	{
+		FString Text;
+		TFunction<void(UWidget*)> Visit=[&](UWidget* Child)
+		{
+			if (auto* Line=Cast<UTextBlock>(Child)) { Text+=Line->GetText().ToString()+TEXT("\n"); }
+			if (auto* Panel=Cast<UPanelWidget>(Child)) { for (auto* Item : Panel->GetAllChildren()) { Visit(Item); } }
+		};
+		if (auto* Tooltip=Cast<UUserWidget>(Widget)) { Visit(Tooltip->GetRootWidget()); }
+		return Text;
+	};
+	const FString OfferedText=TooltipText(PartnerCell->GetToolTip());
+	AddInfo(FString::Printf(TEXT("Trade fixture owner=%s pawn=%s tooltip=%s root=%s"),*GetNameSafe(PartnerCell->GetOwningPlayer()),*GetNameSafe(PartnerCell->GetOwningPlayerPawn()),*GetNameSafe(PartnerCell->GetToolTip()),*GetNameSafe(Cast<UUserWidget>(PartnerCell->GetToolTip()) ? Cast<UUserWidget>(PartnerCell->GetToolTip())->GetRootWidget() : nullptr)));
+	TestFalse(TEXT("Trade tooltip has actual visible text"),OfferedText.IsEmpty());
+	PartnerCell->NativeOnMouseEnter(FGeometry(),FPointerEvent());
+	TestEqual(TEXT("Partner hover preserves offered item despite occupied own slot zero"),TooltipText(PartnerCell->GetToolTip()),OfferedText);
+	FMT2ItemSlot OfferedAccessory; OfferedAccessory.Vnum=14000; OfferedAccessory.Count=1;
+	OfferedAccessory.AccessorySockets.MaximumGrade=3; OfferedAccessory.AccessorySockets.CurrentGrade=2; OfferedAccessory.AccessorySockets.RemainingSeconds=100;
+	PartnerCell->SetItemByVnum(14000,1); PartnerCell->SetInstanceTooltipData(OfferedAccessory);
+	const auto Images=[](UWidget* Widget)
+	{
+		TArray<UImage*> Result;
+		TFunction<void(UWidget*)> Visit=[&](UWidget* Child)
+		{
+			if (auto* Image=Cast<UImage>(Child)) { Result.Add(Image); }
+			if (auto* Panel=Cast<UPanelWidget>(Child)) { for (auto* Item : Panel->GetAllChildren()) { Visit(Item); } }
+		};
+		if (auto* Tooltip=Cast<UUserWidget>(Widget)) { Visit(Tooltip->GetRootWidget()); }
+		return Result;
+	};
+	const auto Frames=[&](UWidget* Widget)
+	{
+		TArray<UMT2AtlasImage*> Result;
+		for (auto* Image : Images(Widget)) { if (auto* Frame=Cast<UMT2AtlasImage>(Image)) { Result.Add(Frame); } }
+		return Result;
+	};
+	TestEqual(TEXT("Accessory displays all three opened socket frames"),Frames(PartnerCell->GetToolTip()).Num(),3);
+	const auto* Mineral=MT2ItemUtils::ResolveTemplate(Player,50623);
+	auto* MineralIcon=Mineral ? Mineral->Icon.LoadSynchronous() : nullptr;
+	TestNotNull(TEXT("Imported mineral icon available"),MineralIcon);
+	int32 FilledIcons=0;
+	for (auto* Image : Images(PartnerCell->GetToolTip())) { if (Image->GetBrush().GetResourceObject()==MineralIcon) { ++FilledIcons; } }
+	TestEqual(TEXT("Two filled accessory sockets display mineral icons"),FilledIcons,2);
+	for (auto* Frame : Frames(PartnerCell->GetToolTip()))
+	{
+		TestNotNull(TEXT("Socket frame uses an imported atlas"),Frame->AtlasTexture.Get());
+		TestEqual(TEXT("Accessory uses legacy silver socket art"),Frame->AtlasRegion.X,278.f);
+	}
+	TestTrue(TEXT("Opened unfilled socket is visible"),TooltipText(PartnerCell->GetToolTip()).Contains(TEXT("Empty socket")));
+	TestTrue(TEXT("Active mineral row displays remaining wear"),TooltipText(PartnerCell->GetToolTip()).Contains(TEXT("1m 40s")));
+	PartnerCell->NativeOnMouseEnter(FGeometry(),FPointerEvent());
+	TestEqual(TEXT("Trade hover preserves accessory socket visuals"),Frames(PartnerCell->GetToolTip()).Num(),3);
+	OfferedAccessory.AccessorySockets.CurrentGrade=0; OfferedAccessory.AccessorySockets.RemainingSeconds=0;
+	PartnerCell->SetInstanceTooltipData(OfferedAccessory);
+	TestEqual(TEXT("Opened but entirely empty accessory still shows frames"),Frames(PartnerCell->GetToolTip()).Num(),3);
+	OfferedAccessory.AccessorySockets.MaximumGrade=0; PartnerCell->SetInstanceTooltipData(OfferedAccessory);
+	TestEqual(TEXT("Unopened accessory has no socket frames"),Frames(PartnerCell->GetToolTip()).Num(),0);
+	FMT2ItemSlot Weapon; Weapon.Vnum=19; Weapon.Count=1;
+	const auto* Stone=MT2ItemUtils::ResolveTemplate<UMT2ItemMetinStoneTemplate>(Player,28030);
+	if (!TestNotNull(TEXT("Ordinary Metin stone fixture"),Stone)) { return false; }
+	auto& Socket=Weapon.MetinSockets.AddDefaulted_GetRef(); Socket.Type=EMT2MetinSocketType::Gold;
+	Socket.Stone=Stone->GetClass(); PartnerCell->SetItemByVnum(19,1); PartnerCell->SetInstanceTooltipData(Weapon);
+	const auto GoldFrames=Frames(PartnerCell->GetToolTip());
+	if (TestEqual(TEXT("Weapon uses the same socket-row renderer"),GoldFrames.Num(),1))
+	{ TestEqual(TEXT("Gold Metin socket retains its legacy frame"),GoldFrames[0]->AtlasRegion.X,242.f); }
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2ItemBonusNamesTest,"Metin2.Items.Bonuses.DisplayNames",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FMT2ItemBonusNamesTest::RunTest(const FString&)
+{
+	auto* Defaults=NewObject<UMT2ItemBonusSettings>();
+	Defaults->NormalBonuses.Reset(); Defaults->RareBonuses.Reset();
+	const UMT2ItemBonusSettings* SettingsVariants[]={Defaults,GetDefault<UMT2ItemBonusSettings>()};
+	const UEnum* Types=StaticEnum<EMT2ItemBonusType>();
+	for (int32 Index=1; Index<Types->NumEnums()-1; ++Index)
+	{
+		const int32 Type=static_cast<int32>(Types->GetValueByIndex(Index));
+		for (const auto* Settings : SettingsVariants)
+		{
+			const FString Text=Settings->FormatBonus(Type,10);
+			TestFalse(*FString::Printf(TEXT("Apply %d has a readable name without random-pool definitions"),Type),Text.IsEmpty() || Text.StartsWith(FString::Printf(TEXT("Bonus %d "),Type)));
+		}
+	}
+	const struct { int32 Type; const TCHAR* Expected; } Cases[] = {
+		{26,TEXT("Recover SP on Damage +10%")},{40,TEXT("Reflect Curse +10%")},
+		{42,TEXT("Recover SP on Kill +10%")},{46,TEXT("Potion Effect Bonus +10%")},
+		{47,TEXT("Recover HP on Kill +10%")},{50,TEXT("Immune to Knockdown")},
+		{51,TEXT("Skill +10")},{52,TEXT("Bow Distance +10m")},
+		{54,TEXT("Defense Bonus +10")},{55,TEXT("Magic Attack Value +10")},
+		{56,TEXT("Magic Defense Value +10")},{57,TEXT("Curse Chance +10%")},
+		{58,TEXT("Maximum Stamina +10")},{64,TEXT("Mall Attack Bonus +10%")},
+		{65,TEXT("Mall Defense Bonus +10%")},{66,TEXT("Mall Experience Bonus +10%")},
+		{67,TEXT("Mall Item Drop Multiplier x1.0")},{68,TEXT("Mall Yang Multiplier x1.0")},
+		{69,TEXT("Maximum HP +10%")},{70,TEXT("Maximum SP +10%")},
+		{73,TEXT("Skill Damage Resistance +10%")},{74,TEXT("Average Damage Resistance +10%")},
+		{75,TEXT("PC Bang Experience Bonus +10%")},{76,TEXT("PC Bang Drop Bonus +10%")},
+		{77,TEXT("Extract HP +10%")},{82,TEXT("Energy +10")},
+		{83,TEXT("Defense Value +10")},{84,TEXT("Costume Attribute Bonus +10%")},
+		{85,TEXT("Magic Attack +10%")},{86,TEXT("Melee/Magic Attack +10%")},
+		{90,TEXT("Critical Resistance +10%")},{91,TEXT("Penetrating Resistance +10%")}
+	};
+	for (const auto& Case : Cases)
+	{
+		TestEqual(*FString::Printf(TEXT("Legacy apply %d has its proper name and units"),Case.Type),Defaults->FormatBonus(Case.Type,10),FString(Case.Expected));
+	}
+	TestEqual(TEXT("Unknown IDs remain diagnosable"),Defaults->FormatBonus(999,10),FString(TEXT("Bonus 999 +10")));
+	auto& Override=Defaults->NormalBonuses.AddDefaulted_GetRef(); Override.ApplyType=58; Override.DisplayName=TEXT("Custom stamina");
+	TestEqual(TEXT("Project display overrides remain supported"),Defaults->FormatBonus(58,10),FString(TEXT("Custom stamina +10")));
+	Override.DisplayName.Empty();
+	TestEqual(TEXT("Empty configured label falls back to the catalog"),Defaults->FormatBonus(58,10),FString(TEXT("Maximum Stamina +10")));
 	return true;
 }
 
