@@ -136,6 +136,9 @@ public:
 	bool ApplyFishingBait(int32 InventorySlot);
 	bool FinishFishingAttempt(bool bPractice);
 	bool FinishMiningAttempt();
+	// 2 = rejected without charge, 1 = success, 0 = valid failed roll.
+	int32 RefineOre(int32 OreSlot, const FMT2ItemSlot& ExpectedOre, int32 AlchemistVnum,
+		int32 StoneSlot, const FMT2ItemSlot& ExpectedStone);
 	int32 RefineFishingRod(int32 InventorySlot);
 
 	// Owning-client acknowledgement sent when the new item's tooltip is first displayed.
@@ -190,6 +193,10 @@ protected:
 	virtual void BeginPlay() override;
 
 private:
+	friend class FMT2OreRefiningTest;
+	int32 RefineOreWithRoll(int32 OreSlot, const FMT2ItemSlot& ExpectedOre, int32 AlchemistVnum,
+		int32 StoneSlot, const FMT2ItemSlot& ExpectedStone, int32 Roll);
+	bool bResolvingOre = false;
 	friend class FMT2ObserverReplicationTest;
 	UFUNCTION() void OnRep_PublicAppearance();
 	void RefreshPublicAppearance();

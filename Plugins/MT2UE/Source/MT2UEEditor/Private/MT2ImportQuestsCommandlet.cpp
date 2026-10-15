@@ -260,7 +260,8 @@ int32 UMT2ImportQuestsCommandlet::Main(const FString& Params)
 		UE_LOG(LogTemp, Display, TEXT("Report-only conversion: Content packages will not be saved."));
 	}
 	const bool bSucceeded = FMT2QuestImporter::Import(
-		SourceRoot, DestinationRoot, Result, ClientSourceRoot, !FParse::Param(*Params, TEXT("ReportOnly")));
+		SourceRoot, DestinationRoot, Result, ClientSourceRoot, !FParse::Param(*Params, TEXT("ReportOnly")),
+		FParse::Param(*Params, TEXT("AlchemistsOnly")));
 
 	for (const FString& Warning : Result.Warnings)
 	{

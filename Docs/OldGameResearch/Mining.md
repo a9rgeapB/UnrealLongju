@@ -22,4 +22,18 @@ The legacy server enables auto-pickup. Direct inventory insertion avoids spawnin
 
 The mining tests cover sequence authority/cancellation, proficiency persistence and cap, partial-inventory delivery with matching pickup-quest events, local late-sequence animation reconstruction and all eight imported digging animation bindings. Packaged multiplayer visuals, real latency and concurrent-miner stress require a play test.
 
-Ore refining, NPC pickaxe upgrades, accessory socket insertion and accessory bonus/degradation rules are separate systems, not part of this mining slice.
+## Alchemist refining
+
+Offer a stack of at least 100 raw ore to an alchemist using the inventory-to-NPC item interaction. Confirm the displayed fee and success rate. For non-diamond ore, choose a Spirit Stone (+0, +1 or +2) from the dialogue; the slot number identifies the exact inventory item. The picker shows eight stones per page. Changing pages or cancelling consumes nothing.
+
+Each attempt consumes 100 raw ore and its Yang fee, including unsuccessful attempts. Diamond costs 10,000 Yang and needs no Spirit Stone. Other ores cost 3,000 Yang and consume one selected Spirit Stone. Success produces one refined ore (raw VNUM + 20). Full inventories must accommodate the result after consumption or the attempt is rejected without charge.
+
+Alchemists 20060–20072 specialize in raw ore 50601–50613; alchemists 33009–33013 specialize in 50614–50618. Success is 60% for their specialization and 30% for another ore. Spawn an amber alchemist with `/m 20061` and test with raw amber 50602, Spirit Stone 28030 and at least 3,000 Yang.
+
+Alchemists are independent: all players pay the same base fees, regardless of guild or empire. The imported `guild_building_melt` quest uses native refining nodes and the original localized dialogue. `MT2ImportQuests -AlchemistsOnly` refreshes this quest without rewriting other quests, shared tables or the active-quest manifest. Rebuild and package the changed quest asset for staged builds.
+
+The inventory component owns the atomic exchange. Server-side dialogue revalidates the NPC, player, world, range, health, trading state and item snapshots before charging. Replies carry the identity of their dialogue page, so a repeated confirmation cannot select a material or answer a later conversation. Client and server must use matching rebuilt binaries. No per-frame work or new save format is introduced.
+
+NPC pickaxe upgrades, accessory socket insertion and accessory bonus/degradation rules remain separate implementation tasks.
+
+TODO: Integrate alchemists with guild buildings and empire ownership once those systems support them, including owner-guild discounts, cross-empire fees, fee routing and building reconstruction/specialization changes. See `Docs/superpowers/specs/2026-10-15-independent-alchemists-design.md`.

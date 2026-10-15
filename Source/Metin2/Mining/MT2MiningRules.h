@@ -3,6 +3,16 @@
 
 namespace MT2Mining
 {
+	inline int32 AlchemistOre(int32 Vnum)
+	{
+		if (Vnum >= 20060 && Vnum <= 20072) { return 50601 + Vnum - 20060; }
+		if (Vnum >= 33009 && Vnum <= 33013) { return 50614 + Vnum - 33009; }
+		return 0;
+	}
+	inline int32 RefinedOre(int32 Vnum) { return Vnum >= 50601 && Vnum <= 50618 ? Vnum + 20 : 0; }
+	inline int32 RefiningCost(int32 Vnum) { return Vnum == 50601 ? 10000 : 3000; }
+	inline int32 RefiningChance(int32 Vnum, int32 Npc) { return AlchemistOre(Npc) == Vnum ? 60 : 30; }
+	inline bool IsRefiningStone(int32 Vnum) { return Vnum >= 28000 && Vnum < 28300; }
 	inline int32 RawOre(int32 VeinVnum)
 	{
 		if (VeinVnum >= 20047 && VeinVnum <= 20059) { return 50601 + VeinVnum - 20047; }

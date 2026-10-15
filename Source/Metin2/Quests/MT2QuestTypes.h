@@ -27,6 +27,10 @@ struct METIN2_API FMT2DialogPayload
 {
 	GENERATED_BODY()
 
+	// Server-issued identity for this particular page; zero is never a valid reply target.
+	UPROPERTY()
+	uint32 PageId = 0;
+
 	// say_title() line (usually the NPC or quest name), shown highlighted.
 	UPROPERTY(BlueprintReadOnly, Category = "Dialog")
 	FString Title;

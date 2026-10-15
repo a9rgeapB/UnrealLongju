@@ -37,14 +37,19 @@ public:
 	// Server: closes the client's dialog window (setskin(NOWINDOW) / end of conversation).
 	void CloseDialog();
 	bool HasPendingDialog() const { return !!PendingAnswerCallback || !!PendingTextCallback; }
+	uint32 GetDialogPageId() const { return PendingDialogPage; }
 
 	UFUNCTION(Server, Reliable)
-	void ServerAnswerDialog(int32 ChoiceIndex);
+	void ServerAnswerDialog(int32 ChoiceIndex, uint32 PageId);
 
 	UFUNCTION(Server, Reliable)
-	void ServerAnswerDialogText(const FString& Text);
+	void ServerAnswerDialogText(const FString& Text, uint32 PageId);
 
 private:
+	void SendDialogPage(const FMT2DialogPayload& Payload);
+	uint32 DialogGeneration = 0;
+	uint32 PendingDialogPage = 0;
+	uint32 ClientDialogPage = 0;
 	UFUNCTION(Client, Reliable)
 	void ClientShowDialog(FMT2DialogPayload Payload);
 

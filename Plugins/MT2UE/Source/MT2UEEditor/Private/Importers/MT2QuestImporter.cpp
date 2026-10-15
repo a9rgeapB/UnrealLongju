@@ -26,6 +26,7 @@
 #include "Quests/MT2QuestCondition.h"
 #include "Quests/MT2QuestExpression.h"
 #include "Quests/MT2QuestNode.h"
+#include "Quests/MT2QuestOreRefining.h"
 #include "Quests/MT2QuestTableAsset.h"
 #include "UObject/Package.h"
 
@@ -4615,7 +4616,7 @@ namespace
 
 bool FMT2QuestImporter::Import(
 	const FString& QuestSourceRoot, const FString& DestinationRoot, FMT2QuestImportResult& OutResult,
-	const FString& ClientSourceRoot, bool bSavePackages)
+	const FString& ClientSourceRoot, bool bSavePackages, bool bAlchemistsOnly)
 {
 	const FString SourceRoot = QuestSourceRoot.TrimStartAndEnd();
 	if (!IFileManager::Get().DirectoryExists(*SourceRoot))
@@ -4696,6 +4697,10 @@ bool FMT2QuestImporter::Import(
 		IFileManager::Get().FindFilesRecursive(ScriptFiles, *SourceRoot, TEXT("*.quest"), true, false);
 		OutResult.Warnings.Add(TEXT("locale_list not found; importing every .quest file as a fallback."));
 	}
+	if (bAlchemistsOnly)
+	{
+		ScriptFiles.RemoveAll([](const FString& File) { return FPaths::GetBaseFilename(File) != TEXT("guild_building_melt"); });
+	}
 	if (ScriptFiles.IsEmpty())
 	{
 		OutResult.Errors.Add(FString::Printf(TEXT("No .quest files found under %s"), *SourceRoot));
@@ -4712,6 +4717,7 @@ bool FMT2QuestImporter::Import(
 	// The constant tables the scripts index (special.levelup_quest, special.questscroll, ...) are
 	// converted first: the expression validator consults them to decide whether a table read can be
 	// converted, so they have to exist before any quest is translated.
+	if (!bAlchemistsOnly)
 	{
 		TArray<FMT2QuestTable> Tables;
 		TArray<FMT2QuestMapDefinition> Maps;
@@ -4853,7 +4859,35 @@ bool FMT2QuestImporter::Import(
 			}
 		}
 
-		for (const FParsedState& ParsedState : Parsed.States)
+		if (Parsed.Name == TEXT("guild_building_melt"))
+		{
+			// Independent refining replaces guild ownership gates and the unsupported item picker.
+			// TODO: guild-building ownership, empire fees and reconstruction when those systems exist.
+			Defaults->States.Reset(); Defaults->Constants.Reset();
+			auto& Start = Defaults->States.AddDefaulted_GetRef(); Start.StateName = TEXT("start");
+			auto* Node = NewObject<UMT2QuestNode_OreRefining>(Defaults);
+			for (const auto& Entry : Locale)
+			{
+				FString Key = Entry.Key;
+				if (Key.RemoveFromStart(TEXT("gameforge.guild_building_melt.")))
+				{ Node->Messages.Add(FName(*Key), FText::FromString(Entry.Value)); }
+			}
+			for (const TCHAR* Choice : {TEXT("yes"), TEXT("no")})
+				if (const auto* Text = Locale.Find(FString(TEXT("gameforge.locale.guild.")) + Choice))
+				{ Node->Messages.Add(FName(Choice), FText::FromString(*Text)); }
+			for (int32 Index = 0; Index < 18; ++Index)
+			{
+				const int32 Npc = Index < 13 ? 20060 + Index : 33009 + Index - 13;
+				for (const auto Event : {EMT2QuestEvent::ItemTake, EMT2QuestEvent::Click})
+				{
+					auto& Trigger = Start.Triggers.AddDefaulted_GetRef();
+					Trigger.Event = Event; Trigger.Vnum = Npc; Trigger.Nodes.Add(Node);
+					++OutResult.TriggersConverted;
+				}
+			}
+			++OutResult.NodesCreated;
+		}
+		else for (const FParsedState& ParsedState : Parsed.States)
 		{
 			FMT2QuestState* ExistingState = Defaults->States.FindByPredicate(
 				[&ParsedState](const FMT2QuestState& Entry)

@@ -42,7 +42,7 @@ void UMT2QuestComponent::ShowDialog(const FMT2DialogPayload& Payload, TFunction<
 		Dismissed(FString());
 	}
 	PendingAnswerCallback = MoveTemp(OnAnswer);
-	ClientShowDialog(Payload);
+	SendDialogPage(Payload);
 }
 
 void UMT2QuestComponent::ShowInputDialog(
@@ -65,7 +65,16 @@ void UMT2QuestComponent::ShowInputDialog(
 		Dismissed(FString());
 	}
 	PendingTextCallback = MoveTemp(OnAnswer);
-	ClientShowDialog(Payload);
+	SendDialogPage(Payload);
+}
+
+void UMT2QuestComponent::SendDialogPage(const FMT2DialogPayload& Payload)
+{
+	if (++DialogGeneration == 0) { ++DialogGeneration; }
+	PendingDialogPage = DialogGeneration;
+	FMT2DialogPayload Page = Payload;
+	Page.PageId = PendingDialogPage;
+	ClientShowDialog(Page);
 }
 
 void UMT2QuestComponent::CloseDialog()
@@ -76,15 +85,18 @@ void UMT2QuestComponent::CloseDialog()
 	}
 	PendingAnswerCallback = nullptr;
 	PendingTextCallback = nullptr;
+	PendingDialogPage = 0;
 	ClientCloseDialog();
 }
 
-void UMT2QuestComponent::ServerAnswerDialog_Implementation(int32 ChoiceIndex)
+void UMT2QuestComponent::ServerAnswerDialog_Implementation(int32 ChoiceIndex, uint32 PageId)
 {
+	if (PageId == 0 || PageId != PendingDialogPage) { return; }
 	if (!PendingAnswerCallback)
 	{
 		if (ChoiceIndex == 0 && PendingTextCallback)
 		{
+			PendingDialogPage = 0;
 			PendingTextCallback = nullptr;
 			if (const AMT2PlayerState* State = Cast<AMT2PlayerState>(GetOwner()))
 			{
@@ -96,6 +108,7 @@ void UMT2QuestComponent::ServerAnswerDialog_Implementation(int32 ChoiceIndex)
 	}
 	// The callback may immediately open the next dialog page (setting a new pending callback), so
 	// detach before invoking - the select() resume.
+	PendingDialogPage = 0;
 	TFunction<void(int32)> Callback = MoveTemp(PendingAnswerCallback);
 	PendingAnswerCallback = nullptr;
 	Callback(FMath::Max(ChoiceIndex, 0));
@@ -107,13 +120,14 @@ void UMT2QuestComponent::ServerAnswerDialog_Implementation(int32 ChoiceIndex)
 	}
 }
 
-void UMT2QuestComponent::ServerAnswerDialogText_Implementation(const FString& Text)
+void UMT2QuestComponent::ServerAnswerDialogText_Implementation(const FString& Text, uint32 PageId)
 {
-	if (!PendingTextCallback)
+	if (PageId == 0 || PageId != PendingDialogPage || !PendingTextCallback)
 	{
 		return;
 	}
 	TFunction<void(const FString&)> Callback = MoveTemp(PendingTextCallback);
+	PendingDialogPage = 0;
 	PendingTextCallback = nullptr;
 	Callback(Text.Left(64));
 	if (!PendingAnswerCallback && !PendingTextCallback)
@@ -147,6 +161,7 @@ UMT2QuestDialogWidget* UMT2QuestComponent::GetOrCreateDialogWidget()
 
 void UMT2QuestComponent::ClientShowDialog_Implementation(FMT2DialogPayload Payload)
 {
+	ClientDialogPage = Payload.PageId;
 	if (UMT2QuestDialogWidget* Widget = GetOrCreateDialogWidget())
 	{
 		Widget->ShowDialog(Payload);
@@ -167,6 +182,7 @@ void UMT2QuestComponent::ClientShowDialog_Implementation(FMT2DialogPayload Paylo
 
 void UMT2QuestComponent::ClientCloseDialog_Implementation()
 {
+	ClientDialogPage = 0;
 	if (DialogWidget)
 	{
 		DialogWidget->CloseDialog();
@@ -186,10 +202,14 @@ void UMT2QuestComponent::ClientCloseDialog_Implementation()
 
 void UMT2QuestComponent::HandleDialogOptionSelected(int32 ChoiceIndex)
 {
-	ServerAnswerDialog(ChoiceIndex);
+	const uint32 PageId = ClientDialogPage;
+	ClientDialogPage = 0;
+	ServerAnswerDialog(ChoiceIndex, PageId);
 }
 
 void UMT2QuestComponent::HandleDialogTextSubmitted(const FString& Text)
 {
-	ServerAnswerDialogText(Text);
+	const uint32 PageId = ClientDialogPage;
+	ClientDialogPage = 0;
+	ServerAnswerDialogText(Text, PageId);
 }

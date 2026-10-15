@@ -46,5 +46,5 @@ public:
 	// bSavePackages=false is for isolated commandlet audits: assets change in memory but are not saved.
 	static bool Import(
 		const FString& QuestSourceRoot, const FString& DestinationRoot, FMT2QuestImportResult& OutResult,
-		const FString& ClientSourceRoot = FString(), bool bSavePackages = true);
+		const FString& ClientSourceRoot = FString(), bool bSavePackages = true, bool bAlchemistsOnly = false);
 };

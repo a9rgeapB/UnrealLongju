@@ -476,7 +476,7 @@ bool FMT2QuestResultListImportTest::RunTest(const FString& Parameters)
 	Manager->SetScriptVariable(TEXT("yy"), FMT2QuestValue(99.0));
 	Manager->PushFrame(FunctionNodes); Manager->RunPendingFrames();
 	TestEqual(TEXT("Imported suspended call leaves result untouched"), Manager->GetScriptVariable(TEXT("yy")).Number, 99.0);
-	PlayerState->GetQuestComponent()->ServerAnswerDialog_Implementation(1);
+	PlayerState->GetQuestComponent()->ServerAnswerDialog_Implementation(1, PlayerState->GetQuestComponent()->GetDialogPageId());
 	TestEqual(TEXT("Imported function returns date year"), Manager->GetScriptVariable(TEXT("yy")).Text, FString(TEXT("2026")));
 	TestEqual(TEXT("Imported function returns date minute"), Manager->GetScriptVariable(TEXT("mi")).Text, FString(TEXT("34")));
 	TestTrue(TEXT("Imported function pads absent sixth return"), Manager->GetScriptVariable(TEXT("pad")).bIsNil);
@@ -1278,7 +1278,7 @@ bool FMT2QuestLoweringTest::RunTest(const FString& Parameters)
 	if (!Run(TEXT("true and probe.pause() + probe.tick()"))) { return false; }
 	TestFalse(TEXT("Taken dialogue helper suspends"), Manager->CallStack.IsEmpty());
 	TestEqual(TEXT("Later helper not executed before resume"), Manager->GetQuestFlag(TEXT("calls")), 0);
-	PlayerState->GetQuestComponent()->ServerAnswerDialog_Implementation(1);
+	PlayerState->GetQuestComponent()->ServerAnswerDialog_Implementation(1, PlayerState->GetQuestComponent()->GetDialogPageId());
 	TestEqual(TEXT("Resumed expression executes later helper once"), Manager->GetQuestFlag(TEXT("calls")), 1);
 	TestEqual(TEXT("Resumed expression result"), Manager->GetScriptVariable(TEXT("result")).Number, 16.0);
 	TestTrue(TEXT("Resumed expression completed"), Manager->CallStack.IsEmpty());
