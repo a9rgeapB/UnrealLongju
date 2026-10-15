@@ -12,6 +12,8 @@
 
 #include "Importers/MT2MobImporter.h"
 #include "Misc/Parse.h"
+#include "Mining/MT2MiningRules.h"
+#include "MT2VnumRegistryBuilder.h"
 
 UMT2ImportMobsCommandlet::UMT2ImportMobsCommandlet()
 {
@@ -53,6 +55,15 @@ int32 UMT2ImportMobsCommandlet::Main(const FString& Params)
 	{
 		UE_LOG(LogTemp, Display, TEXT("%s"), *Warning);
 	}
+	if (FParse::Param(*Params,TEXT("OreVeinsOnly")))
+	{
+		Records.RemoveAll([](const FMT2MobImportRecord& Record) { return MT2Mining::RawOre(Record.Definition.Vnum)==0; });
+		if (Records.Num()!=18)
+		{
+			UE_LOG(LogTemp,Error,TEXT("Expected all 18 ore veins, but discovered %d. Check imported static meshes and source race scripts."),Records.Num());
+			return 1;
+		}
+	}
 	UE_LOG(LogTemp, Display, TEXT("Discovered %d importable mobs."), Records.Num());
 	if (!Records.IsEmpty())
 	{
@@ -83,6 +94,16 @@ int32 UMT2ImportMobsCommandlet::Main(const FString& Params)
 	for (const FString& ImportError : Result.Errors)
 	{
 		UE_LOG(LogTemp, Error, TEXT("%s"), *ImportError);
+	}
+	if (Result.Errors.IsEmpty() && FParse::Param(*Params,TEXT("OreVeinsOnly")))
+	{
+		TArray<FString> RegistryErrors; int32 MobCount=0,ItemCount=0;
+		if (!FMT2VnumRegistryBuilder::RebuildAndSave(RegistryErrors,MobCount,ItemCount))
+		{
+			for (const FString& RegistryError : RegistryErrors) { UE_LOG(LogTemp,Error,TEXT("%s"),*RegistryError); }
+			return 1;
+		}
+		UE_LOG(LogTemp,Display,TEXT("VNUM registry saved: %d mobs, %d items."),MobCount,ItemCount);
 	}
 	return Result.Errors.IsEmpty() ? 0 : 1;
 }

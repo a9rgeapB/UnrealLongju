@@ -18,6 +18,8 @@ The legacy server enables auto-pickup. Direct inventory insertion avoids spawnin
 
 `MT2ImportItems -PickaxesOnly` refreshes only pickaxe definitions, including practice odds, grade parsed from the legacy name and the existing `item/etc` meshes. Mining automation is under `Metin2.Mining`.
 
+`MT2ImportMobs -OreVeinsOnly` imports the 18 ore-vein NPCs from their existing static meshes and race scripts, then rebuilds the VNUM registry. Veins use `AMT2OreVein`, a stationary NPC with static visuals and mesh-fitted interaction collision. They do not require skeletons or animation Blueprints. The targeted import leaves unrelated mobs, shops and loot tables unchanged. Spawn a vein with `/m 20047` (or another vein VNUM from the ranges above).
+
 The mining tests cover sequence authority/cancellation, proficiency persistence and cap, partial-inventory delivery with matching pickup-quest events, local late-sequence animation reconstruction and all eight imported digging animation bindings. Packaged multiplayer visuals, real latency and concurrent-miner stress require a play test.
 
 Ore refining, NPC pickaxe upgrades, accessory socket insertion and accessory bonus/degradation rules are separate systems, not part of this mining slice.

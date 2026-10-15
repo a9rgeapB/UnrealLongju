@@ -32,6 +32,10 @@
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraphSchema_K2.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
+#include "Components/StaticMeshComponent.h"
+#include "Mining/MT2OreVein.h"
+#include "Mining/MT2MiningRules.h"
 #include "Engine/Texture2D.h"
 #include "Factories/AnimBlueprintFactory.h"
 #include "FileHelpers.h"
@@ -472,19 +476,19 @@ namespace
 		return UMT2PathSettings::Path(TEXT("ymir_work_Prefix")) + Relative;
 	}
 
-	FString FindMobMesh(const FString& GameDirectory, const FString& ResourceName)
+	FString FindMobMesh(const FString& GameDirectory, const FString& ResourceName, bool bStaticMesh=false)
 	{
 		FAssetRegistryModule& RegistryModule =
 			FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 		TArray<FAssetData> Assets;
 		RegistryModule.Get().GetAssetsByPath(FName(*GameDirectory), Assets, true, false);
 
-		const FString ExpectedName = TEXT("SK_") + ResourceName;
+		const FString ExpectedName = FString(bStaticMesh ? TEXT("SM_") : TEXT("SK_")) + ResourceName;
 		const FAssetData* Best = nullptr;
 		int32 BestScore = 0;
 		for (const FAssetData& Asset : Assets)
 		{
-			if (Asset.AssetClassPath != USkeletalMesh::StaticClass()->GetClassPathName())
+			if (Asset.AssetClassPath != (bStaticMesh ? UStaticMesh::StaticClass() : USkeletalMesh::StaticClass())->GetClassPathName())
 			{
 				continue;
 			}
@@ -544,7 +548,7 @@ namespace
 		const FString& ScriptPath,
 		const FString& DestinationRoot,
 		FString& OutSourceDirectory,
-		TArray<FMT2MobMaterialOverrideRecord>& OutMaterialOverrides)
+		TArray<FMT2MobMaterialOverrideRecord>& OutMaterialOverrides, bool bStaticMesh=false)
 	{
 		FString Script;
 		if (!FFileHelper::LoadFileToString(Script, *ScriptPath))
@@ -627,7 +631,7 @@ namespace
 		}
 		return FindMobMesh(
 			MakeGamePathFromSource(SourceRoot, FPaths::GetPath(ResolvedModelPath)),
-			FPaths::GetBaseFilename(ResolvedModelPath));
+			FPaths::GetBaseFilename(ResolvedModelPath), bStaticMesh);
 	}
 
 	bool ParseSqlFields(const FString& TupleLine, TArray<FString>& OutFields)
@@ -1293,6 +1297,32 @@ namespace
 		return Blueprint;
 	}
 
+	UBlueprint* CreateOreVeinBlueprint(const FString& DestinationRoot, const FMT2MobImportRecord& Record,
+		FMT2MobImportResult& Result)
+	{
+		UStaticMesh* Mesh=LoadObject<UStaticMesh>(nullptr,*Record.MeshObjectPath);
+		if (!Mesh) { Result.Errors.Add(FString::Printf(TEXT("%d: vein static mesh could not be loaded."),Record.Definition.Vnum)); return nullptr; }
+		UBlueprint* Blueprint=AssetExists(Record.BlueprintObjectPath) ? LoadObject<UBlueprint>(nullptr,*Record.BlueprintObjectPath) : nullptr;
+		const bool bExisting=Blueprint!=nullptr;
+		if (!Blueprint)
+		{
+			const FString PackageName=FPackageName::ObjectPathToPackageName(Record.BlueprintObjectPath);
+			Blueprint=FKismetEditorUtilities::CreateBlueprint(AMT2OreVein::StaticClass(),CreatePackage(*PackageName),
+				*FPackageName::GetShortName(PackageName),BPTYPE_Normal,UBlueprint::StaticClass(),UBlueprintGeneratedClass::StaticClass(),TEXT("MT2MobImporter"));
+			if (Blueprint) { FAssetRegistryModule::AssetCreated(Blueprint); }
+		}
+		if (!Blueprint || !Blueprint->GeneratedClass || !Blueprint->GeneratedClass->IsChildOf(AMT2OreVein::StaticClass()))
+		{
+			Result.Errors.Add(FString::Printf(TEXT("%d: vein Blueprint must derive from MT2OreVein."),Record.Definition.Vnum)); return nullptr;
+		}
+		auto* Defaults=Blueprint->GeneratedClass->GetDefaultObject<AMT2OreVein>();
+		Defaults->Modify(); Defaults->ConfigureFromDefinition(Record.Definition);
+		Defaults->GetVeinMesh()->SetStaticMesh(Mesh);
+		FKismetEditorUtilities::CompileBlueprint(Blueprint); Blueprint->MarkPackageDirty();
+		if (bExisting) { ++Result.DefinitionsRefreshed; } else { ++Result.MobBlueprintsCreated; }
+		return Blueprint;
+	}
+
 	UBlueprint* CreateMobLootTableBlueprint(
 		const FString& DestinationRoot, int32 Vnum, TArray<UPackage*>& OutPackagesToSave)
 	{
@@ -1766,6 +1796,7 @@ bool FMT2MobImporter::Discover(
 	int32 OverlaidAIFlagCount = 0;
 	for (FMT2MobDefinition Definition : Proto.Definitions)
 	{
+		const bool bOreVein=MT2Mining::RawOre(Definition.Vnum)>0;
 		if (const FServerMobOverride* Override = ServerOverrides.Find(Definition.Vnum))
 		{
 			if (Definition.AIFlags != Override->AIFlags)
@@ -1796,7 +1827,7 @@ bool FMT2MobImporter::Discover(
 		{
 			TArray<FMT2MobMaterialOverrideRecord> CandidateOverrides;
 			MeshObjectPath = FindMobMeshFromScript(
-				SourceRoot, ScriptPath, DestinationRoot, SourceDirectory, CandidateOverrides);
+				SourceRoot, ScriptPath, DestinationRoot, SourceDirectory, CandidateOverrides, bOreVein);
 			if (!MeshObjectPath.IsEmpty())
 			{
 				MaterialOverrides = MoveTemp(CandidateOverrides);
@@ -1816,7 +1847,7 @@ bool FMT2MobImporter::Discover(
 			for (const FString& Candidate : CandidateDirectories)
 			{
 				const FString CandidateMesh = FindMobMesh(
-					MakeGamePathFromSource(SourceRoot, Candidate), Definition.ResourceName);
+					MakeGamePathFromSource(SourceRoot, Candidate), Definition.ResourceName, bOreVein);
 				if (!CandidateMesh.IsEmpty())
 				{
 					SourceDirectory = Candidate;
@@ -1887,17 +1918,22 @@ bool FMT2MobImporter::Import(
 	Progress.MakeDialog(true);
 	TArray<UPackage*> PackagesToSave;
 	TMap<FString, UAnimBlueprint*> AnimBlueprintCache;
+	const bool bOreVeinsOnly=!Records.IsEmpty() && !Records.ContainsByPredicate([](const FMT2MobImportRecord& Record)
+		{ return MT2Mining::RawOre(Record.Definition.Vnum)==0; });
 	const FString AnimationPackagePath = NormalizeDestinationRoot(DestinationRoot) / UMT2PathSettings::Path(TEXT("Relative_Mobs_Animations"));
 	bool bBaseCreated = false;
-	UAnimBlueprint* BaseAnimBlueprint = MT2AnimBlueprintBuilder::CreateOrUpdateBase(
+	UAnimBlueprint* BaseAnimBlueprint = bOreVeinsOnly ? nullptr : MT2AnimBlueprintBuilder::CreateOrUpdateBase(
 		AnimationPackagePath, TEXT("ABP_MT2MobBase"), UMT2MobAnimInstance::StaticClass(),
 		OutResult.Errors, bBaseCreated);
-	if (!BaseAnimBlueprint)
+	if (!BaseAnimBlueprint && !bOreVeinsOnly)
 	{
 		return false;
 	}
-	PackagesToSave.AddUnique(BaseAnimBlueprint->GetOutermost());
-	bBaseCreated ? ++OutResult.AnimationBlueprintsCreated : ++OutResult.AnimationBlueprintsUpdated;
+	if (BaseAnimBlueprint)
+	{
+		PackagesToSave.AddUnique(BaseAnimBlueprint->GetOutermost());
+		bBaseCreated ? ++OutResult.AnimationBlueprintsCreated : ++OutResult.AnimationBlueprintsUpdated;
+	}
 
 	for (const FMT2MobImportRecord& Record : Records)
 	{
@@ -1905,6 +1941,11 @@ bool FMT2MobImporter::Import(
 			NSLOCTEXT("MT2MobImporter", "Mob", "Creating mob {0}: {1}"),
 			FText::AsNumber(Record.Definition.Vnum), FText::FromString(Record.Definition.DisplayName)));
 		if (Progress.ShouldCancel() || ShouldCancel()) break;
+		if (MT2Mining::RawOre(Record.Definition.Vnum))
+		{
+			if (UBlueprint* Vein=CreateOreVeinBlueprint(DestinationRoot,Record,OutResult)) { PackagesToSave.AddUnique(Vein->GetOutermost()); }
+			continue;
+		}
 		USkeletalMesh* Mesh = LoadObject<USkeletalMesh>(nullptr, *Record.MeshObjectPath);
 		if (!Mesh)
 		{
@@ -1982,6 +2023,8 @@ bool FMT2MobImporter::Import(
 	{
 		UEditorLoadingAndSavingUtils::SavePackages(PackagesToSave, true);
 	}
+	// A targeted vein import must not regenerate unrelated loot, shops or animation assets.
+	if (bOreVeinsOnly) { return OutResult.Errors.IsEmpty(); }
 	TArray<FString> LootWarnings;
 	ImportMobLootEntries(SourceRoot, DestinationRoot, LootWarnings);
 	for (const FString& Warning : LootWarnings)

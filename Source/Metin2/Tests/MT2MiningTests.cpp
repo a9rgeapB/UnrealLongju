@@ -9,6 +9,7 @@
 #include "UObject/StrongObjectPtr.h"
 #include "Mining/MT2MiningRules.h"
 #include "Mining/MT2MiningComponent.h"
+#include "Mining/MT2OreVein.h"
 #include "Characters/MT2PlayerCharacter.h"
 #include "Components/MT2HealthComponent.h"
 #include "Items/MT2InventoryComponent.h"
@@ -25,11 +26,48 @@
 #include "Config/MT2PathSettings.h"
 #include "Characters/MT2CharacterAppearanceSettings.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "GameFramework/WorldSettings.h"
 #include "Animation/AnimMontage.h"
 #include "Quests/MT2QuestRegistrySubsystem.h"
 #include "Quests/MT2QuestManagerComponent.h"
 #include "Quests/MT2Quest.h"
 #include "Quests/MT2QuestNode.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2MiningVeinContentTest, "Metin2.Mining.ImportedVeins", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2MiningVeinContentTest::RunTest(const FString&)
+{
+	TStrongObjectPtr<UGameInstance> GI(NewObject<UGameInstance>(GEngine)); GI->InitializeStandalone();
+	UWorld* World=GI->GetWorld();
+	ON_SCOPE_EXIT { World->EndPlay(EEndPlayReason::Quit); GI->Shutdown(); World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+	World->InitializeActorsForPlay(FURL()); World->GetWorldSettings()->NotifyBeginPlay();
+	auto* Registry=GI->GetSubsystem<UMT2VnumRegistrySubsystem>();
+	const int32 Vnums[]={20047,20048,20049,20050,20051,20052,20053,20054,20055,20056,20057,20058,20059,30301,30302,30303,30304,30305};
+	for (const int32 Vnum : Vnums)
+	{
+		UClass* Class=Registry->ResolveMobClass(Vnum);
+		if (!TestTrue(FString::Printf(TEXT("Vein %d resolves to an interactable static ore NPC"),Vnum),Class && Class->IsChildOf(AMT2OreVein::StaticClass()))) { continue; }
+		auto* Vein=World->SpawnActor<AMT2OreVein>(Class);
+		if (!TestNotNull(TEXT("Vein spawns"),Vein)) { continue; }
+		TestTrue(TEXT("Vein begins play through normal world initialization"),Vein->HasActorBegunPlay());
+		auto* Visual=Vein->GetVeinMesh();
+		TestTrue(TEXT("Stationary vein has its imported static mesh"),Visual && Visual->GetStaticMesh());
+		if (Visual && Visual->GetStaticMesh())
+		{
+			const double Feet=Vein->GetActorLocation().Z-Vein->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+			TestTrue(TEXT("Vein visual aligns with spawn capsule feet"),FMath::IsNearlyEqual(Visual->CalcBounds(Visual->GetComponentTransform()).GetBox().Min.Z,Feet,.1));
+			for (int32 I=0; I<Visual->GetNumMaterials(); ++I) { TestNotNull(TEXT("Vein material resolves"),Visual->GetMaterial(I)); }
+		}
+		TestFalse(TEXT("Vein cannot be attacked"),Vein->IsAttackable());
+		TestFalse(TEXT("Vein cannot be knocked back"),Vein->CanBeKnockedBack());
+		TestEqual(TEXT("Vein movement disabled"),int32(Vein->GetCharacterMovement()->MovementMode),int32(MOVE_None));
+		TestTrue(TEXT("Independent legacy lifetime"),Vein->GetLifeSpan()>=420.f && Vein->GetLifeSpan()<=900.f);
+		TestFalse(TEXT("No continuous movement replication"),Vein->IsReplicatingMovement());
+		Vein->Destroy();
+	}
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2MiningPresentationTest, "Metin2.Mining.Presentation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FMT2MiningPresentationTest::RunTest(const FString&)
