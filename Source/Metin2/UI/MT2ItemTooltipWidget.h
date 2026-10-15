@@ -36,7 +36,7 @@ public:
 	void BuildTooltip(const UMT2ItemTemplate* Template, int32 Count, const AMT2PlayerState* Viewer,
 		int64 ShopPrice = -1, const TArray<FMT2ItemBonus>* Bonuses = nullptr,
 		const TArray<FMT2MetinSocket>* MetinSockets = nullptr, int32 SkillVnum = 0,
-		int32 AutoRecoveryRemainingAmount = INDEX_NONE);
+		int32 AutoRecoveryRemainingAmount = INDEX_NONE, const FMT2AccessorySocketState* AccessorySockets = nullptr);
 
 	// Instantiates the right tooltip subclass for the item (Template->ResolveTooltipClass) and fills
 	// it. Returns null for an invalid template. ShopPrice >= 0 appends the affordability price line.
@@ -45,7 +45,7 @@ public:
 		const AMT2PlayerState* Viewer, int64 ShopPrice = -1,
 		const TArray<FMT2ItemBonus>* Bonuses = nullptr,
 		const TArray<FMT2MetinSocket>* MetinSockets = nullptr, int32 SkillVnum = 0,
-		int32 AutoRecoveryRemainingAmount = INDEX_NONE);
+		int32 AutoRecoveryRemainingAmount = INDEX_NONE, const FMT2AccessorySocketState* AccessorySockets = nullptr);
 
 	// Old client colors.
 	static const FLinearColor NormalColor;
@@ -53,6 +53,8 @@ public:
 	static const FLinearColor NegativeColor;
 	static const FLinearColor TitleColor;
 	static const FLinearColor MaxBonusColor;
+	static FString DescribeAccessoryMaterial(const UMT2ItemTemplate* Template);
+	static FString AccessoryBonusLines(const UMT2ItemTemplate* Template, int32 FromGrade, int32 ToGrade);
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;

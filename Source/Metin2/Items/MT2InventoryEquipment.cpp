@@ -37,6 +37,7 @@ bool UMT2InventoryComponent::EquipItemFromSlot(int32 InventorySlot)
 	}
 
 	if (auto* Player = Cast<AMT2PlayerCharacter>(GetOwner())) { Player->GetFishingComponent()->CancelFishing(); }
+	SettleAccessoryWear();
 	const FMT2ItemSlot PreviouslyEquipped = Equipment[WearPosition];
 	if (!PreviouslyEquipped.IsEmpty() &&
 		!CanPlaceAt(InventorySlot, GetItemSize(PreviouslyEquipped.Vnum), InventorySlot))
@@ -45,6 +46,7 @@ bool UMT2InventoryComponent::EquipItemFromSlot(int32 InventorySlot)
 	}
 	Equipment[WearPosition] = Slots[InventorySlot];
 	Slots[InventorySlot] = PreviouslyEquipped;
+	ScheduleAccessoryWear();
 	OnInventoryChanged.Broadcast();
 	OnEquipmentChanged.Broadcast();
 	StartAutoRecoveryTimerIfNeeded();
@@ -106,6 +108,7 @@ bool UMT2InventoryComponent::UnequipItem(int32 WearPosition)
 	{
 		return false;
 	}
+	SettleAccessoryWear();
 	const int32 Size = GetItemSize(Equipment[WearPosition].Vnum);
 	if (WearPosition == 20 && MT2ItemUtils::IsConsumableHairLook(ResolveTemplate(Equipment[WearPosition].Vnum)))
 	{
@@ -121,6 +124,7 @@ bool UMT2InventoryComponent::UnequipItem(int32 WearPosition)
 		{
 			Slots[TopSlot] = Equipment[WearPosition];
 			Equipment[WearPosition] = FMT2ItemSlot();
+			ScheduleAccessoryWear();
 			OnInventoryChanged.Broadcast();
 			OnEquipmentChanged.Broadcast();
 			return true;
@@ -136,6 +140,7 @@ bool UMT2InventoryComponent::UnequipAllItems()
 		return false;
 	}
 
+	SettleAccessoryWear();
 	TArray<FMT2ItemSlot> NewSlots = Slots;
 	if (auto* Player = Cast<AMT2PlayerCharacter>(GetOwner())) { Player->GetFishingComponent()->CancelFishing(); }
 	TArray<FMT2ItemSlot> NewEquipment = Equipment;
@@ -190,6 +195,7 @@ bool UMT2InventoryComponent::UnequipAllItems()
 	{
 		Slots = MoveTemp(NewSlots);
 		Equipment = MoveTemp(NewEquipment);
+		ScheduleAccessoryWear();
 		OnInventoryChanged.Broadcast();
 		OnEquipmentChanged.Broadcast();
 	}
@@ -200,6 +206,7 @@ bool UMT2InventoryComponent::ExtractRandomEquippedItem(FMT2ItemSlot& OutItem)
 {
 	OutItem = FMT2ItemSlot();
 	if (!GetOwner() || !GetOwner()->HasAuthority()) return false;
+	SettleAccessoryWear();
 	TArray<int32> OccupiedSlots;
 	for (int32 Index = 0; Index < Equipment.Num(); ++Index)
 	{
@@ -210,6 +217,7 @@ bool UMT2InventoryComponent::ExtractRandomEquippedItem(FMT2ItemSlot& OutItem)
 	const int32 WearPosition = OccupiedSlots[FMath::RandRange(0, OccupiedSlots.Num() - 1)];
 	OutItem = Equipment[WearPosition];
 	Equipment[WearPosition] = FMT2ItemSlot();
+	ScheduleAccessoryWear();
 	OnEquipmentChanged.Broadcast();
 	return true;
 }

@@ -136,6 +136,8 @@ public:
 	bool ApplyFishingBait(int32 InventorySlot);
 	bool FinishFishingAttempt(bool bPractice);
 	bool FinishMiningAttempt();
+	EMT2AccessorySocketApplyResult ApplyAccessoryMaterial(int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped,
+		const FMT2ItemSlot& ExpectedSource, const FMT2ItemSlot& ExpectedTarget);
 	// 2 = rejected without charge, 1 = success, 0 = valid failed roll.
 	int32 RefineOre(int32 OreSlot, const FMT2ItemSlot& ExpectedOre, int32 AlchemistVnum,
 		int32 StoneSlot, const FMT2ItemSlot& ExpectedStone);
@@ -170,6 +172,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	// Server/owner: complete instances. Observers: body/weapon identifiers only.
 	const TArray<FMT2ItemSlot>& GetEquipment() const { return Equipment; }
+	FMT2AccessorySocketState GetEffectiveAccessoryState(int32 WearPosition) const;
 
 	// Server-only restore used after the player's normalized item rows are loaded.
 	void RestoreItems(const TArray<FMT2ItemSlot>& InSlots, const TArray<FMT2ItemSlot>& InEquipment);
@@ -193,6 +196,21 @@ protected:
 	virtual void BeginPlay() override;
 
 private:
+	friend class FMT2AccessoryAuthorityTest;
+	friend class FMT2AccessoryWearTest;
+	bool bResolvingAccessory = false;
+	FTimerHandle AccessoryWearTimer;
+	double AccessoryWearUpdatedAt = 0;
+	bool bSettlingAccessoryWear = false;
+	void SettleAccessoryWear();
+	void ScheduleAccessoryWear();
+	void ProcessAccessoryWear();
+	void TrackReplicatedAccessoryWear();
+	TArray<FMT2AccessorySocketState> ReceivedAccessoryStates;
+	TArray<int32> ReceivedAccessoryVnums;
+	TArray<double> ReceivedAccessoryTimes;
+	EMT2AccessorySocketApplyResult ApplyAccessoryMaterialWithRoll(int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped,
+		FMT2ItemSlot ExpectedSource, FMT2ItemSlot ExpectedTarget, int32 Roll);
 	friend class FMT2OreRefiningTest;
 	int32 RefineOreWithRoll(int32 OreSlot, const FMT2ItemSlot& ExpectedOre, int32 AlchemistVnum,
 		int32 StoneSlot, const FMT2ItemSlot& ExpectedStone, int32 Roll);

@@ -199,6 +199,23 @@ void UMT2InventorySlotWidget::NativeOnMouseEnter(
 	const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
 	Super::NativeOnMouseEnter(InGeometry, InMouseEvent);
+	if (SlotKind != EMT2InventorySlotKind::Quick)
+	{
+		const auto* Player = Cast<AMT2PlayerCharacter>(GetOwningPlayerPawn());
+		const auto* Inventory = Player ? Player->GetInventoryComponent() : nullptr;
+		if (Inventory)
+		{
+			const auto& Items = SlotKind == EMT2InventorySlotKind::Equipment ? Inventory->GetEquipment() : Inventory->GetSlots();
+			if (Items.IsValidIndex(InteractionSlotIndex) && !Items[InteractionSlotIndex].IsEmpty())
+			{
+				const auto& Item = Items[InteractionSlotIndex];
+				const auto State = SlotKind == EMT2InventorySlotKind::Equipment
+					? Inventory->GetEffectiveAccessoryState(InteractionSlotIndex) : Item.AccessorySockets;
+				SetToolTip(UMT2ItemTooltipWidget::Create(GetOwningPlayer(),MT2ItemUtils::ResolveTemplate(this,Item.Vnum),Item.Count,
+					Player->GetPlayerState<AMT2PlayerState>(),-1,&Item.Bonuses,&Item.MetinSockets,Item.SkillVnum,Item.AutoRecoveryRemainingAmount,&State));
+			}
+		}
+	}
 	if (!bCurrentItemNew || SlotKind != EMT2InventorySlotKind::Item)
 	{
 		return;

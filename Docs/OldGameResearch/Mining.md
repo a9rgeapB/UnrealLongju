@@ -34,6 +34,20 @@ Alchemists are independent: all players pay the same base fees, regardless of gu
 
 The inventory component owns the atomic exchange. Server-side dialogue revalidates the NPC, player, world, range, health, trading state and item snapshots before charging. Replies carry the identity of their dialogue page, so a repeated confirmation cannot select a material or answer a later conversation. Client and server must use matching rebuilt binaries. No per-frame work or new save format is introduced.
 
-NPC pickaxe upgrades, accessory socket insertion and accessory bonus/degradation rules remain separate implementation tasks.
+## Accessory sockets
+
+Carry a refined diamond (50621) onto a bracelet, necklace, earring or belt and confirm to attempt opening one permanent socket. A valid attempt consumes one diamond with 50% success; accessories support at most three open sockets. Carry a compatible refined mineral onto an open jewelry socket to fill it. Both inventory and equipped targets are supported. The confirmation shows the selected accessory's exact additional stats, chance and duration; cancelling, incompatible items and full sockets consume nothing.
+
+Insertion chances are 90%, 80% and 70% for grades one, two and three. Failure consumes one mineral but preserves existing filled sockets. Material matching follows the legacy server's numeric jewelry families, including extended jewelry and the necklace exceptions. Ordinary minerals cannot fill belts; belts require their separate subtype-29 filler. Rings do not support accessory sockets. Refined amber 50622 is a legacy special/map item, not a compatible socket material.
+
+Filled grades increase each intrinsic template apply (except NONE and SKILL) by a total 10% / 20% / 40%, with minimum increases of +1 / +2 / +3. Random/rare attributes, Metin stones and raw armor defense are not amplified. These totals do not stack as 10+20+40: the third insertion adds only the difference between grades two and three. Mineral tooltips therefore do not invent a fixed per-ore bonus. They explain compatibility and show named next-grade gains for compatible worn jewelry. Accessory tooltips show each filled socket's incremental gain separately from base stats.
+
+Grades three, two and one wear down after 6, 12 and 24 equipped hours respectively. Expiry removes one filled grade and starts the lower grade's full duration; open sockets remain. Wear pauses in inventory, ground items, trades and offline. One inventory-owned expiry timer handles all worn accessories, without Tick or per-second countdown replication. Hover refreshes the displayed countdown; it is not a continuously updated label.
+
+Accessory saves reuse socket_0/current grade, socket_1/open sockets and socket_2/remaining seconds. Other item families retain their existing formats; no database migration is required. Fractional wear survives moves within a running game; the legacy whole-second save format rounds remaining wear down, losing less than one second at a save/reload boundary rather than granting extra time. Client/server binaries must be rebuilt together for the added confirmation RPC. Existing imported material metadata is sufficient; no item reimport is required.
+
+Quick test: `/i 14000`, `/i 50621 20`, `/i 50623 20`. Bracelet 14000 uses mineral 50623. Open sockets with diamonds, then fill them; its +1 Attack Speed and +10 Maximum Stamina base applies gain +1/+1 at grade one and +3/+4 total at grade three. Socket automation is under `Metin2.Items.AccessorySockets`.
+
+NPC pickaxe upgrades remain a separate implementation task. TODO: connect independent alchemists to empire ownership/fees and guild buildings.
 
 TODO: Integrate alchemists with guild buildings and empire ownership once those systems support them, including owner-guild discounts, cross-empire fees, fee routing and building reconstruction/specialization changes. See `Docs/superpowers/specs/2026-10-15-independent-alchemists-design.md`.

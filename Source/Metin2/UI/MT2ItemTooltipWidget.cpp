@@ -8,6 +8,10 @@
 */
 
 #include "UI/MT2ItemTooltipWidget.h"
+#include "Items/MT2AccessorySocketRules.h"
+#include "Items/MT2InventoryComponent.h"
+#include "Items/MT2ItemUtils.h"
+#include "Characters/MT2PlayerCharacter.h"
 
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
@@ -29,6 +33,43 @@
 #include "UI/MT2UIStyle.h"
 
 const FLinearColor UMT2ItemTooltipWidget::NormalColor(0.76f, 0.76f, 0.76f);
+
+FString UMT2ItemTooltipWidget::DescribeAccessoryMaterial(const UMT2ItemTemplate* Template)
+{
+	const auto* Use = Cast<UMT2ItemUseTemplate>(Template);
+	if (Use && Use->UseSubType == 20)
+	{ return TEXT("Opens one permanent accessory socket (maximum 3). Success: 50%. Consumed even on failure."); }
+	if (Use && Use->UseSubType == 29)
+	{ return TEXT("Belt socket material. Intrinsic bonuses: 10% / 20% / 40% total by grade. Wears only while equipped."); }
+	if (Template && Template->Vnum == 50622) { return TEXT("This mineral has no compatible accessory socket in the legacy catalog."); }
+	if (!Use || Use->UseSubType != 21) { return {}; }
+	TArray<FString> CompatibleBases;
+	for (int32 Type : {3,5,6})
+	{
+		const int32 Base = Type == 3 ? 14000 : Type == 5 ? 16000 : 17000;
+		for (int32 Offset = 0; Offset <= 560; Offset += 10)
+		{
+			if (MT2AccessorySockets::RequiredMineral(Base + Offset, Type) == Template->Vnum)
+			{ CompatibleBases.Add(FString::FromInt(Base + Offset)); }
+		}
+	}
+	if (CompatibleBases.IsEmpty()) { return TEXT("This mineral has no compatible accessory socket in the legacy catalog."); }
+	return FString::Printf(TEXT("Fills an open matching jewelry socket. Intrinsic bonuses: 10%% / 20%% / 40%% total by grade (minimum +1 / +2 / +3).\nSuccess: 90%% / 80%% / 70%%. Wear time: 24h / 12h / 6h, equipped only. Consumed even on failure.\nCompatible base VNUMs (+0 to +9): %s."), *FString::Join(CompatibleBases,TEXT(", ")));
+}
+
+FString UMT2ItemTooltipWidget::AccessoryBonusLines(const UMT2ItemTemplate* Template, int32 FromGrade, int32 ToGrade)
+{
+	if (!MT2AccessorySockets::IsAccessory(Template) || FromGrade < 0 || ToGrade > 3 || ToGrade <= FromGrade) { return {}; }
+	TArray<FString> Lines;
+	for (const auto& Apply : Template->Applies)
+	{
+		const int32 Type = static_cast<int32>(Apply.Type);
+		if (Type == 0 || Type == 51) { continue; }
+		const int32 Delta = MT2AccessorySockets::Bonus(Apply.Value,ToGrade) - MT2AccessorySockets::Bonus(Apply.Value,FromGrade);
+		if (Delta) { Lines.Add(FormatApply(Type,Delta)); }
+	}
+	return FString::Join(Lines,TEXT("\n"));
+}
 const FLinearColor UMT2ItemTooltipWidget::PositiveColor(0.54f, 0.72f, 0.56f);
 const FLinearColor UMT2ItemTooltipWidget::NegativeColor(0.90f, 0.47f, 0.46f);
 const FLinearColor UMT2ItemTooltipWidget::TitleColor(1.0f, 0.89f, 0.42f);
@@ -87,7 +128,7 @@ UMT2ItemTooltipWidget* UMT2ItemTooltipWidget::Create(
 	APlayerController* Owner, const UMT2ItemTemplate* Template, int32 Count,
 	const AMT2PlayerState* Viewer, int64 ShopPrice, const TArray<FMT2ItemBonus>* Bonuses,
 	const TArray<FMT2MetinSocket>* MetinSockets, int32 SkillVnum,
-	int32 AutoRecoveryRemainingAmount)
+	int32 AutoRecoveryRemainingAmount, const FMT2AccessorySocketState* AccessorySockets)
 {
 	if (!Owner || !Template)
 	{
@@ -103,7 +144,7 @@ UMT2ItemTooltipWidget* UMT2ItemTooltipWidget::Create(
 	{
 		Tooltip->BuildTooltip(
 			Template, Count, Viewer, ShopPrice, Bonuses, MetinSockets, SkillVnum,
-			AutoRecoveryRemainingAmount);
+			AutoRecoveryRemainingAmount, AccessorySockets);
 	}
 	return Tooltip;
 }
@@ -310,7 +351,7 @@ void UMT2ItemTooltipWidget::AddMetinSockets(
 void UMT2ItemTooltipWidget::BuildTooltip(
 	const UMT2ItemTemplate* Template, int32 Count, const AMT2PlayerState* Viewer, int64 ShopPrice,
 	const TArray<FMT2ItemBonus>* Bonuses, const TArray<FMT2MetinSocket>* MetinSockets,
-	int32 SkillVnum, int32 AutoRecoveryRemainingAmount)
+	int32 SkillVnum, int32 AutoRecoveryRemainingAmount, const FMT2AccessorySocketState* AccessorySockets)
 {
 	TakeWidget();
 	if (!LinesBox || !Template)
@@ -357,6 +398,41 @@ void UMT2ItemTooltipWidget::BuildTooltip(
 		AddLimits(Template, Viewer);
 	}
 	BuildTypeSpecific(Template, Viewer);
+	const FString MaterialDescription = DescribeAccessoryMaterial(Template);
+	if (!MaterialDescription.IsEmpty())
+	{
+		AddLine(MaterialDescription, NormalColor);
+		const auto* Player = Viewer ? Cast<AMT2PlayerCharacter>(Viewer->GetPawn()) : nullptr;
+		const auto* Inventory = Player ? Player->GetInventoryComponent() : nullptr;
+		if (Inventory)
+		{
+			for (int32 Index = 0; Index < Inventory->GetEquipment().Num(); ++Index)
+			{
+				const auto& Worn = Inventory->GetEquipment()[Index];
+				const auto* Target = MT2ItemUtils::ResolveTemplate(this,Worn.Vnum);
+				const auto State = Inventory->GetEffectiveAccessoryState(Index);
+				const auto* Use = Cast<UMT2ItemUseTemplate>(Template);
+				if (Use && Use->UseSubType != 20 && MT2AccessorySockets::Compatible(Template,Target) && State.CurrentGrade < State.MaximumGrade)
+				{
+					AddLine(FString::Printf(TEXT("Next socket on %s:"), *MT2ItemUtils::GetDisplayName(Target,Worn.Vnum).ToString()),TitleColor);
+					const FString Gains = AccessoryBonusLines(Target,State.CurrentGrade,State.CurrentGrade+1);
+					AddLine(Gains.IsEmpty() ? TEXT("No intrinsic stat gain.") : Gains,PositiveColor);
+				}
+			}
+		}
+	}
+	if (MT2AccessorySockets::IsAccessory(Template))
+	{
+		const auto State = MT2AccessorySockets::Normalize(AccessorySockets ? *AccessorySockets : FMT2AccessorySocketState());
+		AddLine(FString::Printf(TEXT("Accessory sockets: %d / 3 open, %d filled"),State.MaximumGrade,State.CurrentGrade),NormalColor);
+		for (int32 Grade = 1; Grade <= State.MaximumGrade; ++Grade)
+		{
+			AddLine(FString::Printf(TEXT("Socket %d: %s"),Grade,Grade <= State.CurrentGrade ? TEXT("filled") : TEXT("empty")),NormalColor);
+			if (Grade <= State.CurrentGrade) { AddLine(AccessoryBonusLines(Template,Grade-1,Grade),PositiveColor); }
+		}
+		if (State.CurrentGrade > 0)
+		{ AddLine(FString::Printf(TEXT("Remaining equipped wear: %dh %dm %ds"),State.RemainingSeconds/3600,State.RemainingSeconds/60%60,State.RemainingSeconds%60),NormalColor); }
+	}
 	if (const UMT2ItemAutoRecoveryTemplate* AutoRecovery =
 		Cast<UMT2ItemAutoRecoveryTemplate>(Template))
 	{
@@ -406,7 +482,7 @@ void UMT2ItemTooltipWidget::BuildTooltip(
 		}, true);
 	}
 	AddWearableRaces(Template);
-	AddMetinSockets(MetinSockets);
+	if (!MT2AccessorySockets::IsAccessory(Template)) { AddMetinSockets(MetinSockets); }
 
 	// Shop price line, colored by affordability.
 	if (ShopPrice >= 0)

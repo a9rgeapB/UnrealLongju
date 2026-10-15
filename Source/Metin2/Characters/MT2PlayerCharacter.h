@@ -158,6 +158,12 @@ public:
 
 	UFUNCTION(Server, Reliable, Category = "Inventory")
 	void ServerApplyMetinStone(int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped);
+	uint32 NewAccessoryConfirmationId() { return ++AccessoryConfirmationCounter; }
+	UFUNCTION(Server, Reliable, Category = "Inventory")
+	void ServerApplyAccessoryMaterial(uint32 ConfirmationId, int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped,
+		const FMT2ItemSlot& ExpectedSource, const FMT2ItemSlot& ExpectedTarget);
+	UFUNCTION(Client, Reliable, Category = "Inventory")
+	void ClientNotifyAccessorySocketResult(EMT2AccessorySocketApplyResult Result);
 
 	UFUNCTION(Client, Reliable, Category = "Inventory")
 	void ClientNotifyMetinSocketResult(EMT2MetinSocketApplyResult Result);
@@ -339,6 +345,9 @@ private:
 	// Apply) from the currently equipped items and pushes them into the stat/movement components.
 	// Faithful to the old game's model where equip/unequip recomputes the character's bonus points.
 	void RecalculateEquipmentStats();
+	friend class FMT2AccessoryWearTest;
+	uint32 AccessoryConfirmationCounter = 0;
+	uint32 LastAccessoryConfirmation = 0;
 
 	UPROPERTY(Transient)
 	TMap<int32, int32> ItemApplyBonuses;

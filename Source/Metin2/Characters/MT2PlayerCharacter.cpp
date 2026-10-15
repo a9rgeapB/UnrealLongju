@@ -8,6 +8,7 @@
 */
 
 #include "Characters/MT2PlayerCharacter.h"
+#include "Items/MT2AccessorySocketRules.h"
 #include "Fishing/MT2FishingComponent.h"
 #include "Mining/MT2MiningComponent.h"
 #include "Fishing/MT2FishingSettings.h"
@@ -2366,6 +2367,34 @@ void AMT2PlayerCharacter::ServerApplyMetinStone_Implementation(
 	ClientNotifyMetinSocketResult(Result);
 }
 
+void AMT2PlayerCharacter::ServerApplyAccessoryMaterial_Implementation(uint32 ConfirmationId, int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped,
+	const FMT2ItemSlot& ExpectedSource, const FMT2ItemSlot& ExpectedTarget)
+{
+	if (!ConfirmationId || static_cast<int32>(ConfirmationId - LastAccessoryConfirmation) <= 0) { return; }
+	// Consume the identity before callbacks, including rejected/stale item snapshots.
+	LastAccessoryConfirmation = ConfirmationId;
+	const auto Result = GetInventoryComponent()->ApplyAccessoryMaterial(SourceSlot,TargetSlot,bTargetEquipped,ExpectedSource,ExpectedTarget);
+	if (Result == EMT2AccessorySocketApplyResult::Success || Result == EMT2AccessorySocketApplyResult::Failed)
+	{ ClientConfirmInventoryAction(ExpectedSource.Vnum,true); }
+	ClientNotifyAccessorySocketResult(Result);
+}
+
+void AMT2PlayerCharacter::ClientNotifyAccessorySocketResult_Implementation(EMT2AccessorySocketApplyResult Result)
+{
+	const TCHAR* Message = TEXT("The item changed or is unavailable. Nothing was consumed.");
+	switch (Result)
+	{
+	case EMT2AccessorySocketApplyResult::Success: Message=TEXT("Accessory socket operation succeeded."); break;
+	case EMT2AccessorySocketApplyResult::Failed: Message=TEXT("Accessory socket operation failed. One material was consumed."); break;
+	case EMT2AccessorySocketApplyResult::Full: Message=TEXT("This accessory has no available socket."); break;
+	case EMT2AccessorySocketApplyResult::Incompatible: Message=TEXT("This material does not match the accessory."); break;
+	default: break;
+	}
+	if (auto* PlayerController = Cast<AMT2PlayerController>(Controller)) { PlayerController->AddInfoChatLine(Message); }
+	if (Result == EMT2AccessorySocketApplyResult::Success || Result == EMT2AccessorySocketApplyResult::Failed)
+	{ PlayRefinementOutcomeSound(this,Result == EMT2AccessorySocketApplyResult::Success); }
+}
+
 void AMT2PlayerCharacter::ClientNotifyMetinSocketResult_Implementation(
 	EMT2MetinSocketApplyResult Result)
 {
@@ -2878,7 +2907,10 @@ void AMT2PlayerCharacter::RecalculateEquipmentStats()
 
 		for (const FMT2ItemApply& Apply : Template->Applies)
 		{
-			ApplyBonus(static_cast<int32>(Apply.Type), Apply.Value);
+			const int32 Type = static_cast<int32>(Apply.Type);
+			const int32 Extra = MT2AccessorySockets::IsAccessory(Template) && Type != 0 && Type != 51
+				? MT2AccessorySockets::Bonus(Apply.Value, MT2AccessorySockets::Normalize(Item.AccessorySockets).CurrentGrade) : 0;
+			ApplyBonus(Type, Apply.Value + Extra);
 		}
 		for (const FMT2MetinSocket& Socket : Item.MetinSockets)
 		{

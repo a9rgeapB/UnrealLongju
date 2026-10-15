@@ -338,6 +338,9 @@ struct METIN2_API FMT2AccessorySocketState
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Accessory Sockets")
 	int32 RemainingSeconds = 0;
+	// Carry fractional equipped wear through moves without a timer or replication update per second.
+	UPROPERTY(Transient, NotReplicated)
+	double WearFraction = 0;
 
 	bool operator==(const FMT2AccessorySocketState& Other) const = default;
 };
@@ -383,6 +386,12 @@ struct METIN2_API FMT2ItemInstanceData
 	// tooltip is first shown. Persistence intentionally does not serialize it.
 	UPROPERTY(BlueprintReadWrite, Category = "Item|Presentation")
 	bool bNewlyAcquired = false;
+};
+
+UENUM(BlueprintType)
+enum class EMT2AccessorySocketApplyResult : uint8
+{
+	Invalid, Incompatible, Full, Success, Failed
 };
 
 UENUM(BlueprintType)

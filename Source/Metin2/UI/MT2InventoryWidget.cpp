@@ -8,6 +8,7 @@
 */
 
 #include "UI/MT2InventoryWidget.h"
+#include "Items/MT2AccessorySocketRules.h"
 #include "Config/MT2PathSettings.h"
 #include "Audio/MT2SoundPlaybackSubsystem.h"
 
@@ -270,7 +271,8 @@ void UMT2InventoryWidget::HandleSlotClicked(int32 SlotIndex, EMT2InventorySlotKi
 						!Inventory->GetSlots()[SlotIndex].IsEmpty();
 					const bool bMetinStone =
 						Cast<UMT2ItemMetinStoneTemplate>(
-							ResolveItemTemplateByVnum(SourceVnum)) != nullptr;
+							ResolveItemTemplateByVnum(SourceVnum)) != nullptr ||
+						MT2AccessorySockets::IsMaterial(ResolveItemTemplateByVnum(SourceVnum));
 					const bool bRefinementScroll =
 						Cast<UMT2ItemRefinementScrollTemplate>(
 							ResolveItemTemplateByVnum(SourceVnum)) != nullptr;
@@ -314,7 +316,8 @@ void UMT2InventoryWidget::HandleSlotClicked(int32 SlotIndex, EMT2InventorySlotKi
 					 SourceVnum == BonusSettings->ChangeRareBonusesItemVnum);
 				const bool bMetinStone =
 					Cast<UMT2ItemMetinStoneTemplate>(
-						ResolveItemTemplateByVnum(SourceVnum)) != nullptr;
+						ResolveItemTemplateByVnum(SourceVnum)) != nullptr ||
+					MT2AccessorySockets::IsMaterial(ResolveItemTemplateByVnum(SourceVnum));
 				if (bMetinStone)
 				{
 					OpenMetinAttachDialog(SourceSlot, SlotIndex, true);
@@ -439,7 +442,8 @@ void UMT2InventoryWidget::HandleSlotDropped(int32 SourceSlotIndex, EMT2Inventory
 			!Inventory->GetSlots()[TargetSlotIndex].IsEmpty();
 		const bool bMetinStone =
 			Cast<UMT2ItemMetinStoneTemplate>(
-				ResolveItemTemplateByVnum(SourceVnum)) != nullptr;
+				ResolveItemTemplateByVnum(SourceVnum)) != nullptr ||
+			MT2AccessorySockets::IsMaterial(ResolveItemTemplateByVnum(SourceVnum));
 		const bool bRefinementScroll =
 			Cast<UMT2ItemRefinementScrollTemplate>(
 				ResolveItemTemplateByVnum(SourceVnum)) != nullptr;
@@ -483,7 +487,8 @@ void UMT2InventoryWidget::HandleSlotDropped(int32 SourceSlotIndex, EMT2Inventory
 			 SourceVnum == BonusSettings->ChangeRareBonusesItemVnum);
 		const bool bMetinStone =
 			Cast<UMT2ItemMetinStoneTemplate>(
-				ResolveItemTemplateByVnum(SourceVnum)) != nullptr;
+				ResolveItemTemplateByVnum(SourceVnum)) != nullptr ||
+			MT2AccessorySockets::IsMaterial(ResolveItemTemplateByVnum(SourceVnum));
 		if (bMetinStone)
 		{
 			OpenMetinAttachDialog(SourceSlotIndex, TargetSlotIndex, true);
@@ -562,7 +567,7 @@ void UMT2InventoryWidget::OpenMetinAttachDialog(
 		ResolveItemTemplateByVnum(Inventory->GetSlots()[StoneSlot].Vnum);
 	const UMT2ItemTemplate* Target =
 		ResolveItemTemplateByVnum(Targets[TargetSlot].Vnum);
-	if (!Cast<UMT2ItemMetinStoneTemplate>(Stone) || !Target)
+	if ((!Cast<UMT2ItemMetinStoneTemplate>(Stone) && !MT2AccessorySockets::IsMaterial(Stone)) || !Target)
 	{
 		return;
 	}
@@ -589,6 +594,13 @@ void UMT2InventoryWidget::OpenMetinAttachDialog(
 		return Template->DisplayName.IsEmpty()
 			? FText::FromString(Template->InternalName) : Template->DisplayName;
 	};
+	if (MT2AccessorySockets::IsMaterial(Stone))
+	{
+		FMT2ItemSlot TargetSnapshot = Targets[TargetSlot];
+		if (bTargetEquipped) { TargetSnapshot.AccessorySockets = Inventory->GetEffectiveAccessoryState(TargetSlot); }
+		DropDialogWidget->OpenAccessoryDialog(StoneSlot,TargetSlot,bTargetEquipped,Inventory->GetSlots()[StoneSlot],TargetSnapshot);
+		return;
+	}
 	DropDialogWidget->OpenMetinAttachDialog(
 		StoneSlot, TargetSlot, bTargetEquipped,
 		DisplayName(Stone), DisplayName(Target));

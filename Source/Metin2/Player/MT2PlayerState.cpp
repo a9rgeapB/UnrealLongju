@@ -8,6 +8,7 @@
 */
 
 #include "Player/MT2PlayerState.h"
+#include "Items/MT2AccessorySocketRules.h"
 #include "Config/MT2PathSettings.h"
 #include "Audio/MT2SoundPlaybackSubsystem.h"
 
@@ -1006,7 +1007,7 @@ FString AMT2PlayerState::CapturePersistentStateJson_Implementation() const
 		if (const UMT2InventoryComponent* Inventory = Player->GetInventoryComponent())
 		{
 			bInventoryReadable = true;
-			auto AppendItems = [this, &ItemValues](const TArray<FMT2ItemSlot>& Items, int32 Container)
+			auto AppendItems = [this, Inventory, &ItemValues](const TArray<FMT2ItemSlot>& Items, int32 Container)
 			{
 				for (int32 SlotIndex = 0; SlotIndex < Items.Num(); ++SlotIndex)
 				{
@@ -1019,10 +1020,19 @@ FString AMT2PlayerState::CapturePersistentStateJson_Implementation() const
 					Item->SetNumberField(TEXT("realtime_expires_at"), static_cast<double>(Items[SlotIndex].RealtimeExpiresAt));
 					const UMT2ItemTemplate* Template = MT2ItemUtils::ResolveTemplate(this, Items[SlotIndex].Vnum);
 					const bool bFishingSockets = Template && (Template->IsA<UMT2ItemRodTemplate>() || Template->IsA<UMT2ItemFishTemplate>());
+					const bool bAccessory = MT2AccessorySockets::IsAccessory(Template);
+					auto Accessory = Container == 1 ? Inventory->GetEffectiveAccessoryState(SlotIndex)
+						: MT2AccessorySockets::Normalize(Items[SlotIndex].AccessorySockets);
+					// Legacy persistence stores whole seconds: never grant a fresh fraction on reload.
+					if (Accessory.WearFraction > 0 && Accessory.RemainingSeconds > 0) { --Accessory.RemainingSeconds; }
 					for (int32 SocketIndex = 0; SocketIndex < 3; ++SocketIndex)
 					{
 						int32 StoredSocket = 0;
-						if (bFishingSockets)
+						if (bAccessory)
+						{
+							StoredSocket = SocketIndex == 0 ? Accessory.CurrentGrade : SocketIndex == 1 ? Accessory.MaximumGrade : Accessory.RemainingSeconds;
+						}
+						else if (bFishingSockets)
 						{
 							StoredSocket = Items[SlotIndex].MetinSockets.IsValidIndex(SocketIndex) ? Items[SlotIndex].MetinSockets[SocketIndex].Value : 0;
 						}
@@ -1039,7 +1049,7 @@ FString AMT2PlayerState::CapturePersistentStateJson_Implementation() const
 						{
 							StoredSocket = Items[SlotIndex].SkillVnum;
 						}
-						if (!bFishingSockets && StoredSocket == 0 &&
+						if (!bAccessory && !bFishingSockets && StoredSocket == 0 &&
 							Items[SlotIndex].MetinSockets.IsValidIndex(SocketIndex))
 						{
 							const FMT2MetinSocket& Socket =
@@ -1413,7 +1423,14 @@ bool AMT2PlayerState::ApplyPersistentStateJson_Implementation(const FString& Pay
 			const TSubclassOf<UMT2ItemTemplate> ItemTemplateClass = Registry
 				? Registry->ResolveItemTemplateClass(Slot.Vnum) : nullptr;
 			const UMT2ItemTemplate* ItemTemplate = ItemTemplateClass.GetDefaultObject();
-			if (Cast<UMT2ItemSkillBookTemplate>(ItemTemplate))
+			if (MT2AccessorySockets::IsAccessory(ItemTemplate))
+			{
+				Slot.AccessorySockets.CurrentGrade = ReadInteger(TEXT("socket_0"));
+				Slot.AccessorySockets.MaximumGrade = ReadInteger(TEXT("socket_1"));
+				Slot.AccessorySockets.RemainingSeconds = ReadInteger(TEXT("socket_2"));
+				Slot.AccessorySockets = MT2AccessorySockets::Advance(Slot.AccessorySockets, 0);
+			}
+			else if (Cast<UMT2ItemSkillBookTemplate>(ItemTemplate))
 			{
 				Slot.SkillVnum = ReadInteger(TEXT("socket_0"));
 				ItemTemplate->InitializeGeneratedInstance(Slot);

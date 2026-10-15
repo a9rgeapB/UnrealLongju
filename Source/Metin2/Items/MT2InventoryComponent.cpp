@@ -8,6 +8,7 @@
 */
 
 #include "Items/MT2InventoryComponent.h"
+#include "Items/MT2AccessorySocketRules.h"
 #include "Loot/MT2LootTable.h"
 
 #include "Items/MT2ItemBonusSettings.h"
@@ -201,6 +202,16 @@ void UMT2InventoryComponent::RestoreItems(
 		Equipment[Index] = InEquipment.IsValidIndex(Index) ? InEquipment[Index] : FMT2ItemSlot();
 	}
 	ProcessItemExpiry();
+	for (auto* Container : {&Slots, &Equipment})
+	{
+		for (auto& Item : *Container)
+		{
+			if (MT2AccessorySockets::IsAccessory(ResolveTemplate(Item.Vnum)))
+			{ Item.AccessorySockets = MT2AccessorySockets::Advance(Item.AccessorySockets, 0); }
+		}
+	}
+	AccessoryWearUpdatedAt = GetWorld() ? GetWorld()->GetTimeSeconds() : 0;
+	ScheduleAccessoryWear();
 	// Saves written before wearable-mask mapping was corrected stored shields in slot 8
 	// (UNIQUE2). Repair that one unambiguous legacy placement while loading the character.
 	const int32 LegacyShieldSlot = 8;
@@ -303,6 +314,7 @@ void UMT2InventoryComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	{
 		GetWorld()->GetTimerManager().ClearTimer(AutoRecoveryTimer);
 		GetWorld()->GetTimerManager().ClearTimer(ItemExpiryTimer);
+		GetWorld()->GetTimerManager().ClearTimer(AccessoryWearTimer);
 	}
 	Super::EndPlay(EndPlayReason);
 }
@@ -1235,5 +1247,6 @@ void UMT2InventoryComponent::OnRep_Slots()
 
 void UMT2InventoryComponent::OnRep_Equipment()
 {
+	TrackReplicatedAccessoryWear();
 	OnEquipmentChanged.Broadcast();
 }

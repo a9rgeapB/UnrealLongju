@@ -11,6 +11,7 @@
 
 #include "UI/MT2UserWidget.h"
 #include "CoreMinimal.h"
+#include "Items/MT2ItemTypes.h"
 #include "MT2ItemDropDialogWidget.generated.h"
 
 class UButton;
@@ -27,6 +28,8 @@ public:
 	void OpenMetinAttachDialog(
 		int32 StoneSlot, int32 TargetSlot, bool bTargetEquipped,
 		const FText& StoneName, const FText& TargetName);
+	void OpenAccessoryDialog(int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped,
+		const FMT2ItemSlot& Source, const FMT2ItemSlot& Target);
 
 protected:
 	virtual void NativeConstruct() override;
@@ -42,6 +45,10 @@ private:
 	int32 PendingTargetSlot = INDEX_NONE;
 	bool bPendingMetinAttach = false;
 	bool bPendingTargetEquipped = false;
+	uint32 PendingAccessoryConfirmation = 0;
+	UPROPERTY(Transient) FMT2ItemSlot PendingAccessorySource;
+	UPROPERTY(Transient) FMT2ItemSlot PendingAccessoryTarget;
+	void SetDialogHeight(float Height);
 
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<UMT2BoardWidget> BoardWidget;
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<UTextBlock> MessageText;
