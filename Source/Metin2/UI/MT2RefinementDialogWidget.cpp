@@ -11,6 +11,7 @@
 
 #include "Blueprint/WidgetTree.h"
 #include "Characters/MT2PlayerCharacter.h"
+#include "Config/MT2PathSettings.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
 #include "Components/ButtonSlot.h"
@@ -30,6 +31,7 @@
 #include "Npcs/MT2Npc.h"
 #include "Player/MT2PlayerState.h"
 #include "UI/MT2ItemTooltipWidget.h"
+#include "UI/MT2InventorySlotWidget.h"
 #include "UI/MT2UIStyle.h"
 
 namespace
@@ -49,15 +51,6 @@ namespace
 		return Label;
 	}
 
-	FText ItemName(const UMT2ItemTemplate* Template)
-	{
-		if (!Template)
-		{
-			return FText::GetEmpty();
-		}
-		return Template->DisplayName.IsEmpty()
-			? FText::FromString(Template->InternalName) : Template->DisplayName;
-	}
 }
 
 TSharedRef<SWidget> UMT2RefinementDialogWidget::RebuildWidget()
@@ -94,6 +87,14 @@ TSharedRef<SWidget> UMT2RefinementDialogWidget::RebuildWidget()
 		RequirementsBox = WidgetTree->ConstructWidget<UVerticalBox>(
 			UVerticalBox::StaticClass(), TEXT("RefinementRequirements"));
 		Content->AddChildToVerticalBox(RequirementsBox);
+		CostText = AddLabel(*WidgetTree, RequirementsBox, FText::GetEmpty());
+		MaterialsBox = WidgetTree->ConstructWidget<UHorizontalBox>(
+			UHorizontalBox::StaticClass(), TEXT("RefinementMaterials"));
+		if (UVerticalBoxSlot* MaterialsSlot = RequirementsBox->AddChildToVerticalBox(MaterialsBox))
+		{
+			MaterialsSlot->SetHorizontalAlignment(HAlign_Center);
+			MaterialsSlot->SetPadding(FMargin(0.0f, 4.0f));
+		}
 
 		ChanceText = AddLabel(
 			*WidgetTree, Content, FText::GetEmpty(), RefinementGoodColor, 11);
@@ -166,7 +167,8 @@ void UMT2RefinementDialogWidget::OpenRefinement(
 void UMT2RefinementDialogWidget::RebuildPreview()
 {
 	ComparisonBox->ClearChildren();
-	RequirementsBox->ClearChildren();
+	MaterialsBox->ClearChildren();
+	CostText->SetText(FText::GetEmpty());
 
 	AMT2PlayerCharacter* Player = Cast<AMT2PlayerCharacter>(GetOwningPlayerPawn());
 	UMT2InventoryComponent* Inventory = Player ? Player->GetInventoryComponent() : nullptr;
@@ -229,11 +231,12 @@ void UMT2RefinementDialogWidget::RebuildPreview()
 
 	const FMT2RefinementRecipe& Recipe = CurrentTemplate->RefinementRecipe;
 	const int64 CurrentYang = State ? State->GetYang() : 0;
-	AddLabel(*WidgetTree, RequirementsBox,
+	CostText->SetText(
 		FText::Format(NSLOCTEXT("MT2", "RefinementYang",
 			"Cost: {0} Yang ({1} available)"),
-			FText::AsNumber(Recipe.YangCost), FText::AsNumber(CurrentYang)),
-		CurrentYang >= Recipe.YangCost ? RefinementBodyColor : RefinementBadColor);
+			FText::AsNumber(Recipe.YangCost), FText::AsNumber(CurrentYang)));
+	CostText->SetColorAndOpacity(FSlateColor(
+		CurrentYang >= Recipe.YangCost ? RefinementBodyColor : RefinementBadColor));
 
 	bool bHasMaterials = true;
 	const auto CountAvailableMaterial =
@@ -252,16 +255,54 @@ void UMT2RefinementDialogWidget::RebuildPreview()
 	};
 	const AMT2Npc* Npc = PendingBlacksmith.Get();
 	const bool bMoneyOnly = PendingScrollSlot == INDEX_NONE && Npc && Npc->GetMobVnum() >= 20074 && Npc->GetMobVnum() <= 20076;
+	UClass* MaterialSlotClass = nullptr;
+	if (!bMoneyOnly && !Recipe.Materials.IsEmpty())
+	{
+		const FString SlotPath = UMT2PathSettings::Format(TEXT("WidgetClassTemplate"),
+			TEXT("%s%s"), TEXT("MT2InventorySlot"), TEXT("MT2InventorySlot"));
+		MaterialSlotClass = LoadClass<UMT2InventorySlotWidget>(nullptr, *SlotPath);
+		if (!MaterialSlotClass)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Refinement material widget is missing: %s"), *SlotPath);
+			bHasMaterials = false;
+		}
+	}
 	if (!bMoneyOnly) for (const FMT2RefinementMaterial& Material : Recipe.Materials)
 	{
 		const int32 Owned = CountAvailableMaterial(Material.ItemVnum);
 		const UMT2ItemTemplate* MaterialTemplate = Registry
 			? Registry->ResolveItemTemplateClass(Material.ItemVnum).GetDefaultObject() : nullptr;
-		AddLabel(*WidgetTree, RequirementsBox,
-			FText::Format(NSLOCTEXT("MT2", "RefinementMaterial", "{0}: {1}/{2}"),
-				ItemName(MaterialTemplate), FText::AsNumber(Owned),
-				FText::AsNumber(Material.Count)),
-			Owned >= Material.Count ? RefinementBodyColor : RefinementBadColor);
+		if (MaterialSlotClass)
+		{
+			UMT2InventorySlotWidget* ItemIcon = WidgetTree->ConstructWidget<UMT2InventorySlotWidget>(MaterialSlotClass);
+			ItemIcon->TakeWidget();
+			ItemIcon->InitializeSlot(INDEX_NONE, EMT2InventorySlotKind::Item, FText::GetEmpty());
+			ItemIcon->SetItemByVnum(Material.ItemVnum, Material.Count);
+			if (UTextBlock* Count = Cast<UTextBlock>(ItemIcon->GetWidgetFromName(TEXT("CountText"))))
+			{
+				Count->SetText(FText::AsNumber(Material.Count));
+				Count->SetColorAndOpacity(FSlateColor(Owned >= Material.Count ? FLinearColor::White : RefinementBadColor));
+			}
+			// Reserve the icon's full inventory height, but keep its source cell at 32x32.
+			USizeBox* Cell = WidgetTree->ConstructWidget<USizeBox>();
+			Cell->SetWidthOverride(32.0f);
+			Cell->SetHeightOverride(32.0f * (MaterialTemplate ? FMath::Clamp(MaterialTemplate->InventorySize, 1, 3) : 1));
+			UCanvasPanel* IconCanvas = WidgetTree->ConstructWidget<UCanvasPanel>();
+			Cell->AddChild(IconCanvas);
+			if (UCanvasPanelSlot* IconSlot = IconCanvas->AddChildToCanvas(ItemIcon))
+			{
+				IconSlot->SetPosition(FVector2D::ZeroVector);
+				IconSlot->SetSize(FVector2D(32.0f));
+			}
+			// The wrapper keeps inventory tooltips without allowing clicks, drops or drags.
+			Cell->SetToolTip(ItemIcon->GetToolTip());
+			ItemIcon->SetVisibility(ESlateVisibility::HitTestInvisible);
+			if (UHorizontalBoxSlot* CellSlot = MaterialsBox->AddChildToHorizontalBox(Cell))
+			{
+				CellSlot->SetPadding(FMargin(2.0f, 0.0f));
+				CellSlot->SetVerticalAlignment(VAlign_Top);
+			}
+		}
 		bHasMaterials &= Owned >= Material.Count;
 	}
 

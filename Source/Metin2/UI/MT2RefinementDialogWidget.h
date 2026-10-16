@@ -56,6 +56,12 @@ private:
 	TObjectPtr<UVerticalBox> RequirementsBox;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UHorizontalBox> MaterialsBox;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> CostText;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> ChanceText;
 
 	UPROPERTY(Transient)
