@@ -12,6 +12,7 @@
 #include "CoreMinimal.h"
 #include "Player/MT2PlayerTypes.h"
 #include "Npcs/MT2NpcTypes.h"
+#include "Mobs/MT2MobEmpireSelection.h"
 #include "MT2MobTypes.generated.h"
 
 class UAnimSequence;
@@ -241,7 +242,7 @@ struct METIN2_API FMT2MobDefinition
 	int32 Level = 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Identity")
-	EMT2Empire Empire = EMT2Empire::None;
+	FMT2MobEmpireSelection Empire;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI", meta = (Bitmask, BitmaskEnum = "/Script/Metin2.EMT2MobAIFlag"))
 	int32 AIFlags = 0;

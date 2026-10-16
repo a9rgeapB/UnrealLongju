@@ -217,7 +217,7 @@ namespace
 		Definition.AIFlags = static_cast<int32>(Record.AIFlags);
 		Definition.RaceFlags = static_cast<int32>(Record.RaceFlags);
 		Definition.ImmuneFlags = static_cast<int32>(Record.ImmuneFlags);
-		Definition.Empire = static_cast<EMT2Empire>(Record.Empire);
+		Definition.Empire = FMT2MobEmpireSelection::FromLegacy(Record.Empire);
 		Definition.Strength = Record.Strength;
 		Definition.Dexterity = Record.Dexterity;
 		Definition.Constitution = Record.Constitution;

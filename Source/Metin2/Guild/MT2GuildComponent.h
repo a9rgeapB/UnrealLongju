@@ -43,7 +43,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Guild") void DisbandGuild();
 	UFUNCTION(BlueprintCallable, Category = "Guild") void RemoveMember(const FString& CharacterId);
 	UFUNCTION(BlueprintCallable, Category = "Guild") void ChangeMemberRank(const FString& CharacterId, int32 Rank);
-	UFUNCTION(BlueprintCallable, Category = "Guild") void ChangeRank(int32 Rank, const FString& Name, int32 Permissions);
+	UFUNCTION(BlueprintCallable, Category = "Guild") void ChangeRank(int32 Rank, const FString& Name,
+		UPARAM(meta=(Bitmask,BitmaskEnum="/Script/Metin2.EMT2GuildPermission")) int32 Permissions);
 	UFUNCTION(BlueprintCallable, Category = "Guild") void SendGuildChat(const FString& Message);
 	UFUNCTION(BlueprintCallable, Category = "Guild|Mark") void UploadGuildMarkFromFile(const FString& FilePath);
 	void RequestGuildMark(int32 GuildId, int64 KnownRevision);

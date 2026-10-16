@@ -1941,6 +1941,13 @@ bool FMT2MobImporter::Import(
 			NSLOCTEXT("MT2MobImporter", "Mob", "Creating mob {0}: {1}"),
 			FText::AsNumber(Record.Definition.Vnum), FText::FromString(Record.Definition.DisplayName)));
 		if (Progress.ShouldCancel() || ShouldCancel()) break;
+		EMT2Empire KnownEmpire;
+		if (!Record.Definition.Empire.TryGetEmpire(KnownEmpire))
+		{
+			OutResult.Errors.Add(FString::Printf(TEXT("%d: unsupported empire ID %d; mob assets not modified."),Record.Definition.Vnum,Record.Definition.Empire.ToLegacy()));
+			++OutResult.Skipped;
+			continue;
+		}
 		if (MT2Mining::RawOre(Record.Definition.Vnum))
 		{
 			if (UBlueprint* Vein=CreateOreVeinBlueprint(DestinationRoot,Record,OutResult)) { PackagesToSave.AddUnique(Vein->GetOutermost()); }

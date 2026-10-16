@@ -274,6 +274,12 @@ void AMT2Mob::Tick(float DeltaSeconds)
 
 void AMT2Mob::ConfigureFromDefinition(const FMT2MobDefinition& Definition)
 {
+	EMT2Empire KnownEmpire;
+	if (!Definition.Empire.TryGetEmpire(KnownEmpire))
+	{
+		UE_LOG(LogTemp,Error,TEXT("Mob %d has unsupported empire ID %d; configuration rejected."),Definition.Vnum,Definition.Empire.ToLegacy());
+		return;
+	}
 	MobVnum = Definition.Vnum;
 	InternalName = Definition.InternalName;
 	DisplayName = Definition.DisplayName;
@@ -294,7 +300,7 @@ void AMT2Mob::ConfigureFromDefinition(const FMT2MobDefinition& Definition)
 		SetReplicateMovement(false);
 	}
 	MobLevel = FMath::Max(Definition.Level, 1);
-	Empire = Definition.Empire;
+	Empire = KnownEmpire;
 	ScalePercent = FMath::Max(Definition.ScalePercent, 1);
 	RaceFlags = Definition.RaceFlags;
 	ImmuneFlags = Definition.ImmuneFlags;

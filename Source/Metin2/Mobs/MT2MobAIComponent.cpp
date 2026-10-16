@@ -53,6 +53,12 @@ void UMT2MobAIComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 
 void UMT2MobAIComponent::Configure(const FMT2MobDefinition& Definition)
 {
+	EMT2Empire KnownEmpire;
+	if (!Definition.Empire.TryGetEmpire(KnownEmpire))
+	{
+		UE_LOG(LogTemp,Error,TEXT("Mob %d has unsupported empire ID %d; AI configuration rejected."),Definition.Vnum,Definition.Empire.ToLegacy());
+		return;
+	}
 	AIFlags = Definition.AIFlags;
 	// Stones are stationary game objects. Some client mob_proto builds omit NOMOVE,
 	// so keep the authoritative type rule as a runtime safeguard too.
@@ -61,7 +67,7 @@ void UMT2MobAIComponent::Configure(const FMT2MobDefinition& Definition)
 		AIFlags |= 1 << static_cast<uint8>(EMT2MobAIFlag::NoMove);
 	}
 	ExtendedAIFlags = Definition.ExtendedAIFlags;
-	Empire = Definition.Empire;
+	Empire = KnownEmpire;
 	const UMT2MobRuntimeSettings* Settings = GetDefault<UMT2MobRuntimeSettings>();
 	SightRadius = FMath::Max(Definition.AggressiveSight, Settings->MinimumSightRadius);
 	AggressiveDetectionRadius = Settings->AggressiveDetectionRadius;

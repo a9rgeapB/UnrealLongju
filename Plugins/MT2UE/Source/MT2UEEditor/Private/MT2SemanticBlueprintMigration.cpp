@@ -12,6 +12,7 @@
 #include "Items/MT2ItemTypes.h"
 #include "Components/MT2AffectTypes.h"
 #include "Skills/MT2SkillSemanticTypes.h"
+#include "Mobs/MT2MobEmpireSelection.h"
 #include "Serialization/MT2SemanticSerialization.h"
 #include "UObject/StrongObjectPtr.h"
 #include "UObject/StructOnScope.h"
@@ -88,11 +89,18 @@ bool ConvertDefault(const UEdGraphPin* Pin,const FEdGraphPinType& Type,const FSt
 	}
 	if (auto* Struct=Cast<UScriptStruct>(Type.PinSubCategoryObject.Get()))
 	{
-		if (!ReadNumber(Text,Raw)) { return false; }
+		if (!ReadNumber(Text,Raw))
+		{
+			if (Struct!=FMT2MobEmpireSelection::StaticStruct()) { return false; }
+			const int64 Named=StaticEnum<EMT2Empire>()->GetValueByNameString(Text);
+			if (Named<0 || Named>3) { return false; }
+			Raw=static_cast<int32>(Named);
+		}
 		if (Struct==FMT2ItemAddonSelection::StaticStruct()) { ExportSelection(FMT2ItemAddonSelection::FromLegacy(Raw),Out); }
 		else if (Struct==FMT2ItemUniqueSubtypeSelection::StaticStruct()) { ExportSelection(FMT2ItemUniqueSubtypeSelection::FromLegacy(Raw),Out); }
 		else if (Struct==FMT2LegacySkillClassSelection::StaticStruct()) { ExportSelection(FMT2LegacySkillClassSelection::FromLegacy(Raw),Out); }
 		else if (Struct==FMT2AffectIdentifier::StaticStruct()) { ExportSelection(FMT2AffectIdentifier::FromLegacyId(Raw),Out); }
+		else if (Struct==FMT2MobEmpireSelection::StaticStruct()) { ExportSelection(FMT2MobEmpireSelection::FromLegacy(Raw),Out); }
 		else if (Struct==FMT2ItemSubtype::StaticStruct())
 		{
 			const auto* Family=Pin->GetOwningNode()->FindPin(TEXT("ItemType"));

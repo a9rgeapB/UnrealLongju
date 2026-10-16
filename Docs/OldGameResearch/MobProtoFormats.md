@@ -15,6 +15,8 @@ divide evenly by `sizeof(TMobTable)` — the client validates exactly that, noth
 
 Legacy data uses several record layouts. The current importer supports only the 40250/255-byte format from `<SourceRoot>/locale/en/` protos, using MMPT + TEA + LZO (`MCOZ`).
 
+Imported empire IDs use `FMT2MobEmpireSelection`: known identities have named choices, while unsupported IDs remain recoverable in serialized definitions. The importer reports and skips unsupported identities before modifying that mob's assets. Runtime actors and AI still use `EMT2Empire`; they reject an unsupported definition rather than silently assigning a different empire.
+
 | Variant | Size | Status | Distinguishing traits |
 |---|---|---|---|
 | Classic raw | 291 | **unsupported** | `bRank` before `bType`; flags+empire+folder[101] before stats; gold/exp/HP mid-record |

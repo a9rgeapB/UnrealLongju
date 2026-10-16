@@ -98,7 +98,7 @@ public:
 	virtual int32 GetLegacyQuestValue(int32 Index) const { return 0; }
 
 	UFUNCTION(BlueprintPure, Category = "Item|Flags")
-	bool HasItemFlag(int32 ItemFlag) const { return (Flags & ItemFlag) != 0; }
+	bool HasItemFlag(UPARAM(meta=(Bitmask,BitmaskEnum="/Script/Metin2.EMT2ItemFlag")) int32 ItemFlag) const { return (Flags & ItemFlag) != 0; }
 
 	// The tooltip widget class used when this item is hovered. Uses the designer override if set,
 	// otherwise the native per-type default. Subclasses return their family's default class.

@@ -15,6 +15,7 @@
 #include "Items/MT2ItemSemanticTypes.h"
 #include "Components/MT2AffectTypes.h"
 #include "Skills/MT2SkillSemanticTypes.h"
+#include "Mobs/MT2MobEmpireSelection.h"
 #include "Misc/Base64.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/FileHelper.h"
@@ -57,7 +58,11 @@ FString Classify(const FProperty* Property)
 	if (!CastField<FNumericProperty>(Property) && !CastField<FArrayProperty>(Property) &&
 		!CastField<FMapProperty>(Property) && !CastField<FSetProperty>(Property)) { return TEXT("NonNumeric"); }
 	const FString Name=Property->GetName();
-	if (Name.Contains(TEXT("Type")) || Name.Contains(TEXT("Flags")) || Name.EndsWith(TEXT("Mask")) ||
+	const auto* Function=Cast<UFunction>(Property->GetOwnerStruct());
+	const bool ComputedOutput=Property->HasAnyPropertyFlags(CPF_ReturnParm) ||
+		(Property->HasAnyPropertyFlags(CPF_OutParm) && !Property->HasAnyPropertyFlags(CPF_ReferenceParm));
+	if (Function && ComputedOutput) { return TEXT("NumericQuantityOrIdentifier"); }
+	if (Name.Contains(TEXT("Type")) || Name.Contains(TEXT("Flags")) || Name.EndsWith(TEXT("Flag")) || Name.Contains(TEXT("Permission")) || Name.EndsWith(TEXT("Mask")) ||
 		Name==TEXT("Empire") || Name==TEXT("Race") || Name==TEXT("Sex") || Name==TEXT("StoneCategory") || Name==TEXT("RequiredSocketGrade"))
 	{ return TEXT("UnresolvedSelector"); }
 	return TEXT("NumericQuantityOrIdentifier");
@@ -86,13 +91,14 @@ void CaptureValue(const FProperty* Property,const void* Value,const FString& Pat
 	{
 		if (Struct->Struct==FMT2ItemAddonSelection::StaticStruct() || Struct->Struct==FMT2ItemSubtype::StaticStruct() ||
 			Struct->Struct==FMT2ItemUniqueSubtypeSelection::StaticStruct() || Struct->Struct==FMT2AffectIdentifier::StaticStruct() ||
-			Struct->Struct==FMT2LegacySkillClassSelection::StaticStruct())
+			Struct->Struct==FMT2LegacySkillClassSelection::StaticStruct() || Struct->Struct==FMT2MobEmpireSelection::StaticStruct())
 		{
 			auto Row=MakeShared<FJsonObject>(); Row->SetStringField(TEXT("Path"),Path); Row->SetStringField(TEXT("Owner"),Property->GetOwnerStruct()->GetPathName());
 			const int32 Raw=Struct->Struct==FMT2ItemSubtype::StaticStruct() ? static_cast<const FMT2ItemSubtype*>(Value)->ToLegacy()
 				: Struct->Struct==FMT2AffectIdentifier::StaticStruct() ? static_cast<const FMT2AffectIdentifier*>(Value)->ToLegacyId()
 				: Struct->Struct==FMT2LegacySkillClassSelection::StaticStruct() ? static_cast<const FMT2LegacySkillClassSelection*>(Value)->ToLegacy()
 				: Struct->Struct==FMT2ItemUniqueSubtypeSelection::StaticStruct() ? static_cast<const FMT2ItemUniqueSubtypeSelection*>(Value)->ToLegacy()
+				: Struct->Struct==FMT2MobEmpireSelection::StaticStruct() ? static_cast<const FMT2MobEmpireSelection*>(Value)->ToLegacy()
 				: static_cast<const FMT2ItemAddonSelection*>(Value)->ToLegacy();
 			Row->SetStringField(TEXT("RawValue"),LexToString(Raw));
 			Row->SetStringField(TEXT("StorageType"),Property->GetCPPType()); Row->SetStringField(TEXT("Classification"),TEXT("NamedSelector"));

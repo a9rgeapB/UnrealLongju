@@ -220,7 +220,8 @@ bool FMT2SemanticUniqueSubtypeTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2SemanticMobSelectorsTest,"Metin2.SemanticTypes.MobEmpireSelectors",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FMT2SemanticMobSelectorsTest::RunTest(const FString&)
 {
-	for (UStruct* Owner : TArray<UStruct*>{FMT2MobDefinition::StaticStruct(),AMT2Mob::StaticClass(),UMT2MobAIComponent::StaticClass()})
+	TestNotNull(TEXT("Imported empire retains opaque legacy IDs"),FindFProperty<FStructProperty>(FMT2MobDefinition::StaticStruct(),TEXT("Empire")));
+	for (UStruct* Owner : TArray<UStruct*>{AMT2Mob::StaticClass(),UMT2MobAIComponent::StaticClass()})
 	{
 		const auto* Property=FindFProperty<FEnumProperty>(Owner,TEXT("Empire"));
 		if (TestNotNull(*FString::Printf(TEXT("%s empire is named"),*Owner->GetName()),Property))
@@ -275,7 +276,7 @@ bool FMT2SemanticMobLegacyTest::RunTest(const FString&)
 	FMemoryReader Reader(Bytes,true); FObjectAndNameAsStringProxyArchive Loading(Reader,false); FMT2MobDefinition Target;
 	FMT2MobDefinition::StaticStruct()->SerializeItem(Loading,&Target,nullptr);
 	TestFalse(TEXT("Old mob data loads"),Loading.IsError());
-	TestEqual(TEXT("Non-neutral empire remains Jinno"),static_cast<int32>(Target.Empire),3);
+	TestEqual(TEXT("Non-neutral empire remains Jinno"),Target.Empire.ToLegacy(),3);
 	TestEqual(TEXT("Talk remains click ordinal two"),static_cast<int32>(Target.OnClickType),2);
 	TestEqual(TEXT("No-move remains bit one"),Target.AIFlags,2);
 	TestEqual(TEXT("Unknown high race bits survive"),Target.RaceFlags,int32(0x80010001u));
@@ -339,6 +340,54 @@ bool FMT2SemanticSkillFlagsTest::RunTest(const FString&)
 	TestFalse(TEXT("High bit does not set Attack"),Skill->HasSkillFlag(EMT2SkillFlag::Attack));
 	const auto* Class=FindFProperty<FStructProperty>(UMT2SkillDefinition::StaticClass(),TEXT("LegacySkillType"));
 	TestNotNull(TEXT("Signed absent class uses a lossless named selector"),Class);
+	return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2SemanticUnknownEmpireTest,"Metin2.SemanticTypes.UnknownMobEmpireSurvivesResave",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FMT2SemanticUnknownEmpireTest::RunTest(const FString&)
+{
+	const FProperty* Empire=FindFProperty<FProperty>(FMT2MobDefinition::StaticStruct(),TEXT("Empire"));
+	auto RawValue=[Empire](const FMT2MobDefinition& Value)->int64
+	{
+		const void* Data=Empire->ContainerPtrToValuePtr<void>(&Value);
+		if (const auto* Enum=CastField<FEnumProperty>(Empire)) { return Enum->GetUnderlyingProperty()->GetSignedIntPropertyValue(Data); }
+		const auto* Struct=CastField<FStructProperty>(Empire);
+		const auto* Raw=Struct ? FindFProperty<FIntProperty>(Struct->Struct,TEXT("LegacyValue")) : nullptr;
+		return Raw ? Raw->GetPropertyValue_InContainer(Data) : MIN_int64;
+	};
+	for (int32 Raw : {7,-1,MAX_int32})
+	{
+		TStrongObjectPtr<UScriptStruct> Legacy(NewObject<UScriptStruct>());
+		auto* Property=new FIntProperty(Legacy.Get(),TEXT("Empire"),RF_Public);
+		Legacy->AddCppProperty(Property); Legacy->Bind(); Legacy->StaticLink(true);
+		FStructOnScope Old(Legacy.Get()); Property->SetPropertyValue_InContainer(Old.GetStructMemory(),Raw);
+		TArray<uint8> Bytes; FMemoryWriter Writer(Bytes,true); FObjectAndNameAsStringProxyArchive Saving(Writer,false); Saving.ArNoDelta=true;
+		Legacy->SerializeTaggedProperties(Saving,Old.GetStructMemory(),Legacy.Get(),nullptr);
+		FMT2MobDefinition Loaded; FMemoryReader Reader(Bytes,true); FObjectAndNameAsStringProxyArchive Loading(Reader,false);
+		FMT2MobDefinition::StaticStruct()->SerializeItem(Loading,&Loaded,nullptr);
+		TestEqual(TEXT("Unsupported old integer retains its exact ID"),RawValue(Loaded),int64(Raw));
+		EMT2Empire RuntimeEmpire=EMT2Empire::Jinno;
+		TestFalse(TEXT("Opaque ID cannot become a runtime identity"),Loaded.Empire.TryGetEmpire(RuntimeEmpire));
+		TestEqual(TEXT("Failed conversion leaves the destination unchanged"),RuntimeEmpire,EMT2Empire::Jinno);
+		TArray<uint8> Resaved; FMemoryWriter SaveWriter(Resaved,true); FObjectAndNameAsStringProxyArchive SaveAgain(SaveWriter,false); SaveAgain.ArNoDelta=true;
+		FMT2MobDefinition::StaticStruct()->SerializeItem(SaveAgain,&Loaded,nullptr);
+		FMT2MobDefinition Reloaded; FMemoryReader ReadAgain(Resaved,true); FObjectAndNameAsStringProxyArchive Reload(ReadAgain,false);
+		FMT2MobDefinition::StaticStruct()->SerializeItem(Reload,&Reloaded,nullptr);
+		TestFalse(TEXT("Resave does not corrupt the archive"),Reload.IsError());
+		TestEqual(TEXT("Unsupported ID remains recoverable after resave"),RawValue(Reloaded),int64(Raw));
+	}
+	// The immediately preceding schema stored a named empire enum rather than an integer.
+	TStrongObjectPtr<UScriptStruct> EnumLayout(NewObject<UScriptStruct>());
+	auto* OldEnum=new FEnumProperty(EnumLayout.Get(),TEXT("Empire"),RF_Public);
+	OldEnum->SetEnum(StaticEnum<EMT2Empire>());
+	OldEnum->AddCppProperty(new FByteProperty(OldEnum,TEXT("UnderlyingType"),RF_Public));
+	EnumLayout->AddCppProperty(OldEnum); EnumLayout->Bind(); EnumLayout->StaticLink(true);
+	FStructOnScope OldEnumValue(EnumLayout.Get());
+	OldEnum->GetUnderlyingProperty()->SetIntPropertyValue(OldEnum->ContainerPtrToValuePtr<void>(OldEnumValue.GetStructMemory()),uint64(3));
+	TArray<uint8> EnumBytes; FMemoryWriter EnumWriter(EnumBytes,true); FObjectAndNameAsStringProxyArchive EnumSave(EnumWriter,false); EnumSave.ArNoDelta=true;
+	EnumLayout->SerializeTaggedProperties(EnumSave,OldEnumValue.GetStructMemory(),EnumLayout.Get(),nullptr);
+	FMT2MobDefinition FromEnum; FMemoryReader EnumReader(EnumBytes,true); FObjectAndNameAsStringProxyArchive EnumLoad(EnumReader,false);
+	FMT2MobDefinition::StaticStruct()->SerializeItem(EnumLoad,&FromEnum,nullptr);
+	TestEqual(TEXT("Existing named enum assets retain Jinno"),RawValue(FromEnum),int64(3));
 	return true;
 }
 #endif

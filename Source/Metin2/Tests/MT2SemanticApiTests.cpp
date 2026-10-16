@@ -4,12 +4,14 @@
 #include "Characters/MT2PlayerCharacter.h"
 #include "Combat/MT2CombatComponent.h"
 #include "Items/MT2InventoryComponent.h"
+#include "Items/MT2ItemTemplate.h"
 #include "Quests/MT2QuestCondition.h"
 #include "Quests/MT2QuestNode.h"
 #include "Animation/MT2AnimationMotionData.h"
 #include "Skills/MT2SkillComponent.h"
 #include "Skills/MT2SkillDefinition.h"
 #include "Skills/MT2SkillSet.h"
+#include "Guild/MT2GuildComponent.h"
 #include "UObject/UnrealType.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2SemanticApiTest,"Metin2.SemanticTypes.BlueprintFunctionPinsUseSemanticTypes",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -70,6 +72,21 @@ bool FMT2SemanticSkillPinsTest::RunTest(const FString&)
 	{
 		const auto* Pin=FindFProperty<FEnumProperty>(UMT2SkillDefinition::StaticClass()->FindFunctionByName(Name),TEXT("MasteryGrade"));
 		if (TestNotNull(TEXT("Mastery input is named"),Pin)) { TestEqual(TEXT("Mastery reuses the existing domain"),Pin->GetEnum(),StaticEnum<EMT2SkillMastery>()); }
+	}
+	return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2SemanticRemainingMasksTest,"Metin2.SemanticTypes.RemainingFlagInputsAreNamed",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FMT2SemanticRemainingMasksTest::RunTest(const FString&)
+{
+	struct FCase { UClass* Owner; const TCHAR* Function; const TCHAR* Pin; const TCHAR* Enum; };
+	for (const auto& Case : TArray<FCase>{
+		{UMT2ItemTemplate::StaticClass(),TEXT("HasItemFlag"),TEXT("ItemFlag"),TEXT("/Script/Metin2.EMT2ItemFlag")},
+		{UMT2GuildComponent::StaticClass(),TEXT("ChangeRank"),TEXT("Permissions"),TEXT("/Script/Metin2.EMT2GuildPermission")}})
+	{
+		const auto* Pin=FindFProperty<FIntProperty>(Case.Owner->FindFunctionByName(Case.Function),Case.Pin);
+		if (!TestNotNull(Case.Pin,Pin)) { continue; }
+		TestTrue(TEXT("Combined-mask input has named checkboxes"),Pin->HasMetaData(TEXT("Bitmask")));
+		TestEqual(TEXT("Input uses its dedicated flag domain"),Pin->GetMetaData(TEXT("BitmaskEnum")),FString(Case.Enum));
 	}
 	return true;
 }
