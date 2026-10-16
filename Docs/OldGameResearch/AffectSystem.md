@@ -10,7 +10,7 @@ An affect (the old game's word for a status effect) is a small record (`affect.h
 | Field | Meaning |
 |---|---|
 | `dwType` | Affect id. Skill vnums for skill buffs; dedicated ids for potions/premium/hair etc. (`AFFECT_*` constants). |
-| `bApplyOn` | Which point it modifies — an `EApplyTypes`/POINT ordinal, the **same apply system items use** (e.g. ATT_SPEED=7, MOV_SPEED=8). |
+| `bApplyOn` | Which character point it modifies: an `EPointTypes` / `POINT_*` ordinal passed to `PointChange`. This is not the item's `EApplyTypes` / `APPLY_*` ordinal domain. |
 | `lApplyValue` | Signed amount added to that point while active. |
 | `dwFlag` | Bitmask OR'd into the character's `m_afAffectFlag` (visual/state flags like AFF_STUN, AFF_POISON, AFF_INVISIBILITY). |
 | `lDuration` | Remaining seconds. "Infinite" is just a huge value (the db dump has one with ~1.89 billion seconds). |
@@ -18,6 +18,12 @@ An affect (the old game's word for a status effect) is a small record (`affect.h
 
 A character holds a plain list of these (`m_list_pkAffect`). The same type can appear more than
 once with different `bApplyOn` values.
+
+## Current Unreal authoring
+
+`FMT2AffectIdentifier` distinguishes a named built-in affect, a skill VNUM, and a custom ID. It preserves the full signed numeric identifier through save and network codecs; it is not a byte enum. `EMT2StatusEffectKind` separately selects effect behavior.
+
+The current status-effect bonus pipeline uses `EMT2ItemBonusType` (`APPLY_*`). Skill `PointOnName` remains authoritative and is explicitly mapped into that bonus domain; POINT and APPLY numbers must not be interchanged. Effect masks retain `int32` storage with named `EMT2EffectFlag` bit choices and Blueprint make/test helpers. Only the existing 32-bit mask's representable flags are supported.
 
 ## Lifecycle
 

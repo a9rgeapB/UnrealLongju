@@ -10,9 +10,24 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Player/MT2PlayerTypes.h"
+#include "Npcs/MT2NpcTypes.h"
 #include "MT2MobTypes.generated.h"
 
 class UAnimSequence;
+
+UENUM(BlueprintType, meta=(Bitflags))
+enum class EMT2MobRaceFlag : uint8
+{
+	Animal=0, Undead=1, Devil=2, Human=3, Orc=4, Milgyo=5, Insect=6,
+	Fire=7, Ice=8, Desert=9, Tree=10, AttackElec=11, AttackFire=12,
+	AttackIce=13, AttackWind=14, AttackEarth=15, AttackDark=16
+};
+UENUM(BlueprintType, meta=(Bitflags))
+enum class EMT2MobImmuneFlag : uint8
+{
+	Stun=0, Slow=1, Fall=2, Curse=3, Poison=4, Terror=5, Reflect=6
+};
 
 UENUM(BlueprintType)
 enum class EMT2MobRank : uint8
@@ -206,7 +221,7 @@ struct METIN2_API FMT2MobDefinition
 
 	// mob_proto bOnClickType (0 none, 1 shop, 2 talk) - drives NPC interaction.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Mob")
-	int32 OnClickType = 0;
+	EMT2NpcOnClickType OnClickType = EMT2NpcOnClickType::None;
 
 	// Metin stones only: the spawn groups this stone can summon, resolved by the importer from the
 	// proto's ATTACK_SPEED..MOVING_SPEED vnum range against group.txt.
@@ -226,18 +241,18 @@ struct METIN2_API FMT2MobDefinition
 	int32 Level = 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Identity")
-	int32 Empire = 0;
+	EMT2Empire Empire = EMT2Empire::None;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI", meta = (Bitmask, BitmaskEnum = "/Script/Metin2.EMT2MobAIFlag"))
 	int32 AIFlags = 0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI")
+	UPROPERTY(meta=(SemanticReservedMask))
 	int32 ExtendedAIFlags = 0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Flags")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Flags", meta=(Bitmask, BitmaskEnum="/Script/Metin2.EMT2MobRaceFlag"))
 	int32 RaceFlags = 0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Flags")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Flags", meta=(Bitmask, BitmaskEnum="/Script/Metin2.EMT2MobImmuneFlag"))
 	int32 ImmuneFlags = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats")

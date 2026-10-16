@@ -37,7 +37,7 @@ namespace
 	{
 		const uint32 Detail = Effect.SourceItemVnum > 0
 			? static_cast<uint32>(Effect.SourceItemVnum) : 0u;
-		return (static_cast<int64>(static_cast<uint32>(Effect.Type)) << 32) | Detail;
+		return (static_cast<int64>(static_cast<uint32>(Effect.Type.ToLegacyId())) << 32) | Detail;
 	}
 
 	FText BuildEffectDescription(const UObject* Context, const FMT2StatusEffect& Effect,
@@ -54,7 +54,7 @@ namespace
 		const FText EffectValue = Definition.GetDescription(Effect);
 		if (!Item->Description.IsEmpty())
 		{
-			if (Effect.ApplyType <= 0)
+			if (Effect.ApplyType == EMT2ItemBonusType::None)
 			{
 				return FText::Format(NSLOCTEXT("MT2StatusEffects", "ItemTooltip", "{0}\n{1}"),
 					ItemName, Item->Description);
@@ -62,7 +62,7 @@ namespace
 			return FText::Format(NSLOCTEXT("MT2StatusEffects", "ItemEffectTooltip", "{0}\n{1}\n{2}"),
 				ItemName, Item->Description, EffectValue);
 		}
-		if (Effect.ApplyType <= 0)
+		if (Effect.ApplyType == EMT2ItemBonusType::None)
 		{
 			return ItemName;
 		}
@@ -162,12 +162,12 @@ void UMT2StatusEffectBarWidget::RefreshEffects()
 			{
 				const AMT2PlayerState* PlayerState = GetOwningPlayerState<AMT2PlayerState>();
 				const UMT2SkillComponent* Skills = PlayerState ? PlayerState->GetSkillComponent() : nullptr;
-				const UMT2SkillDefinition* Skill = Skills ? Skills->FindSkillDefinition(Effect.Type) : nullptr;
+				const UMT2SkillDefinition* Skill = Skills ? Skills->FindSkillDefinition(Effect.Type.ToLegacyId()) : nullptr;
 				if (Skill)
 				{
 					EffectIcon = Skill->IconAtlas;
-					const int32 Grade = FMath::Min(static_cast<int32>(Skills->GetSkillMastery(Effect.Type)), 2);
-					const FMT2AtlasRect Region = Skill->GetIconRegion(Grade);
+					const int32 Grade = FMath::Min(static_cast<int32>(Skills->GetSkillMastery(Effect.Type.ToLegacyId())), 2);
+					const FMT2AtlasRect Region = Skill->GetIconRegion(static_cast<EMT2SkillMastery>(Grade));
 					EffectIconRegion = FVector4(Region.X, Region.Y, Region.Width, Region.Height);
 				}
 			}

@@ -12,6 +12,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "Items/MT2ItemTypes.h"
+#include "Components/MT2AffectTypes.h"
 #include "Player/MT2PlayerTypes.h"
 #include "MT2ItemTemplate.generated.h"
 
@@ -226,7 +227,7 @@ public:
 
 	// Old item_proto addon_type. -1 enables the paired average/skill-damage weapon formula.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment|Bonuses")
-	int32 BonusAddonType = 0;
+	FMT2ItemAddonSelection BonusAddonType;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment|Presentation")
 	int32 Specular = 0;
@@ -241,7 +242,7 @@ public:
 	virtual TSubclassOf<UMT2ItemTooltipWidget> GetDefaultTooltipClass() const override;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
-	int32 WeaponSubType = 0;
+	EMT2WeaponSubType WeaponSubType = EMT2WeaponSubType::Sword;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Damage")
 	int32 MagicDamageMin = 0;
@@ -298,7 +299,7 @@ public:
 	virtual TSubclassOf<UMT2ItemTooltipWidget> GetDefaultTooltipClass() const override;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Armor")
-	int32 ArmorSubType = 0;
+	EMT2ArmorSubType ArmorSubType = EMT2ArmorSubType::Body;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Armor|Stats")
 	int32 Defense = 0;
@@ -355,7 +356,7 @@ public:
 	virtual TSubclassOf<UMT2ItemTooltipWidget> GetDefaultTooltipClass() const override;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Use")
-	int32 UseSubType = 0;
+	EMT2UseSubType UseSubType = EMT2UseSubType::Potion;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Use|Recovery")
 	int32 HealthRecovery = 0;
@@ -381,7 +382,7 @@ public:
 	// USE_AFFECT Value0. Multiple data-driven consumables may grant the same apply type under
 	// different affect IDs, so keep the identity separate from the bonus enum.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Use|Buff")
-	int32 AffectType = 0;
+	FMT2AffectIdentifier AffectType;
 };
 
 UENUM(BlueprintType)
@@ -426,7 +427,7 @@ class METIN2_API UMT2ItemAutoUseTemplate : public UMT2ItemConsumableTemplate
 
 public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Use")
-	int32 AutoUseSubType = 0;
+	EMT2AutoUseSubType AutoUseSubType = EMT2AutoUseSubType::Potion;
 };
 
 UCLASS(Blueprintable)
@@ -436,7 +437,7 @@ class METIN2_API UMT2ItemMaterialTemplate : public UMT2ItemTemplate
 
 public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Material")
-	int32 MaterialSubType = 0;
+	EMT2MaterialSubType MaterialSubType = EMT2MaterialSubType::Leather;
 };
 
 UCLASS(Blueprintable)
@@ -471,20 +472,19 @@ class METIN2_API UMT2ItemMetinStoneTemplate : public UMT2ItemTemplate
 public:
 	// METIN_NORMAL=0 may enter silver or gold; METIN_GOLD=1 requires a gold socket.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Metin Stone")
-	int32 MetinSubType = 0;
+	EMT2MetinSubType MetinSubType = EMT2MetinSubType::Normal;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Metin Stone",
 		meta = (Bitmask, BitmaskEnum = "/Script/Metin2.EMT2ItemWearFlag"))
 	int32 CompatibleWearFlags = 0;
 
 	// Value5 in the original item_proto. Equipment cannot contain two stones in one category.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Metin Stone")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Metin Stone", meta=(SemanticOpenId,DisplayName="Stone Conflict Group ID",ToolTip="Open-ended item_proto Value5 group ID; stones with the same ID cannot share equipment."))
 	int32 StoneCategory = 0;
 
 	// Minimum socket grade accepted by the original comparison (silver=1, gold=2).
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Metin Stone",
-		meta = (ClampMin = "1", ClampMax = "2"))
-	int32 RequiredSocketGrade = 1;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Metin Stone")
+	EMT2RequiredMetinSocketGrade RequiredSocketGrade = EMT2RequiredMetinSocketGrade::Silver;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Metin Stone",
 		meta = (ClampMin = "0.0", ClampMax = "100.0"))
@@ -571,7 +571,7 @@ class METIN2_API UMT2ItemUniqueTemplate : public UMT2ItemEquipmentTemplate
 
 public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Unique")
-	int32 UniqueSubType = 0;
+	FMT2ItemUniqueSubtypeSelection UniqueSubType;
 };
 
 UCLASS(Blueprintable)
@@ -669,7 +669,7 @@ class METIN2_API UMT2ItemCostumeTemplate : public UMT2ItemEquipmentTemplate
 
 public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Costume")
-	int32 CostumeSubType = 0;
+	EMT2CostumeSubType CostumeSubType = EMT2CostumeSubType::Body;
 
 	// COSTUME_HAIR stores the old client's race-data HairIndex in item_proto Value3.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Costume|Hair")

@@ -1053,7 +1053,7 @@ void SMT2UEImporterWidget::BuildItemEntries()
 		Entry->DisplayName = FString::Printf(TEXT("%05d  %s"),
 			Record.Definition.Vnum, *Record.Definition.InternalName);
 		Entry->Detail = FString::Printf(TEXT("Type=%d SubType=%d | %s"),
-			Record.Definition.ItemType, Record.Definition.SubType, *Record.Definition.IconObjectPath);
+			static_cast<int32>(Record.Definition.ItemType), Record.Definition.SubType.ToLegacy(), *Record.Definition.IconObjectPath);
 		Entry->ItemRecord = MoveTemp(Record);
 		ImportEntries.Add(Entry);
 	}

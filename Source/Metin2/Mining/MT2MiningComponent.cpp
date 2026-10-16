@@ -67,7 +67,7 @@ bool UMT2MiningComponent::CanMine(AMT2Npc* Vein) const
 	if (!Player || !Player->HasAuthority() || !IsValid(Vein) || Vein->IsActorBeingDestroyed() ||
 		Vein->GetWorld()!=GetWorld() || !MT2Mining::RawOre(Vein->GetMobVnum()) ||
 		Player->GetHealthComponent()->IsDead() || Player->GetMountComponent()->IsMounted() ||
-		Player->GetFishingComponent()->IsFishing() || Player->GetStatusEffectComponent()->HasEffectFlag(1<<6) || !EquippedPick() ||
+		Player->GetFishingComponent()->IsFishing() || Player->GetStatusEffectComponent()->HasEffectFlag(EMT2EffectFlag::Stun) || !EquippedPick() ||
 		!Player->GetCharacterMovement()->IsMovingOnGround() || Player->GetCharacterMovement()->HasRootMotionSources()) { return false; }
 	const auto* ASC=Player->GetAbilitySystemComponent();
 	if (ASC && ASC->HasMatchingGameplayTag(MT2GameplayTags::State_Attacking)) { return false; }

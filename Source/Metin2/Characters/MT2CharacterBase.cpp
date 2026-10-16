@@ -146,14 +146,19 @@ void AMT2CharacterBase::SetAnimationSet(FName NewAnimationSet)
 	ApplyAnimationSetToInstance();
 }
 
-void AMT2CharacterBase::SetWeaponAnimationSet(int32 WeaponSubType, bool bMounted)
+void AMT2CharacterBase::SetWeaponAnimationSet(EMT2WeaponSubType WeaponSubType, bool bMounted)
 {
-	static const FName WeaponSets[] = {
-		TEXT("onehand_sword"), TEXT("dualhand_sword"), TEXT("bow"), TEXT("twohand_sword"),
-		TEXT("bell"), TEXT("fan")
-	};
-	FName Set = (WeaponSubType >= 0 && WeaponSubType < UE_ARRAY_COUNT(WeaponSets))
-		? WeaponSets[WeaponSubType] : FName(TEXT("general"));
+	FName Set=TEXT("general");
+	switch (WeaponSubType)
+	{
+	case EMT2WeaponSubType::Sword: Set=TEXT("onehand_sword"); break;
+	case EMT2WeaponSubType::Dagger: Set=TEXT("dualhand_sword"); break;
+	case EMT2WeaponSubType::Bow: Set=TEXT("bow"); break;
+	case EMT2WeaponSubType::TwoHanded: Set=TEXT("twohand_sword"); break;
+	case EMT2WeaponSubType::Bell: Set=TEXT("bell"); break;
+	case EMT2WeaponSubType::Fan: Set=TEXT("fan"); break;
+	default: break;
+	}
 	if (bMounted)
 	{
 		Set = Set == TEXT("general")
@@ -164,8 +169,9 @@ void AMT2CharacterBase::SetWeaponAnimationSet(int32 WeaponSubType, bool bMounted
 	// playersettingmodule.py registers one unarmed/bow attack, four ground melee attacks, and three
 	// mounted melee attacks. CActorInstance::__OnEndCombo then keeps mounted chains at index 1 so the
 	// opening swing is not replayed on every loop.
-	const bool bBow = WeaponSubType == 2;
-	const bool bMeleeWeapon = WeaponSubType >= 0 && WeaponSubType < UE_ARRAY_COUNT(WeaponSets) && !bBow;
+	const bool bBow = WeaponSubType == EMT2WeaponSubType::Bow;
+	const bool bMeleeWeapon = WeaponSubType==EMT2WeaponSubType::Sword || WeaponSubType==EMT2WeaponSubType::Dagger ||
+		WeaponSubType==EMT2WeaponSubType::TwoHanded || WeaponSubType==EMT2WeaponSubType::Bell || WeaponSubType==EMT2WeaponSubType::Fan;
 	const int32 ComboLength = bMounted ? (bMeleeWeapon ? 3 : 1) : (bMeleeWeapon ? 4 : 1);
 	CombatComponent->ConfigureBasicAttackCombo(ComboLength, bMounted && ComboLength > 1 ? 1 : 0);
 	SetAnimationSet(Set);

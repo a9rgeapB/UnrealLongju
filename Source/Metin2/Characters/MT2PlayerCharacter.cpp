@@ -1602,7 +1602,7 @@ void AMT2PlayerCharacter::HandleBasicAttackPerformed(int32 ComboIndex)
 			Sequence->GetAssetUserData<UMT2AnimationMotionData>();
 		UE_LOG(LogMT2Targeting, Verbose, TEXT("[MT2Knockback] %s combo=%d set=%s motion=%s force=%.1f hit=%d"),
 			*GetName(), ComboIndex, *GetAnimationSet().ToString(), *Sequence->GetName(),
-			MotionData ? MotionData->ExternalForce : 0.f, MotionData ? MotionData->HittingType : 0);
+			MotionData ? MotionData->ExternalForce : 0.f, MotionData ? MotionData->HittingType : EMT2MotionHittingType::None);
 		const float AuthoredDuration = MotionData && MotionData->MotionDuration > UE_SMALL_NUMBER
 			? MotionData->MotionDuration
 			: Sequence->GetPlayLength();
@@ -1637,8 +1637,8 @@ void AMT2PlayerCharacter::HandleBasicAttackPerformed(int32 ComboIndex)
 		if (HasAuthority())
 		{
 			GetCombatComponent()->SetPendingKnockback(
-				MotionData && MotionData->HittingType != 0 ? UMT2CombatComponent::MotionKnockbackDistance(MotionData->ExternalForce) : 0.f,
-				UMT2CombatComponent::MotionKnockbackDuration, false, MotionData ? MotionData->HittingType : 2);
+				MotionData && MotionData->HittingType != EMT2MotionHittingType::None ? UMT2CombatComponent::MotionKnockbackDistance(MotionData->ExternalForce) : 0.f,
+				UMT2CombatComponent::MotionKnockbackDuration, false, MotionData ? MotionData->HittingType : EMT2MotionHittingType::Normal);
 		}
 		// Publish timing and displacement for combat/UI consumers. Actual movement is fed through
 		// AddMovementInput in Tick so it follows the same network prediction as normal locomotion.
@@ -1799,7 +1799,7 @@ void AMT2PlayerCharacter::MulticastPlaySkillAnimation_Implementation(
 	}
 	const bool bFemale = State->GetCharacterAppearance().Sex == EMT2CharacterSex::Female;
 	UAnimSequence* CastAnimation =
-		Cast<UAnimSequence>(Definition->GetCastAnimation(MasteryGrade, bFemale).LoadSynchronous());
+		Cast<UAnimSequence>(Definition->GetCastAnimation(static_cast<EMT2SkillMastery>(MasteryGrade), bFemale).LoadSynchronous());
 	UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
 	if (!CastAnimation || !AnimInstance)
 	{
@@ -2148,7 +2148,7 @@ void AMT2PlayerCharacter::ServerReadSkillBook_Implementation(int32 InventorySlot
 	}
 	const UMT2SkillDefinition* Definition = Skills->FindSkillDefinition(SkillVnum);
 	const FString SkillName = Definition
-		? Definition->GetGradeDisplayName(0).ToString() : FString::Printf(TEXT("skill #%d"), SkillVnum);
+		? Definition->GetGradeDisplayName(EMT2SkillMastery::Normal).ToString() : FString::Printf(TEXT("skill #%d"), SkillVnum);
 
 	auto Say = [MT2Controller](const FString& Message)
 	{
@@ -2234,7 +2234,7 @@ bool AMT2PlayerCharacter::BeginGrandMasterTraining(int32 InventorySlot)
 		EligibleSkills.Add(Entry.SkillVnum);
 		const UMT2SkillDefinition* Definition = Skills->FindSkillDefinition(Entry.SkillVnum);
 		const FString SkillName = Definition
-			? Definition->GetGradeDisplayName(2).ToString()
+			? Definition->GetGradeDisplayName(EMT2SkillMastery::GrandMaster).ToString()
 			: FString::Printf(TEXT("Skill %d"), Entry.SkillVnum);
 		Dialog.Options.Add(FString::Printf(
 			TEXT("%s (%s)"), *SkillName, *MT2SkillMastery::LevelLabel(Entry.Level)));
@@ -2303,7 +2303,7 @@ void AMT2PlayerCharacter::ResolveGrandMasterTrainingSelection(
 
 	const UMT2SkillDefinition* Definition = Skills->FindSkillDefinition(SkillVnum);
 	const FString SkillName = Definition
-		? Definition->GetGradeDisplayName(2).ToString()
+		? Definition->GetGradeDisplayName(EMT2SkillMastery::GrandMaster).ToString()
 		: FString::Printf(TEXT("Skill %d"), SkillVnum);
 	ResultDialog.TextLines.Add(bSucceeded
 		? FString::Printf(TEXT("%s improved to %s."), *SkillName,
@@ -2663,7 +2663,7 @@ void AMT2PlayerCharacter::RefreshHairAppearance()
 	constexpr int32 HairSlot = 20;
 	const UMT2ItemCostumeTemplate* Costume = Registry && Worn.IsValidIndex(HairSlot) && !Worn[HairSlot].IsEmpty()
 		? Cast<UMT2ItemCostumeTemplate>(Registry->ResolveItemTemplateClass(Worn[HairSlot].Vnum).GetDefaultObject()) : nullptr;
-	const FMT2HairMeshVariant* Hair = Costume && Costume->CostumeSubType == 1 ? Costume->ResolveHairVariant(Appearance) : nullptr;
+	const FMT2HairMeshVariant* Hair = Costume && Costume->CostumeSubType == EMT2CostumeSubType::Hair ? Costume->ResolveHairVariant(Appearance) : nullptr;
 	if (!Hair && State->GetHairShape() != 0)
 		Hair = GetDefault<UMT2CharacterAppearanceSettings>()->FindHair(State->GetHairShape(), Appearance);
 	if (Hair && !Hair->Mesh.IsNull()) GetEquipmentComponent()->EquipHair(Hair->Mesh, Hair->DiffuseTexture);
@@ -2710,7 +2710,7 @@ void AMT2PlayerCharacter::HandleEquipmentChanged()
 			const AMT2PlayerState* State = GetPlayerState<AMT2PlayerState>();
 			const bool bWarrior = State && State->GetCharacterAppearance().Race == EMT2CharacterRace::Warrior;
 			GetEquipmentComponent()->EquipWeapon(Rod->WorldMesh.IsNull() ? GetDefault<UMT2FishingSettings>()->RodMesh : Rod->WorldMesh,
-				bWarrior ? FName(TEXT("equip_right_hand")) : FName(TEXT("equip_right")), INDEX_NONE);
+				bWarrior ? FName(TEXT("equip_right_hand")) : FName(TEXT("equip_right")), EMT2WeaponSubType::None);
 			SetAnimationSet(TEXT("fishing"));
 		}
 		else if (const UMT2ItemPickTemplate* Pick = Cast<UMT2ItemPickTemplate>(Registry->ResolveItemTemplateClass(WeaponSlot.Vnum).GetDefaultObject()))
@@ -2718,13 +2718,13 @@ void AMT2PlayerCharacter::HandleEquipmentChanged()
 			const AMT2PlayerState* State = GetPlayerState<AMT2PlayerState>();
 			const bool bWarrior = State && State->GetCharacterAppearance().Race == EMT2CharacterRace::Warrior;
 			GetEquipmentComponent()->EquipWeapon(Pick->WorldMesh,
-				bWarrior ? FName(TEXT("equip_right_hand")) : FName(TEXT("equip_right")), INDEX_NONE);
+				bWarrior ? FName(TEXT("equip_right_hand")) : FName(TEXT("equip_right")), EMT2WeaponSubType::None);
 			SetAnimationSet(TEXT("general"));
 		}
 		else
 		{
 			GetEquipmentComponent()->UnequipWeapon();
-			SetWeaponAnimationSet(INDEX_NONE, MountComponent && MountComponent->IsMounted());
+			SetWeaponAnimationSet(EMT2WeaponSubType::None, MountComponent && MountComponent->IsMounted());
 		}
 
 		const FMT2ItemSlot& BodySlot = Worn.IsValidIndex(WearBody) ? Worn[WearBody] : FMT2ItemSlot();
@@ -2952,7 +2952,7 @@ void AMT2PlayerCharacter::RecalculateEquipmentStats()
 	{
 		for (const FMT2StatusEffect& Effect : StatusEffects->GetEffects())
 		{
-			ApplyBonus(Effect.ApplyType, Effect.ApplyValue);
+			ApplyBonus(static_cast<int32>(Effect.ApplyType), Effect.ApplyValue);
 		}
 	}
 
@@ -2978,7 +2978,7 @@ void AMT2PlayerCharacter::RecalculateEquipmentStats()
 		PrimaryBonuses.Strength, PrimaryBonuses.Dexterity, PrimaryBonuses.Constitution, PrimaryBonuses.Intelligence);
 }
 
-int32 AMT2PlayerCharacter::GetItemApplyBonus(int32 ApplyType) const
+int32 AMT2PlayerCharacter::GetItemApplyBonus(EMT2ItemBonusType ApplyType) const
 {
-	return ItemApplyBonuses.FindRef(ApplyType);
+	return ItemApplyBonuses.FindRef(static_cast<int32>(ApplyType));
 }

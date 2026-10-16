@@ -301,7 +301,7 @@ void UMT2MountComponent::ApplyMountedState()
 	}
 	const UMT2EquipmentComponent* Equipment = Character->GetEquipmentComponent();
 	Character->SetWeaponAnimationSet(
-		Equipment ? Equipment->GetEquippedWeaponSubType() : INDEX_NONE, bMounted);
+		Equipment ? Equipment->GetEquippedWeaponSubType() : EMT2WeaponSubType::None, bMounted);
 	if (Character->HasAuthority())
 	{
 		Character->ForceNetUpdate();

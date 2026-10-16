@@ -10,6 +10,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Skills/MT2SkillTypes.h"
 #include "UI/MT2UserWidget.h"
 #include "MT2SkillPageWidget.generated.h"
 
@@ -43,7 +44,7 @@ private:
 	UFUNCTION() void HandleGroup1Clicked();
 	UFUNCTION() void HandleGroup2Clicked();
 	UFUNCTION() void HandleSkillLevelsChanged();
-	UFUNCTION() void HandleSkillGroupChanged(int32 NewSkillGroup);
+	UFUNCTION() void HandleSkillGroupChanged(EMT2SkillGroup NewSkillGroup);
 	UFUNCTION() void HandleSkillPointsChanged(int32 OldPoints, int32 NewPoints);
 	UFUNCTION() void HandleSlotPlusClicked(int32 SkillVnum);
 	UFUNCTION() void HandleSlotClicked(int32 SkillVnum);
@@ -54,7 +55,7 @@ private:
 	void UnbindSkillComponent();
 	UMT2SkillComponent* GetSkillComponent() const;
 	AMT2PlayerState* GetOwningMT2PlayerState() const;
-	void SelectGroup(int32 Group);
+	void SelectGroup(EMT2SkillGroup Group);
 
 	UPROPERTY(Transient) TObjectPtr<UCanvasPanel> PageCanvas;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> GroupNameText;

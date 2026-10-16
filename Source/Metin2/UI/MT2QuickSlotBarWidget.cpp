@@ -221,7 +221,7 @@ bool UMT2QuickSlotBarWidget::MakeAssignmentBrush(
 			Skills ? Skills->FindSkillDefinition(Assignment.Vnum) : nullptr;
 		UTexture2D* Atlas = Definition ? Definition->IconAtlas.LoadSynchronous() : nullptr;
 		const FMT2AtlasRect Region = Definition
-			? Definition->GetIconRegion(0) : FMT2AtlasRect(0, 0, 0, 0);
+			? Definition->GetIconRegion(EMT2SkillMastery::Normal) : FMT2AtlasRect(0, 0, 0, 0);
 		if (Atlas && Region.IsValid())
 		{
 			OutBrush = FMT2UIStyle::AtlasBrush(Atlas, FMT2AtlasRegion(

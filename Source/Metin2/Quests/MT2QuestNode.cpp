@@ -783,32 +783,37 @@ EMT2QuestNodeResult UMT2QuestNode_ModifyAffect::Execute(const FMT2QuestContext& 
 
 	if (Operation == EMT2QuestAffectOperation::RemoveAllCollect)
 	{
-		Effects->RemoveEffectsByType(515); // AFFECT_COLLECT
+		Effects->RemoveEffectsByType(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Collect)); // AFFECT_COLLECT
 		return EMT2QuestNodeResult::Continue;
 	}
 	if (Operation == EMT2QuestAffectOperation::RemoveHair)
 	{
-		Effects->RemoveEffectsByType(514); // AFFECT_HAIR
+		Effects->RemoveEffectsByType(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Hair)); // AFFECT_HAIR
 		if (Context.PlayerState) Context.PlayerState->SetHairExpiry(0);
 		return EMT2QuestNodeResult::Continue;
 	}
 
 	FMT2StatusEffect Effect;
 	Effect.Kind = EMT2StatusEffectKind::StatBonus;
-	Effect.ApplyType = ResolveAmount(ApplyTypeExpression, ApplyType, Context);
+	const int32 RawApply=ResolveAmount(ApplyTypeExpression,static_cast<int32>(ApplyType),Context);
+	if (!MT2ItemSemanticTypes::TryDecodeBonus(RawApply,Effect.ApplyType))
+	{
+		UE_LOG(LogTemp,Warning,TEXT("Quest affect has unsupported APPLY ID %d; affect not applied."),RawApply);
+		return EMT2QuestNodeResult::Continue;
+	}
 	Effect.ApplyValue = ResolveAmount(ValueExpression, Value, Context);
 	Effect.RemainingSeconds = ResolveAmount(DurationExpression, DurationSeconds, Context);
 	Effect.bRemoveOnDeath = false;
 	if (Operation == EMT2QuestAffectOperation::AddHair)
 	{
-		Effect.Type = 514; // AFFECT_HAIR
+		Effect.Type = FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Hair); // AFFECT_HAIR
 		Effects->AddEffect(Effect, true);
 		if (Context.PlayerState && Effect.RemainingSeconds > 0)
 			Context.PlayerState->SetHairExpiry(FDateTime::UtcNow().ToUnixTimestamp() + Effect.RemainingSeconds);
 	}
 	else if (Operation == EMT2QuestAffectOperation::AddCollect)
 	{
-		Effect.Type = 515;
+		Effect.Type = FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Collect);
 		Effects->AddEffect(Effect, false);
 	}
 	else
@@ -816,7 +821,7 @@ EMT2QuestNodeResult UMT2QuestNode_ModifyAffect::Execute(const FMT2QuestContext& 
 		// affect.add is unique per quest and apply type in the old server. A stable combined id keeps
 		// unrelated quest bonuses from replacing each other in the shared status-effect component.
 		const uint32 QuestHash = Context.Quest ? GetTypeHash(Context.Quest->GetQuestId()) : 0;
-		Effect.Type = 100000 + static_cast<int32>((QuestHash ^ GetTypeHash(Effect.ApplyType)) & 0x3fffffff);
+		Effect.Type = FMT2AffectIdentifier::FromLegacyId(100000 + static_cast<int32>((QuestHash ^ GetTypeHash(Effect.ApplyType)) & 0x3fffffff));
 		Effects->AddEffect(Effect, true);
 	}
 	return EMT2QuestNodeResult::Continue;

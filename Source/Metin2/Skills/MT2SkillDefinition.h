@@ -13,6 +13,10 @@
 #include "Curves/CurveFloat.h"
 #include "Engine/DataAsset.h"
 #include "UI/MT2AtlasTypes.h"
+#include "Items/MT2ItemTypes.h"
+#include "Components/MT2AffectTypes.h"
+#include "Skills/MT2SkillSemanticTypes.h"
+#include "Skills/MT2SkillTypes.h"
 #include "MT2SkillDefinition.generated.h"
 
 class UAnimSequence;
@@ -85,7 +89,7 @@ enum class EMT2SkillAttackType : uint8
 };
 
 // Old server ESkillFlags (skill.h), bit-identical so imported protos map 1:1.
-UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
+UENUM(BlueprintType, meta = (Bitflags))
 enum class EMT2SkillFlag : uint8
 {
 	None = 0 UMETA(Hidden),
@@ -149,7 +153,7 @@ struct METIN2_API FMT2SkillApplyDefinition
 	// Best-effort EApplyTypes ordinal for the status-effect pipeline; 0 when no APPLY equivalent
 	// exists (HP damage is executed through the damage path, not as an apply).
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Apply")
-	int32 ApplyType = 0;
+	EMT2ItemBonusType ApplyType = EMT2ItemBonusType::None;
 
 	// Verbatim old-game poly (e.g. "-(1.1*atk + (0.3*atk + 0.5*str + wep)*k)"). Stat-dependent
 	// formulas are evaluated at cast time; ValueByLevel below can pre-bake stat-free ones.
@@ -169,7 +173,7 @@ struct METIN2_API FMT2SkillApplyDefinition
 	FRuntimeFloatCurve DurationByLevel;
 
 	// Old dwAffectFlag granted while this apply's buff runs (AFF_* ordinal bit).
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Apply")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Apply", meta=(Bitmask,BitmaskEnum="/Script/Metin2.EMT2EffectFlag"))
 	int32 AffectFlags = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Apply")
@@ -195,14 +199,14 @@ public:
 	}
 
 	UFUNCTION(BlueprintPure, Category = "Skill")
-	bool HasSkillFlag(EMT2SkillFlag Flag) const { return (Flags & (1 << static_cast<int32>(Flag))) != 0; }
+	bool HasSkillFlag(EMT2SkillFlag Flag) const { const uint8 Position=static_cast<uint8>(Flag); return Position<32 && (static_cast<uint32>(Flags) & (uint32(1)<<Position))!=0; }
 
 	// The old k variable: SkillPowerPercent(level) * MaxLevel / 100.
 	UFUNCTION(BlueprintPure, Category = "Skill")
 	float GetPowerFactor(int32 SkillLevel) const;
 
 	UFUNCTION(BlueprintPure, Category = "Skill")
-	FText GetGradeDisplayName(int32 MasteryGrade) const;
+	FText GetGradeDisplayName(EMT2SkillMastery MasteryGrade) const;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Identity", meta = (ClampMin = "1"))
 	int32 Vnum = 0;
@@ -223,7 +227,7 @@ public:
 	// Raw skilltable dwType: support=0, jobs=1..4, horse=5, anti-skills=6.
 	// INDEX_NONE identifies assets that still need the legacy metadata refresh.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Rules")
-	int32 LegacySkillType = INDEX_NONE;
+	FMT2LegacySkillClassSelection LegacySkillType;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Identity")
 	EMT2SkillAttackType AttackType = EMT2SkillAttackType::Normal;
@@ -238,13 +242,13 @@ public:
 	TArray<FMT2AtlasRect> IconRegionsByGrade;
 
 	UFUNCTION(BlueprintPure, Category = "Skill")
-	FMT2AtlasRect GetIconRegion(int32 MasteryGrade) const
+	FMT2AtlasRect GetIconRegion(EMT2SkillMastery MasteryGrade) const
 	{
 		if (IconRegionsByGrade.IsEmpty())
 		{
 			return FMT2AtlasRect(0.0f, 0.0f, 0.0f, 0.0f);
 		}
-		return IconRegionsByGrade[FMath::Clamp(MasteryGrade, 0, IconRegionsByGrade.Num() - 1)];
+		return IconRegionsByGrade[FMath::Clamp(static_cast<int32>(MasteryGrade), 0, IconRegionsByGrade.Num() - 1)];
 	}
 
 	// Raw skilldesc ATTRIBUTE column (e.g. "ATTACK_SKILL|NEED_TARGET|WEAPON_LIMITATION") - the
@@ -335,5 +339,5 @@ public:
 	TArray<FMT2SkillGradeAnimation> CastAnimationsByGrade;
 
 	UFUNCTION(BlueprintPure, Category = "Skill")
-	TSoftObjectPtr<UAnimSequence> GetCastAnimation(int32 MasteryGrade, bool bFemale) const;
+	TSoftObjectPtr<UAnimSequence> GetCastAnimation(EMT2SkillMastery MasteryGrade, bool bFemale) const;
 };

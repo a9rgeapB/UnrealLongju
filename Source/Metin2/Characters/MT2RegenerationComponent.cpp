@@ -70,7 +70,7 @@ bool UMT2RegenerationComponent::IsMageProfile() const
 		return true;
 	}
 	return Race == EMT2CharacterRace::Sura &&
-		State->GetSkillComponent() && State->GetSkillComponent()->GetSkillGroup() == 2;
+		State->GetSkillComponent() && State->GetSkillComponent()->GetSkillGroup() == EMT2SkillGroup::Second;
 }
 
 void UMT2RegenerationComponent::TickRegen()

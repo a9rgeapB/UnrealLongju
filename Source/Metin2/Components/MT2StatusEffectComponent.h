@@ -12,6 +12,8 @@
 #include "Components/ActorComponent.h"
 #include "CoreMinimal.h"
 #include "TimerManager.h"
+#include "Components/MT2AffectTypes.h"
+#include "Items/MT2ItemTypes.h"
 #include "MT2StatusEffectComponent.generated.h"
 
 class UMT2StatusEffectDefinition;
@@ -48,7 +50,7 @@ struct METIN2_API FMT2StatusEffect
 
 	// Affect id (skill vnum for skill buffs, or a dedicated AFFECT_* id for potions/etc).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Status Effect")
-	int32 Type = 0;
+	FMT2AffectIdentifier Type;
 
 	// Item that granted this effect. Keeps item-driven affects distinct in the UI even when the old
 	// protocol reuses one affect id, and lets the tooltip resolve the original localized item text.
@@ -58,13 +60,13 @@ struct METIN2_API FMT2StatusEffect
 
 	// EApplyTypes ordinal (APPLY_ATT_SPEED=7, APPLY_MOV_SPEED=8, ... enums.h:441).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Status Effect")
-	int32 ApplyType = 0;
+	EMT2ItemBonusType ApplyType = EMT2ItemBonusType::None;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Status Effect")
 	int32 ApplyValue = 0;
 
 	// AFF_* bitmask (stun/poison/invisibility...); purely data for now, consumers filter on it.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Status Effect")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Status Effect", meta=(Bitmask,BitmaskEnum="/Script/Metin2.EMT2EffectFlag"))
 	int32 Flags = 0;
 
 	// Seconds left. Negative = infinite (never expires; the old game faked this with huge values).
@@ -114,7 +116,7 @@ public:
 
 	// Server-only. Removes every effect with the given affect id. Returns how many were removed.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Status Effects")
-	int32 RemoveEffectsByType(int32 Type);
+	int32 RemoveEffectsByType(FMT2AffectIdentifier Type);
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Status Effects")
 	void ClearAllEffects();
@@ -126,22 +128,22 @@ public:
 	const TArray<FMT2StatusEffect>& GetEffects() const { return Effects; }
 
 	UFUNCTION(BlueprintPure, Category = "Status Effects")
-	bool HasEffectFlag(int32 Flag) const;
+	bool HasEffectFlag(EMT2EffectFlag Flag) const;
 
 	// True when any active effect uses the given behaviour kind (used to block non-stacking re-use).
 	UFUNCTION(BlueprintPure, Category = "Status Effects")
 	bool HasEffectOfKind(EMT2StatusEffectKind Kind) const;
 
 	UFUNCTION(BlueprintPure, Category = "Status Effects")
-	bool HasEffectType(int32 Type) const;
+	bool HasEffectType(FMT2AffectIdentifier Type) const;
 
 	// Magnitude (ApplyValue) of the first active effect with this affect id, or 0. Lets a repeated
 	// potion drink merge into one recovery pool instead of stacking separate, faster-draining effects.
 	UFUNCTION(BlueprintPure, Category = "Status Effects")
-	int32 GetEffectValueByType(int32 Type) const;
+	int32 GetEffectValueByType(FMT2AffectIdentifier Type) const;
 
 	// Server-only value refresh for externally-owned effects such as an automatic potion reservoir.
-	bool UpdateEffectValueByType(int32 Type, int32 NewValue);
+	bool UpdateEffectValueByType(FMT2AffectIdentifier Type, int32 NewValue);
 
 	// Server-only bulk replace used by persistence restore (no per-effect notifications, one broadcast).
 	void RestoreEffects(const TArray<FMT2StatusEffect>& SavedEffects);

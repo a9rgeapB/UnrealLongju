@@ -10,6 +10,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Animation/MT2MotionTypes.h"
 #include "Combat/MT2DamageTypes.h"
 #include "Components/ActorComponent.h"
 #include "TimerManager.h"
@@ -39,7 +40,7 @@ public:
 	AActor* PerformBasicAttack();
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Combat")
-	bool PerformBasicAttackOnTarget(AActor* TargetActor, float ExternalForce = 0, int32 HittingType = 2);
+	bool PerformBasicAttackOnTarget(AActor* TargetActor, float ExternalForce = 0, EMT2MotionHittingType HittingType = EMT2MotionHittingType::Normal);
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Combat")
 	void ConfigureBasicAttack(float Range, float Radius, float Damage, float Interval, int32 ComboLength = 1);
@@ -129,7 +130,7 @@ public:
 
 	// Knockback distance for the next landed hit, in old-game sliding units. Set from the attack
 	// motion's .msa ExternalForce (combo finishers) or a skill's CRUSH flags; consumed per hit.
-	void SetPendingKnockback(float Distance, float Duration = 0, bool bSideways = false, int32 HittingType = 2, bool bSyncPush = false)
+	void SetPendingKnockback(float Distance, float Duration = 0, bool bSideways = false, EMT2MotionHittingType HittingType = EMT2MotionHittingType::Normal, bool bSyncPush = false)
 	{
 		PendingKnockbackDistance = FMath::IsFinite(Distance) ? FMath::Max(Distance, 0.0f) : 0.f;
 		PendingKnockbackDuration = Duration;
@@ -200,7 +201,7 @@ private:
 	float PendingKnockbackDistance = 0.0f;
 	float PendingKnockbackDuration = 0.f;
 	bool bPendingKnockbackSideways = false;
-	int32 PendingHittingType = 2;
+	EMT2MotionHittingType PendingHittingType = EMT2MotionHittingType::Normal;
 	bool bPendingSyncPush = false;
 
 	// Replicated so the server (set-on-hit) and the owning client (click, and the target ring) agree

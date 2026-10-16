@@ -112,7 +112,7 @@ void UMT2EquipmentComponent::EquipHair(
 
 void UMT2EquipmentComponent::EquipWeapon(
 	TSoftObjectPtr<UStaticMesh> Weapon, FName AttachBone,
-	int32 WeaponSubType, int32 RefinementLevel)
+	EMT2WeaponSubType WeaponSubType, int32 RefinementLevel)
 {
 	WeaponAttachBone = AttachBone.IsNone() ? FName(TEXT("equip_right")) : AttachBone;
 	EquippedWeaponSubType = WeaponSubType;
@@ -150,7 +150,7 @@ void UMT2EquipmentComponent::EquipWeapon(
 
 void UMT2EquipmentComponent::UnequipWeapon()
 {
-	EquippedWeaponSubType = INDEX_NONE;
+	EquippedWeaponSubType = EMT2WeaponSubType::None;
 	EquippedWeaponRefinementLevel = 0;
 	ClearWeaponGlitter();
 	++WeaponRequestId;
@@ -364,15 +364,15 @@ TArray<TSoftObjectPtr<UParticleSystem>> UMT2EquipmentComponent::ResolveWeaponGli
 		TSoftObjectPtr<UParticleSystem> Effect;
 		switch (EquippedWeaponSubType)
 		{
-		case 1:
-		case 4:
-		case 6:
+		case EMT2WeaponSubType::Dagger:
+		case EMT2WeaponSubType::Bell:
+		case EMT2WeaponSubType::Arrow:
 			Effect = Set->SmallWeapon;
 			break;
-		case 2:
+		case EMT2WeaponSubType::Bow:
 			Effect = Set->Bow;
 			break;
-		case 5:
+		case EMT2WeaponSubType::Fan:
 			Effect = Set->FanBell;
 			break;
 		default:
@@ -414,7 +414,7 @@ void UMT2EquipmentComponent::GetWeaponGlitterRelativeTransform(
 
 	// The old client uses the same sword effect for one-hand and two-hand swords. Fit its authored
 	// local-Z emitter volume to the actual imported weapon length so both categories remain covered.
-	const bool bUsesSwordEffect = EquippedWeaponSubType == 0 || EquippedWeaponSubType == 3;
+	const bool bUsesSwordEffect = EquippedWeaponSubType == EMT2WeaponSubType::Sword || EquippedWeaponSubType == EMT2WeaponSubType::TwoHanded;
 	const UStaticMesh* WeaponMesh =
 		WeaponMeshComponent ? WeaponMeshComponent->GetStaticMesh() : nullptr;
 	if (!bUsesSwordEffect || !WeaponMesh)
@@ -639,7 +639,7 @@ bool UMT2EquipmentComponent::AttachWeaponMeshToBody()
 bool UMT2EquipmentComponent::UsesPairedWeaponVisual() const
 {
 	// Original weapon subtypes: 1 = dagger/knife, 5 = fan. Both use a second copy in the left hand.
-	return EquippedWeaponSubType == 1 || EquippedWeaponSubType == 5;
+	return EquippedWeaponSubType == EMT2WeaponSubType::Dagger || EquippedWeaponSubType == EMT2WeaponSubType::Fan;
 }
 
 bool UMT2EquipmentComponent::AttachLeftWeaponMeshToBody()

@@ -217,7 +217,7 @@ namespace
 		Definition.AIFlags = static_cast<int32>(Record.AIFlags);
 		Definition.RaceFlags = static_cast<int32>(Record.RaceFlags);
 		Definition.ImmuneFlags = static_cast<int32>(Record.ImmuneFlags);
-		Definition.Empire = Record.Empire;
+		Definition.Empire = static_cast<EMT2Empire>(Record.Empire);
 		Definition.Strength = Record.Strength;
 		Definition.Dexterity = Record.Dexterity;
 		Definition.Constitution = Record.Constitution;
@@ -227,7 +227,7 @@ namespace
 		Definition.MaxHealth = FMath::Max<int32>(static_cast<int32>(Record.MaxHealth), 1);
 		Definition.RegenerationCycle = Record.RegenerationCycle;
 		Definition.RegenerationPercent = Record.RegenerationPercent;
-		Definition.OnClickType = Record.OnClickType;
+		Definition.OnClickType = static_cast<EMT2NpcOnClickType>(FMath::Clamp<int32>(Record.OnClickType,0,2));
 		Definition.GoldMin = static_cast<int64>(Record.GoldMin);
 		Definition.GoldMax = static_cast<int64>(Record.GoldMax);
 		Definition.ExperienceReward = static_cast<int64>(Record.Experience);

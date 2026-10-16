@@ -5,6 +5,14 @@ Sources studied: `client_src/source/common/tables.h` (SItemTable), `client_src/s
 `client_src/source/GameLib/ItemManager.cpp`, `Dumps/GF_v21.4.11/root/uiscript/inventorywindow.py`,
 `Dumps/my_dump/locale/it/item_proto` + `item_list.txt`.
 
+## Current Unreal authoring
+
+Item types, bonus types, limits, and concrete template subtypes use named enums with explicit legacy values. Generic `FMT2ItemDefinition` records use `FMT2ItemSubtype`: select the item family and its corresponding named subtype, or use the Blueprint family constructors / `SetItemSubtype` helper to keep both consistent. The same numeric subtype can mean different things in different families.
+
+Combinable item, anti, wear, immunity, and bonus-target flags remain `int32` masks with named flag choices and Blueprint make/test helpers. Item addon selection preserves the legacy signed `-1` value; unsupported imported addon and unique-subtype IDs are retained rather than changed to zero.
+
+Required Metin socket grade (`Silver=1`, `Gold=2`) and socket kind (`Silver=0`, `Gold=1`) are distinct domains. Stone conflict groups, VNUMs, inventory cells, and shape IDs remain numeric identifiers, not closed type selectors.
+
 ## Historical item_proto record (TItemTable, 162 bytes packed)
 
 Key fields: vnum, name[25], localeName[25], type, subType, weight, **size** (grid height in cells,

@@ -441,10 +441,10 @@ bool UMT2MobAIComponent::IsValidTarget(const AActor* Candidate) const
 		const AMT2PlayerState* PlayerState = Player->GetPlayerState<AMT2PlayerState>();
 		if (PlayerState)
 		{
-			const int32 PlayerEmpire = static_cast<int32>(PlayerState->GetEmpire());
-			if ((PlayerEmpire == 1 && HasAIFlag(AIFlags, EMT2MobAIFlag::NoAttackShinsoo)) ||
-				(PlayerEmpire == 2 && HasAIFlag(AIFlags, EMT2MobAIFlag::NoAttackChunjo)) ||
-				(PlayerEmpire == 3 && HasAIFlag(AIFlags, EMT2MobAIFlag::NoAttackJinno)))
+			const EMT2Empire PlayerEmpire = PlayerState->GetEmpire();
+			if ((PlayerEmpire == EMT2Empire::Shinsoo && HasAIFlag(AIFlags, EMT2MobAIFlag::NoAttackShinsoo)) ||
+				(PlayerEmpire == EMT2Empire::Chunjo && HasAIFlag(AIFlags, EMT2MobAIFlag::NoAttackChunjo)) ||
+				(PlayerEmpire == EMT2Empire::Jinno && HasAIFlag(AIFlags, EMT2MobAIFlag::NoAttackJinno)))
 			{
 				return false;
 			}

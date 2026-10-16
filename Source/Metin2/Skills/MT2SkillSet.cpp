@@ -61,7 +61,7 @@ UMT2SkillDefinition* UMT2SkillSet::FindSkill(int32 SkillVnum) const
 	return nullptr;
 }
 
-UMT2SkillSet* UMT2SkillSet::FindSkillSet(EMT2CharacterRace Race, int32 GroupIndex)
+UMT2SkillSet* UMT2SkillSet::FindSkillSet(EMT2CharacterRace Race, EMT2SkillGroup GroupIndex)
 {
 	for (UMT2SkillSet* SkillSet : LoadAllSkillSets())
 	{

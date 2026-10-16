@@ -99,7 +99,7 @@ EMT2AccessorySocketApplyResult UMT2InventoryComponent::ApplyAccessoryMaterialWit
 	if (!IsMaterial(Material) || !Compatible(Material, ResolveTemplate(ExpectedTarget.Vnum)))
 	{ return EMT2AccessorySocketApplyResult::Incompatible; }
 	auto SocketState = Normalize(Targets[TargetSlot].AccessorySockets);
-	const bool bOpening = Material->UseSubType == 20;
+	const bool bOpening = Material->UseSubType == EMT2UseSubType::AddAccessorySocket;
 	if ((bOpening && SocketState.MaximumGrade == 3) || (!bOpening && SocketState.CurrentGrade >= SocketState.MaximumGrade))
 	{ return EMT2AccessorySocketApplyResult::Full; }
 	const bool bSuccess = Roll <= (bOpening ? 50 : InsertionChance(SocketState.CurrentGrade));

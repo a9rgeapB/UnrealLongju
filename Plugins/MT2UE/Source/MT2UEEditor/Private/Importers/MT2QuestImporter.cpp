@@ -2362,10 +2362,10 @@ namespace
 			return true;
 		}
 		// pc.get_empire()
-		if (Left.Contains(TEXT("pc.get_empire")) || Left == TEXT("pc.empire"))
+		if ((Left.Contains(TEXT("pc.get_empire")) || Left == TEXT("pc.empire")) && RightValue>=0 && RightValue<=3)
 		{
 			UMT2QuestCondition_Empire* Condition = NewObject<UMT2QuestCondition_Empire>(State.Outer);
-			Condition->Empire = RightValue;
+			Condition->Empire = static_cast<EMT2Empire>(RightValue);
 			Condition->bInvert = (Comparison == EMT2QuestCompare::NotEqual);
 			OutConditions.Add(Condition);
 			return true;
@@ -3877,7 +3877,11 @@ namespace
 						Node->Operation = bQuestAffect ? EMT2QuestAffectOperation::AddQuest
 							: (bHairAffect ? EMT2QuestAffectOperation::AddHair
 								: EMT2QuestAffectOperation::AddCollect);
-						Node->ApplyType = ApplyType;
+						if (!MT2ItemSemanticTypes::TryDecodeBonus(ApplyType,Node->ApplyType))
+						{
+							// Preserve an unsupported literal for the checked script boundary; never narrow it.
+							Node->ApplyTypeExpression=LexToString(ApplyType);
+						}
 						if (!bStaticType) Node->ApplyTypeExpression = Parts[0];
 						Node->ValueExpression = Parts[1];
 						Node->DurationExpression = Parts[2];

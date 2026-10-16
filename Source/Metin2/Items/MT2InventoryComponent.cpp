@@ -145,8 +145,8 @@ int32 UMT2InventoryComponent::GetWearPosition(int32 Vnum) const
 	// These item types select equipment positions independently of item_proto's wearable mask.
 	if (const UMT2ItemCostumeTemplate* Costume = Cast<UMT2ItemCostumeTemplate>(EquipmentTemplate))
 	{
-		if (Costume->CostumeSubType == 0) return static_cast<int32>(EMT2ItemWearFlag::CostumeBody);
-		if (Costume->CostumeSubType == 1) return static_cast<int32>(EMT2ItemWearFlag::CostumeHair);
+		if (Costume->CostumeSubType == EMT2CostumeSubType::Body) return static_cast<int32>(EMT2ItemWearFlag::CostumeBody);
+		if (Costume->CostumeSubType == EMT2CostumeSubType::Hair) return static_cast<int32>(EMT2ItemWearFlag::CostumeHair);
 		return INDEX_NONE;
 	}
 	if (EquipmentTemplate->IsA<UMT2ItemRingTemplate>())
@@ -652,9 +652,9 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 	if (bCooldownBypassItem || bGuaranteedReadItem)
 	{
 		UMT2StatusEffectComponent* StatusEffects = Character->GetStatusEffectComponent();
-		const int32 AffectType = bCooldownBypassItem
-			? MT2AffectId::SkillBookNoCooldown
-			: MT2AffectId::SkillBookGuaranteedSuccess;
+		const FMT2AffectIdentifier AffectType = bCooldownBypassItem
+			? FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookNoCooldown)
+			: FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookGuaranteedSuccess);
 		if (!StatusEffects || StatusEffects->HasEffectType(AffectType))
 		{
 			return false;
@@ -668,9 +668,9 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 	}
 	else switch (UseTemplate->UseSubType)
 	{
-	case 6: // USE_BAIT
+	case EMT2UseSubType::Bait: // USE_BAIT
 		return ApplyFishingBait(InventorySlot);
-	case 0: // USE_POTION: add VALUE0 HP / VALUE1 SP into a single over-time recovery pool per resource.
+	case EMT2UseSubType::Potion: // USE_POTION: add VALUE0 HP / VALUE1 SP into a single over-time recovery pool per resource.
 	{
 		UMT2StatusEffectComponent* StatusEffects = Character->GetStatusEffectComponent();
 		if (!StatusEffects)
@@ -681,7 +681,7 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 		// (current + pool) never exceeds the maximum, and the pool drains at a constant rate regardless
 		// of how many potions are queued. Taking damage lowers current, so the reachable target follows
 		// it down automatically. Rejected (no consume) once current+pending already reaches the max.
-		const auto QueueRecovery = [&](EMT2StatusEffectKind Kind, int32 AffectType, int32 Amount, float Current, float Max)
+		const auto QueueRecovery = [&](EMT2StatusEffectKind Kind, FMT2AffectIdentifier AffectType, int32 Amount, float Current, float Max)
 		{
 			if (Amount <= 0)
 			{
@@ -706,17 +706,17 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 		};
 		if (UMT2HealthComponent* Health = Character->GetHealthComponent())
 		{
-			QueueRecovery(EMT2StatusEffectKind::HealthRecovery, MT2AffectId::HealthRecovery,
+			QueueRecovery(EMT2StatusEffectKind::HealthRecovery, FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::HealthRecovery),
 				UseTemplate->HealthRecovery, Health->GetHealth(), Health->GetMaxHealth());
 		}
 		if (UMT2ManaComponent* Mana = Character->GetManaComponent())
 		{
-			QueueRecovery(EMT2StatusEffectKind::ManaRecovery, MT2AffectId::ManaRecovery,
+			QueueRecovery(EMT2StatusEffectKind::ManaRecovery, FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::ManaRecovery),
 				UseTemplate->ManaRecovery, Mana->GetMana(), Mana->GetMaxMana());
 		}
 		break;
 	}
-	case 7: // USE_ABILITY_UP: VALUE0=apply type, VALUE1=duration(s), VALUE2=magnitude(%). Non-stacking.
+	case EMT2UseSubType::AbilityUp: // USE_ABILITY_UP: VALUE0=apply type, VALUE1=duration(s), VALUE2=magnitude(%). Non-stacking.
 	{
 		UMT2StatusEffectComponent* StatusEffects = Character->GetStatusEffectComponent();
 		if (!StatusEffects || UseTemplate->BuffDurationSeconds <= 0)
@@ -725,7 +725,7 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 		}
 		FMT2StatusEffect Effect;
 		Effect.SourceItemVnum = ItemVnum;
-		Effect.ApplyType = static_cast<int32>(UseTemplate->GrantedBonus);
+		Effect.ApplyType = UseTemplate->GrantedBonus;
 		Effect.ApplyValue = UseTemplate->GrantedBonusValue;
 		Effect.RemainingSeconds = UseTemplate->BuffDurationSeconds;
 		Effect.bRemoveOnDeath = true;
@@ -733,12 +733,12 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 		if (UseTemplate->GrantedBonus == EMT2ItemBonusType::AttackSpeed)
 		{
 			Effect.Kind = EMT2StatusEffectKind::AttackSpeed;
-			Effect.Type = MT2AffectId::AttackSpeed;
+			Effect.Type = FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::AttackSpeed);
 		}
 		else if (UseTemplate->GrantedBonus == EMT2ItemBonusType::MovementSpeed)
 		{
 			Effect.Kind = EMT2StatusEffectKind::MovementSpeed;
-			Effect.Type = MT2AffectId::MovementSpeed;
+			Effect.Type = FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::MovementSpeed);
 		}
 		else
 		{
@@ -747,16 +747,16 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 		bUsed = StatusEffects->AddEffect(Effect, false); // rejected (false) if the buff is still active
 		break;
 	}
-	case 8: // USE_AFFECT: VALUE0=affect id, VALUE1=apply type, VALUE2=value, VALUE3=duration.
+	case EMT2UseSubType::Affect: // USE_AFFECT: VALUE0=affect id, VALUE1=apply type, VALUE2=value, VALUE3=duration.
 	{
 		UMT2StatusEffectComponent* StatusEffects = Character->GetStatusEffectComponent();
-		if (!StatusEffects || UseTemplate->AffectType <= 0 ||
+		if (!StatusEffects || UseTemplate->AffectType.ToLegacyId() <= 0 ||
 			UseTemplate->GrantedBonus == EMT2ItemBonusType::None ||
 			UseTemplate->BuffDurationSeconds <= 0)
 		{
 			return false;
 		}
-		const int32 ApplyType = static_cast<int32>(UseTemplate->GrantedBonus);
+		const EMT2ItemBonusType ApplyType = UseTemplate->GrantedBonus;
 		if (StatusEffects->GetEffects().ContainsByPredicate(
 			[UseTemplate, ApplyType](const FMT2StatusEffect& Existing)
 			{
@@ -776,13 +776,13 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 		bUsed = StatusEffects->AddEffect(Effect, false);
 		break;
 	}
-	case 10: // USE_SPECIAL: toggle a finite automatic HP/MP recovery reservoir.
+	case EMT2UseSubType::Special: // USE_SPECIAL: toggle a finite automatic HP/MP recovery reservoir.
 	{
 		const UMT2ItemAutoRecoveryTemplate* AutoRecovery =
 			Cast<UMT2ItemAutoRecoveryTemplate>(UseTemplate);
 		return AutoRecovery && ToggleAutoRecoveryItem(InventorySlot, *AutoRecovery);
 	}
-	case 11: // USE_POTION_NODELAY: instant flat (VALUE0/1) + percent-of-max (VALUE3/4) HP/SP restore.
+	case EMT2UseSubType::PotionNoDelay: // USE_POTION_NODELAY: instant flat (VALUE0/1) + percent-of-max (VALUE3/4) HP/SP restore.
 	{
 		if (UMT2HealthComponent* Health = Character->GetHealthComponent())
 		{
@@ -1028,9 +1028,9 @@ bool UMT2InventoryComponent::CopyAndReplaceQuestItemWithTemplates(
 	const UMT2ItemArmorTemplate* SourceArmor = Cast<UMT2ItemArmorTemplate>(SourceTemplate);
 	const UMT2ItemArmorTemplate* ResultArmor = Cast<UMT2ItemArmorTemplate>(ResultTemplate);
 	const bool bAccessory = SourceTemplate->IsA<UMT2ItemBeltTemplate>() || (SourceArmor &&
-		(SourceArmor->ArmorSubType == 3 || SourceArmor->ArmorSubType == 5 || SourceArmor->ArmorSubType == 6));
+		(SourceArmor->ArmorSubType == EMT2ArmorSubType::Wrist || SourceArmor->ArmorSubType == EMT2ArmorSubType::Neck || SourceArmor->ArmorSubType == EMT2ArmorSubType::Ear));
 	const bool bResultAccessory = ResultTemplate->IsA<UMT2ItemBeltTemplate>() || (ResultArmor &&
-		(ResultArmor->ArmorSubType == 3 || ResultArmor->ArmorSubType == 5 || ResultArmor->ArmorSubType == 6));
+		(ResultArmor->ArmorSubType == EMT2ArmorSubType::Wrist || ResultArmor->ArmorSubType == EMT2ArmorSubType::Neck || ResultArmor->ArmorSubType == EMT2ArmorSubType::Ear));
 	if (bAccessory != bResultAccessory || ExpectedSource.MetinSockets.Num() > 3) { return false; }
 
 	FMT2ItemSlot Replacement;

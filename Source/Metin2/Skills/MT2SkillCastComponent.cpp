@@ -84,7 +84,7 @@ FMT2SkillCastResult UMT2SkillCastComponent::TryUseSkill(int32 SkillVnum)
 	UMT2StatusEffectComponent* StatusEffects = Player->GetStatusEffectComponent();
 
 	// Toggle skills with the buff running simply turn off - no cost, no cooldown (old UseSkill).
-	if (bToggle && StatusEffects && StatusEffects->RemoveEffectsByType(SkillVnum) > 0)
+	if (bToggle && StatusEffects && StatusEffects->RemoveEffectsByType(FMT2AffectIdentifier::FromSkillVnum(SkillVnum)) > 0)
 	{
 		return Result;
 	}
@@ -211,7 +211,7 @@ FMT2SkillCastResult UMT2SkillCastComponent::TryUseSkill(int32 SkillVnum)
 			}
 
 			FMT2StatusEffect& Effect = PendingEffects.AddDefaulted_GetRef();
-			Effect.Type = SkillVnum;
+			Effect.Type = FMT2AffectIdentifier::FromSkillVnum(SkillVnum);
 			Effect.ApplyType = Apply.ApplyType;
 			Effect.ApplyValue = FMath::RoundToInt(Value);
 			Effect.Flags = Apply.AffectFlags;
@@ -221,7 +221,7 @@ FMT2SkillCastResult UMT2SkillCastComponent::TryUseSkill(int32 SkillVnum)
 			// carry the atlas texture + the current grade's sub-region (the bar draws just that region).
 			Effect.Icon = Definition->IconAtlas;
 			const int32 IconGrade = FMath::Min(static_cast<int32>(Skills->GetSkillMastery(SkillVnum)), 2);
-			const FMT2AtlasRect IconRegion = Definition->GetIconRegion(IconGrade);
+			const FMT2AtlasRect IconRegion = Definition->GetIconRegion(static_cast<EMT2SkillMastery>(IconGrade));
 			Effect.IconRegion = FVector4(IconRegion.X, IconRegion.Y, IconRegion.Width, IconRegion.Height);
 			if (Effect.Icon.IsNull() || !IconRegion.IsValid())
 			{
@@ -236,7 +236,7 @@ FMT2SkillCastResult UMT2SkillCastComponent::TryUseSkill(int32 SkillVnum)
 			// One skill may carry several applies (Berserk: attack + movement speed, Strong Body:
 			// defence + movement penalty). Replace the old group, then keep every apply as a
 			// separate record sharing one skill id; the UI deduplicates that id to one icon.
-			StatusEffects->RemoveEffectsByType(SkillVnum);
+			StatusEffects->RemoveEffectsByType(FMT2AffectIdentifier::FromSkillVnum(SkillVnum));
 			for (const FMT2StatusEffect& Effect : PendingEffects)
 			{
 				StatusEffects->AddEffect(Effect, false);
@@ -267,11 +267,13 @@ bool UMT2SkillCastComponent::PassesWeaponLimitation(const UMT2SkillDefinition* D
 		return true;
 	}
 
-	static const TMap<FString, int32> WeaponSubTypes = {
-		{TEXT("SWORD"), 0}, {TEXT("DAGGER"), 1}, {TEXT("DOUBLE_SWORD"), 1}, {TEXT("BOW"), 2},
-		{TEXT("TWO_HANDED"), 3}, {TEXT("BELL"), 4}, {TEXT("FAN"), 5}, {TEXT("ARROW"), 6}};
+	static const TMap<FString, EMT2WeaponSubType> WeaponSubTypes = {
+		{TEXT("SWORD"), EMT2WeaponSubType::Sword}, {TEXT("DAGGER"), EMT2WeaponSubType::Dagger},
+		{TEXT("DOUBLE_SWORD"), EMT2WeaponSubType::Dagger}, {TEXT("BOW"), EMT2WeaponSubType::Bow},
+		{TEXT("TWO_HANDED"), EMT2WeaponSubType::TwoHanded}, {TEXT("BELL"), EMT2WeaponSubType::Bell},
+		{TEXT("FAN"), EMT2WeaponSubType::Fan}, {TEXT("ARROW"), EMT2WeaponSubType::Arrow}};
 
-	int32 EquippedSubType = INDEX_NONE;
+	EMT2WeaponSubType EquippedSubType = EMT2WeaponSubType::None;
 	const AMT2PlayerCharacter* Player = GetPlayer();
 	const UMT2InventoryComponent* Inventory = Player ? Player->GetInventoryComponent() : nullptr;
 	static const TArray<FMT2ItemSlot> EmptyEquipment;
@@ -300,9 +302,9 @@ bool UMT2SkillCastComponent::PassesWeaponLimitation(const UMT2SkillDefinition* D
 		Name.TrimStartAndEndInline();
 		if (Name == TEXT("EMPTY_HAND"))
 		{
-			bWeaponAllowed |= EquippedSubType == INDEX_NONE;
+			bWeaponAllowed |= EquippedSubType == EMT2WeaponSubType::None;
 		}
-		else if (const int32* SubType = WeaponSubTypes.Find(Name))
+		else if (const EMT2WeaponSubType* SubType = WeaponSubTypes.Find(Name))
 		{
 			bWeaponAllowed |= EquippedSubType == *SubType;
 		}
@@ -352,7 +354,7 @@ void UMT2SkillCastComponent::ScheduleSkillDamage(
 	const bool bFemale = Player->GetPlayerState<AMT2PlayerState>()
 		&& Player->GetPlayerState<AMT2PlayerState>()->GetCharacterAppearance().Sex == EMT2CharacterSex::Female;
 	UAnimSequence* CastAnimation =
-		Cast<UAnimSequence>(Definition->GetCastAnimation(MasteryGrade, bFemale).LoadSynchronous());
+		Cast<UAnimSequence>(Definition->GetCastAnimation(static_cast<EMT2SkillMastery>(MasteryGrade), bFemale).LoadSynchronous());
 	const UMT2AnimationMotionData* MotionData =
 		CastAnimation ? CastAnimation->GetAssetUserData<UMT2AnimationMotionData>() : nullptr;
 
@@ -370,7 +372,7 @@ void UMT2SkillCastComponent::ScheduleSkillDamage(
 			FMT2MotionAttackEvent& Event = HitEvents.AddDefaulted_GetRef();
 			Event.TimeSeconds = HitTime;
 			Event.ExternalForce = MotionData ? MotionData->ExternalForce : 0.f;
-			Event.HittingType = MotionData ? MotionData->HittingType : 2;
+			Event.HittingType = MotionData ? MotionData->HittingType : EMT2MotionHittingType::Normal;
 		}
 	}
 
@@ -404,7 +406,7 @@ float UMT2SkillCastComponent::GetSkillCastDuration(
 	}
 	const bool bFemale = State && State->GetCharacterAppearance().Sex == EMT2CharacterSex::Female;
 	UAnimSequence* CastAnimation =
-		Cast<UAnimSequence>(Definition->GetCastAnimation(MasteryGrade, bFemale).LoadSynchronous());
+		Cast<UAnimSequence>(Definition->GetCastAnimation(static_cast<EMT2SkillMastery>(MasteryGrade), bFemale).LoadSynchronous());
 	if (!CastAnimation)
 	{
 		return MinCastLock;
@@ -528,17 +530,17 @@ void UMT2SkillCastComponent::ApplySkillDamageToTargets(
 	float SkillKnockback = 0.f;
 	// ActorInstanceSync::__Push uses SetBlendingPosition's authored one-second default.
 	float KnockbackDuration = 1.f;
-	int32 HittingType = HitEvent.HittingType;
+	EMT2MotionHittingType HittingType = HitEvent.HittingType;
 	const bool bCrush = Definition->HasSkillFlag(EMT2SkillFlag::Crush) || Definition->HasSkillFlag(EMT2SkillFlag::CrushLong);
 	if (bCrush)
 	{
 		SkillKnockback = Definition->HasSkillFlag(EMT2SkillFlag::CrushLong) ? 400.f : 200.f;
 		// Sync pushes longer than 150 units queue front knockdown + stand-up in the old client.
-		HittingType = 1;
+		HittingType = EMT2MotionHittingType::Knockdown;
 	}
 	else
 	{
-		SkillKnockback = HittingType != 0 ? UMT2CombatComponent::MotionKnockbackDistance(HitEvent.ExternalForce) : 0.f;
+		SkillKnockback = HittingType != EMT2MotionHittingType::None ? UMT2CombatComponent::MotionKnockbackDistance(HitEvent.ExternalForce) : 0.f;
 		KnockbackDuration = UMT2CombatComponent::MotionKnockbackDuration;
 	}
 

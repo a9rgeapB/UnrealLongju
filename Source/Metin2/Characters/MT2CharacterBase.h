@@ -11,6 +11,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Items/MT2ItemSemanticTypes.h"
 #include "MT2CharacterBase.generated.h"
 
 class UMT2CombatComponent;
@@ -115,7 +116,7 @@ public:
 	void SetAnimationSet(FName NewAnimationSet);
 
 	UFUNCTION(BlueprintCallable, Category = "Animation")
-	void SetWeaponAnimationSet(int32 WeaponSubType, bool bMounted);
+	void SetWeaponAnimationSet(EMT2WeaponSubType WeaponSubType, bool bMounted);
 
 	// Authoritative action playback shared by attacks and skills. The action identity is sent instead
 	// of an asset reference so every client resolves it from its race/gender animation profile.

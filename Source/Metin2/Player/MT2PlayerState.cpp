@@ -567,7 +567,7 @@ void AMT2PlayerState::ServerSpendStatPoint_Implementation(EMT2PrimaryStat Stat)
 		return;
 	}
 
-	constexpr int32 MaximumBaseStat = 90;
+	constexpr int32 MaximumBaseStat = 150;
 	FMT2PrimaryStats Stats = PrimaryStatsComponent->GetBaseStats();
 	int32* SelectedStat = nullptr;
 	switch (Stat)
@@ -724,8 +724,8 @@ void AMT2PlayerState::ExpireHair()
 	SetHairShape(0);
 	SetHairExpiry(0);
 	if (AMT2PlayerCharacter* Character = Cast<AMT2PlayerCharacter>(GetPawn()))
-		Character->GetStatusEffectComponent()->RemoveEffectsByType(514);
-	PendingRestoredStatusEffects.RemoveAll([](const FMT2StatusEffect& Effect) { return Effect.Type == 514; });
+		Character->GetStatusEffectComponent()->RemoveEffectsByType(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Hair));
+	PendingRestoredStatusEffects.RemoveAll([](const FMT2StatusEffect& Effect) { return Effect.Type == FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Hair); });
 }
 
 bool AMT2PlayerState::SetEmpire(EMT2Empire NewEmpire)
@@ -983,7 +983,7 @@ FString AMT2PlayerState::CapturePersistentStateJson_Implementation() const
 		SkillValues.Add(MakeShared<FJsonValueObject>(SkillObject));
 	}
 	Root->SetArrayField(TEXT("skills"), SkillValues);
-	Root->SetNumberField(TEXT("skill_group"), SkillComponent->GetSkillGroup());
+	Root->SetNumberField(TEXT("skill_group"), static_cast<int32>(SkillComponent->GetSkillGroup()));
 
 	TArray<TSharedPtr<FJsonValue>> QuickSlotValues;
 	for (const FMT2QuickSlotAssignment& Assignment : QuickSlots)
@@ -1138,9 +1138,9 @@ FString AMT2PlayerState::CapturePersistentStateJson_Implementation() const
 			{
 				TSharedRef<FJsonObject> AffectObject = MakeShared<FJsonObject>();
 				AffectObject->SetNumberField(TEXT("kind"), static_cast<int32>(Effect.Kind));
-				AffectObject->SetNumberField(TEXT("type"), Effect.Type);
+				AffectObject->SetNumberField(TEXT("type"), Effect.Type.ToLegacyId());
 				AffectObject->SetNumberField(TEXT("source_item"), Effect.SourceItemVnum);
-				AffectObject->SetNumberField(TEXT("apply_on"), Effect.ApplyType);
+				AffectObject->SetNumberField(TEXT("apply_on"), static_cast<int32>(Effect.ApplyType));
 				AffectObject->SetNumberField(TEXT("value"), Effect.ApplyValue);
 				AffectObject->SetNumberField(TEXT("flag"), Effect.Flags);
 				AffectObject->SetNumberField(TEXT("duration"), Effect.RemainingSeconds);
@@ -1477,7 +1477,7 @@ bool AMT2PlayerState::ApplyPersistentStateJson_Implementation(const FString& Pay
 							TSubclassOf<UMT2ItemMetinStoneTemplate>(TemplateClass.Get());
 						const UMT2ItemMetinStoneTemplate* Stone =
 							Socket.Stone.GetDefaultObject();
-						if (Stored > 0 && Stone && Stone->MetinSubType == 1)
+						if (Stored > 0 && Stone && Stone->MetinSubType == EMT2MetinSubType::Gold)
 						{
 							Socket.Type = EMT2MetinSocketType::Gold;
 						}
@@ -1565,9 +1565,14 @@ bool AMT2PlayerState::ApplyPersistentStateJson_Implementation(const FString& Pay
 			FMT2StatusEffect Effect;
 			double Value = 0.0;
 			if (AffectObject->TryGetNumberField(TEXT("kind"), Value)) Effect.Kind = static_cast<EMT2StatusEffectKind>(FMath::RoundToInt(Value));
-			if (AffectObject->TryGetNumberField(TEXT("type"), Value)) Effect.Type = FMath::RoundToInt(Value);
+			if (AffectObject->TryGetNumberField(TEXT("type"), Value)) Effect.Type = FMT2AffectIdentifier::FromLegacyId(FMath::RoundToInt(Value));
 			if (AffectObject->TryGetNumberField(TEXT("source_item"), Value)) Effect.SourceItemVnum = FMath::RoundToInt(Value);
-			if (AffectObject->TryGetNumberField(TEXT("apply_on"), Value)) Effect.ApplyType = FMath::RoundToInt(Value);
+			if (AffectObject->TryGetNumberField(TEXT("apply_on"), Value) &&
+				!MT2ItemSemanticTypes::TryDecodeBonus(FMath::RoundToInt(Value),Effect.ApplyType))
+			{
+				UE_LOG(LogTemp,Warning,TEXT("Saved affect has unsupported APPLY ID %.0f; affect not restored."),Value);
+				continue;
+			}
 			if (AffectObject->TryGetNumberField(TEXT("value"), Value)) Effect.ApplyValue = FMath::RoundToInt(Value);
 			if (AffectObject->TryGetNumberField(TEXT("flag"), Value)) Effect.Flags = FMath::RoundToInt(Value);
 			if (AffectObject->TryGetNumberField(TEXT("duration"), Value)) Effect.RemainingSeconds = FMath::RoundToInt(Value);
@@ -1577,7 +1582,7 @@ bool AMT2PlayerState::ApplyPersistentStateJson_Implementation(const FString& Pay
 			{
 				Effect.bRemoveOnDeath = !FMath::IsNearlyZero(Value);
 			}
-			if (Effect.Type == 514)
+			if (Effect.Type == FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Hair))
 			{
 				if (HairShape == 0 || HairExpiresAt <= FDateTime::UtcNow().ToUnixTimestamp()) continue;
 				Effect.RemainingSeconds = static_cast<int32>(FMath::Min<int64>(MAX_int32, HairExpiresAt - FDateTime::UtcNow().ToUnixTimestamp()));

@@ -41,12 +41,12 @@ const FLinearColor UMT2ItemTooltipWidget::NormalColor(0.76f, 0.76f, 0.76f);
 FString UMT2ItemTooltipWidget::DescribeAccessoryMaterial(const UMT2ItemTemplate* Template)
 {
 	const auto* Use = Cast<UMT2ItemUseTemplate>(Template);
-	if (Use && Use->UseSubType == 20)
+	if (Use && Use->UseSubType == EMT2UseSubType::AddAccessorySocket)
 	{ return TEXT("Opens a socket in an accessory.\nSuccess chance: 50%."); }
-	if (Use && Use->UseSubType == 29)
+	if (Use && Use->UseSubType == EMT2UseSubType::PutIntoBeltSocket)
 	{ return TEXT("Fills a belt socket.\nEnhances the belt's bonuses."); }
 	if (Template && Template->Vnum == 50622) { return TEXT("This mineral has no compatible accessory."); }
-	if (!Use || Use->UseSubType != 21) { return {}; }
+	if (!Use || Use->UseSubType != EMT2UseSubType::PutIntoAccessorySocket) { return {}; }
 	if (Template->Vnum < 50623 || Template->Vnum > 50638) { return TEXT("This mineral has no compatible accessory."); }
 	return TEXT("Fills a socket in matching jewelry.\nEnhances the accessory's bonuses.");
 }
@@ -79,8 +79,8 @@ namespace
 			Cast<UMT2ItemEquipmentTemplate>(Template);
 		return Equipment && Settings &&
 			Equipment->BonusAddonType == Settings->DamageAddonType &&
-			(Bonus.GetTypeId() == Settings->DamageAddonFormula.SkillDamageApplyType ||
-			 Bonus.GetTypeId() == Settings->DamageAddonFormula.AverageDamageApplyType);
+			(Bonus.Type == Settings->DamageAddonFormula.SkillDamageApplyType ||
+			 Bonus.Type == Settings->DamageAddonFormula.AverageDamageApplyType);
 	}
 
 	bool IsMaximumBonus(
@@ -397,7 +397,7 @@ void UMT2ItemTooltipWidget::BuildTooltip(
 		const int32 EffectiveSkillVnum = SkillVnum > 0 ? SkillVnum : Book->SkillVnum;
 		if (const UMT2SkillDefinition* Skill = ResolveBookSkill(EffectiveSkillVnum, Viewer))
 		{
-			Name = FString::Printf(TEXT("%s Skill Book"), *Skill->GetGradeDisplayName(0).ToString());
+			Name = FString::Printf(TEXT("%s Skill Book"), *Skill->GetGradeDisplayName(EMT2SkillMastery::Normal).ToString());
 		}
 	}
 	if (Count > 1)
@@ -442,7 +442,7 @@ void UMT2ItemTooltipWidget::BuildTooltip(
 				const auto* Target = MT2ItemUtils::ResolveTemplate(this,Worn.Vnum);
 				const auto State = Inventory->GetEffectiveAccessoryState(Index);
 				const auto* Use = Cast<UMT2ItemUseTemplate>(Template);
-				if (Use && Use->UseSubType != 20 && MT2AccessorySockets::Compatible(Template,Target) && State.CurrentGrade < State.MaximumGrade)
+				if (Use && Use->UseSubType != EMT2UseSubType::AddAccessorySocket && MT2AccessorySockets::Compatible(Template,Target) && State.CurrentGrade < State.MaximumGrade)
 				{
 					AddLine(FString::Printf(TEXT("Next socket on %s:"), *MT2ItemUtils::GetDisplayName(Target,Worn.Vnum).ToString()),TitleColor);
 					const FString Gains = AccessoryBonusLines(Target,State.CurrentGrade,State.CurrentGrade+1);

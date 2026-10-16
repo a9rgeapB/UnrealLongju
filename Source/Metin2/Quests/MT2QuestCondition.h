@@ -10,6 +10,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Player/MT2PlayerTypes.h"
 #include "Quests/MT2QuestTypes.h"
 #include "UObject/Object.h"
 #include "MT2QuestCondition.generated.h"
@@ -116,8 +117,8 @@ public:
 	virtual bool Evaluate(const FMT2QuestContext& Context) const override;
 
 	// 1 Shinsoo, 2 Chunjo, 3 Jinno (old empire ordinals).
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Condition", meta = (ClampMin = "0", ClampMax = "3"))
-	int32 Empire = 1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Condition")
+	EMT2Empire Empire = EMT2Empire::Shinsoo;
 };
 
 // A raw script expression ("pc.get_level() >= 30 and pc.getqf(\"step\") == 2"), evaluated at runtime.

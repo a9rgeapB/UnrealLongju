@@ -12,6 +12,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "Player/MT2PlayerTypes.h"
+#include "Skills/MT2SkillTypes.h"
 #include "MT2SkillSet.generated.h"
 
 class UMT2SkillDefinition;
@@ -38,7 +39,7 @@ public:
 
 	// Loads the set matching race + group by scanning SkillSetSearchRoot. Returns null when the
 	// asset does not exist yet (skill sets are authored content).
-	static UMT2SkillSet* FindSkillSet(EMT2CharacterRace Race, int32 GroupIndex);
+	static UMT2SkillSet* FindSkillSet(EMT2CharacterRace Race, EMT2SkillGroup GroupIndex);
 	static UMT2SkillDefinition* FindSkillAcrossSets(int32 SkillVnum);
 	static TArray<int32> GetSkillVnumsInRange(int32 MinimumVnum, int32 MaximumVnum);
 
@@ -46,8 +47,8 @@ public:
 	EMT2CharacterRace Race = EMT2CharacterRace::Warrior;
 
 	// 1 or 2 - the old SetSkillGroup choice.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Identity", meta = (ClampMin = "1", ClampMax = "2"))
-	int32 GroupIndex = 1;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Identity")
+	EMT2SkillGroup GroupIndex = EMT2SkillGroup::First;
 
 	// Group name shown on the selection page (e.g. Warrior: Body / Mental).
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Identity")

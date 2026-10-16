@@ -33,8 +33,7 @@ AMT2Npc::AMT2Npc()
 void AMT2Npc::ConfigureFromDefinition(const FMT2MobDefinition& Definition)
 {
 	Super::ConfigureFromDefinition(Definition);
-	InteractionComponent->SetOnClickType(static_cast<EMT2NpcOnClickType>(
-		FMath::Clamp(Definition.OnClickType, 0, 2)));
+	InteractionComponent->SetOnClickType(Definition.OnClickType);
 }
 
 void AMT2Npc::BeginPlay()

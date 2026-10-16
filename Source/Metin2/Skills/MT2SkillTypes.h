@@ -15,6 +15,12 @@
 
 class UMT2SkillComponent;
 
+UENUM(BlueprintType)
+enum class EMT2SkillGroup : uint8
+{
+	None=0, First=1 UMETA(DisplayName="First Specialization"), Second=2 UMETA(DisplayName="Second Specialization")
+};
+
 namespace MT2SkillLimits
 {
 	inline constexpr int32 MaxSkillLevel = 40;

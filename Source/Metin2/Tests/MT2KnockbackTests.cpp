@@ -37,10 +37,10 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2KnockbackRulesTest, "Metin2.Combat.KnockbackRules", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FMT2KnockbackRulesTest::RunTest(const FString&)
 {
-	float ParsedForce; int32 ParsedType;
+	float ParsedForce; EMT2MotionHittingType ParsedType;
 	UMT2AnimationMotionData::ReadKnockbackMetadata(TEXT("Group AttackingData\n{\nHittingType 2\nExternalForce 0\n}\nGroup Event01\n{\nMotionEventType 4\nHittingType 1\nExternalForce 17\n}\n"), ParsedForce, ParsedType);
 	TestEqual(TEXT("Nested sword finisher overrides zero base force"), ParsedForce, 17.f);
-	TestEqual(TEXT("Nested force keeps its own hit type"), ParsedType, 1);
+	TestEqual(TEXT("Nested force keeps its own hit type"), ParsedType, EMT2MotionHittingType::Knockdown);
 	TArray<FMT2MotionAttackEvent> Events;
 	UMT2AnimationMotionData::ReadAttackEvents(TEXT("Group AttackingData\n{\nHittingType 2\nExternalForce 3\nGroup HitData00\n{\nAttackingStartTime 0.2\nAttackingEndTime 0.3\n}\n}\nGroup Event00\n{\nMotionEventType 4\nStartingTime 0.65\nDuringTime 0.2\nHittingType 1\nExternalForce 17\n}\n"), Events);
 	TestEqual(TEXT("Normal window and special event remain separate"), Events.Num(), 2);
@@ -66,7 +66,7 @@ bool FMT2KnockbackRulesTest::RunTest(const FString&)
 					if (const auto* Data = Sequence->GetAssetUserData<UMT2AnimationMotionData>(); Data && Data->ExternalForce > 0)
 					{
 						++PushMotions;
-						AddInfo(FString::Printf(TEXT("Motion %s force=%.1f hit=%d"), *Sequence->GetName(), Data->ExternalForce, Data->HittingType));
+						AddInfo(FString::Printf(TEXT("Motion %s force=%.1f hit=%d"), *Sequence->GetName(), Data->ExternalForce, static_cast<int32>(Data->HittingType)));
 					}
 	TestTrue(TEXT("Existing motion metadata provides authored pushes"), PushMotions > 0);
 	return true;
@@ -158,7 +158,7 @@ bool FMT2WarriorComboKnockbackTest::RunTest(const FString&)
 	ON_SCOPE_EXIT { GI->Shutdown(); World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
 	auto* Player = World->SpawnActor<AMT2PlayerCharacter>(); auto* State = World->SpawnActor<AMT2PlayerState>();
 	World->InitializeActorsForPlay(FURL());
-	Player->SetPlayerState(State); Player->SetWeaponAnimationSet(0, false);
+	Player->SetPlayerState(State); Player->SetWeaponAnimationSet(EMT2WeaponSubType::Sword, false);
 	Player->GetMesh()->SetAnimInstanceClass(nullptr);
 	State->GetAbilitySystemComponent()->AddAttributeSetSubobject(State->GetCoreAttributes());
 	State->InitializeAbilitySystem(Player);
@@ -185,7 +185,7 @@ bool FMT2WarriorComboKnockbackTest::RunTest(const FString&)
 		if (!TestNotNull(TEXT("Sword motion data"), Motion)) { return false; }
 		if (!TestTrue(TEXT("Baked sword hit event"), !Motion->AttackEvents.IsEmpty())) { return false; }
 		Player->HandleBasicAttackPerformed(Combo);
-		const float Expected = Motion->HittingType != 0 ? UMT2CombatComponent::MotionKnockbackDistance(Motion->ExternalForce) : 0.f;
+		const float Expected = Motion->HittingType != EMT2MotionHittingType::None ? UMT2CombatComponent::MotionKnockbackDistance(Motion->ExternalForce) : 0.f;
 		TestEqual(FString::Printf(TEXT("Sword combo %d selects its authored force without an AnimInstance"), Combo), Player->GetCombatComponent()->GetPendingKnockback(), Expected);
 		if (Combo == 3) { TestTrue(TEXT("Sword finisher provides a visible shove"), Expected > 100); }
 		auto* Target = World->SpawnActor<AMT2Mob>(); Target->SetActorLocation(FVector(100,0,0));
@@ -221,7 +221,7 @@ bool FMT2WarriorComboKnockbackTest::RunTest(const FString&)
 		FMT2MotionAttackEvent& Event = Data->AttackEvents.AddDefaulted_GetRef();
 		Event.TimeSeconds = Index == 0 ? .2f : Index == 1 ? .4f : .8f;
 		Event.ExternalForce = Index == 2 ? 20.f : 0.f;
-		Event.HittingType = Index == 2 ? 1 : 2;
+		Event.HittingType = Index == 2 ? EMT2MotionHittingType::Knockdown : EMT2MotionHittingType::Normal;
 	}
 	Player->GetCombatComponent()->SetBasicAttackMotion(Sequence, 2.f);
 	auto* Target = World->SpawnActor<AMT2Mob>(); Target->SetActorLocation(FVector(100,0,0));
@@ -304,14 +304,14 @@ bool FMT2MobKnockdownTest::RunTest(const FString&)
 	};
 	TickTimers(.001f); // Promote pending timers before timing the reaction.
 	Victim->SetActorRotation(FRotator(0,180,0)); Attacker->SetActorRotation(FRotator::ZeroRotator);
-	Victim->PlayHitReaction(Attacker, 2);
+	Victim->PlayHitReaction(Attacker, EMT2MotionHittingType::Normal);
 	TestFalse(TEXT("GOOD hit does not knock down"), Victim->IsKnockdownMotionLocked());
-	Victim->PlayHitReaction(Attacker, 1);
+	Victim->PlayHitReaction(Attacker, EMT2MotionHittingType::Knockdown);
 	TestTrue(TEXT("GREAT hit starts fall"), Victim->IsKnockdownMotionLocked());
 	TestFalse(TEXT("Attack rejected during fall"), Victim->TryAttackTarget(Attacker));
 	TestFalse(TEXT("Damage cannot replace fall"), Victim->PlayMobMotion(EMT2MobMotion::FrontDamage));
 	TickTimers(FallDuration * .5f);
-	Victim->PlayHitReaction(Attacker, 1);
+	Victim->PlayHitReaction(Attacker, EMT2MotionHittingType::Knockdown);
 	TickTimers(FallDuration * .5f + .01f);
 	TestTrue(TEXT("Stand-up remains locked"), Victim->IsKnockdownMotionLocked());
 	TestFalse(TEXT("Attack rejected during stand-up"), Victim->TryAttackTarget(Attacker));
@@ -319,7 +319,7 @@ bool FMT2MobKnockdownTest::RunTest(const FString&)
 	TickTimers(StandupDuration + .01f);
 	TestFalse(TEXT("Authored sequence unlocks without fixed stun"), Victim->IsCombatMotionLocked());
 	Victim->SetActorRotation(FRotator::ZeroRotator);
-	Victim->PlayHitReaction(Attacker, 1);
+	Victim->PlayHitReaction(Attacker, EMT2MotionHittingType::Knockdown);
 	TestTrue(TEXT("Back hit starts fall"), Victim->IsKnockdownMotionLocked());
 	TestTrue(TEXT("Death can interrupt fall"), Victim->PlayMobMotion(EMT2MobMotion::FrontDead));
 	TestFalse(TEXT("Death clears recovery lock"), Victim->IsKnockdownMotionLocked());

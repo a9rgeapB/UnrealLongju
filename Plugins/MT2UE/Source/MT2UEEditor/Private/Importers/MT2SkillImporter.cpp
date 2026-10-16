@@ -165,15 +165,17 @@ namespace
 	// skilltable POINT_ON names -> EApplyTypes ordinals of the status-effect pipeline. Names with
 	// no APPLY equivalent (HP damage, MANASHIELD, ...) keep ApplyType 0; the raw name survives in
 	// PointOnName for the skill executor.
-	int32 MapPointOnToApplyType(const FString& PointOnName)
+	EMT2ItemBonusType MapPointOnToApplyType(const FString& PointOnName)
 	{
-		static const TMap<FString, int32> ApplyTypes = {
-			{TEXT("NONE"), 0}, {TEXT("HP"), 0}, {TEXT("MAX_HP"), 1}, {TEXT("MAX_SP"), 2},
-			{TEXT("ATT_SPEED"), 7}, {TEXT("MOV_SPEED"), 8}, {TEXT("CASTING_SPEED"), 9},
-			{TEXT("CRITICAL"), 15}, {TEXT("DODGE"), 28}, {TEXT("REFLECT_MELEE"), 39},
-			{TEXT("ATT_GRADE"), 53}, {TEXT("DEF_GRADE"), 54}};
-		const int32* Found = ApplyTypes.Find(PointOnName);
-		return Found ? *Found : 0;
+		static const TMap<FString, EMT2ItemBonusType> ApplyTypes = {
+			{TEXT("NONE"), EMT2ItemBonusType::None}, {TEXT("HP"), EMT2ItemBonusType::None},
+			{TEXT("MAX_HP"), EMT2ItemBonusType::MaxHP}, {TEXT("MAX_SP"), EMT2ItemBonusType::MaxSP},
+			{TEXT("ATT_SPEED"), EMT2ItemBonusType::AttackSpeed}, {TEXT("MOV_SPEED"), EMT2ItemBonusType::MovementSpeed},
+			{TEXT("CASTING_SPEED"), EMT2ItemBonusType::CastSpeed}, {TEXT("CRITICAL"), EMT2ItemBonusType::CriticalChance},
+			{TEXT("DODGE"), EMT2ItemBonusType::DodgeChance}, {TEXT("REFLECT_MELEE"), EMT2ItemBonusType::ReflectMelee},
+			{TEXT("ATT_GRADE"), EMT2ItemBonusType::AttackValue}, {TEXT("DEF_GRADE"), EMT2ItemBonusType::DefenseBonus}};
+		const EMT2ItemBonusType* Found = ApplyTypes.Find(PointOnName);
+		return Found ? *Found : EMT2ItemBonusType::None;
 	}
 
 	// Minimal evaluator for the level-only skill polys ("40+100*k", "30+40*k", "floor(1+k*6)").
@@ -742,7 +744,9 @@ namespace
 		float HittingTypeValue = 0.0f;
 		if (ReadMsaFloat(Script, TEXT("HittingType"), HittingTypeValue))
 		{
-			MotionData->HittingType = FMath::RoundToInt(HittingTypeValue);
+			const int32 Raw=FMath::RoundToInt(HittingTypeValue);
+			if (Raw>=0 && Raw<=2) { MotionData->HittingType=static_cast<EMT2MotionHittingType>(Raw); }
+			else { UE_LOG(LogTemp,Warning,TEXT("Unsupported skill motion HittingType %d; hit metadata not substituted."),Raw); }
 		}
 		// When each hit lands, so the skill deals damage at the animation's hit frame(s) rather than
 		// instantly on cast.
@@ -895,7 +899,7 @@ bool FMT2SkillImporter::Import(
 				continue;
 			}
 			Existing->Modify();
-			Existing->LegacySkillType = Row.Type;
+			Existing->LegacySkillType = FMT2LegacySkillClassSelection::FromLegacy(Row.Type);
 			Existing->MarkPackageDirty();
 			PackagesToSave.AddUnique(Existing->GetPackage());
 			++OutResult.DefinitionsRefreshed;
@@ -912,7 +916,7 @@ bool FMT2SkillImporter::Import(
 		Definition->Modify();
 
 		Definition->Vnum = Row.Vnum;
-		Definition->LegacySkillType = Row.Type;
+		Definition->LegacySkillType = FMT2LegacySkillClassSelection::FromLegacy(Row.Type);
 		Definition->PowerScale = Row.MaxLevelScale;
 		Definition->LevelLimit = Row.LevelLimit;
 		Definition->PrerequisiteSkillVnum = Row.PrereqVnum;
@@ -1046,7 +1050,7 @@ bool FMT2SkillImporter::Import(
 		}
 		SkillSet->Modify();
 		SkillSet->Race = Layout.Race;
-		SkillSet->GroupIndex = Layout.Group;
+		SkillSet->GroupIndex = static_cast<EMT2SkillGroup>(Layout.Group);
 		SkillSet->GroupDisplayName = FText::FromString(Layout.GroupName);
 		SkillSet->ActiveSkills.Reset();
 		SkillSet->SupportSkills.Reset();

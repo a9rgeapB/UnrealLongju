@@ -173,8 +173,8 @@ namespace
 		Definition.Vnum = static_cast<int32>(Record.Vnum);
 		Definition.InternalName = ReadItemAnsiField(Record.Name, UE_ARRAY_COUNT(Record.Name));
 		Definition.DisplayName = ReadItemAnsiField(Record.LocaleName, UE_ARRAY_COUNT(Record.LocaleName));
-		Definition.ItemType = Record.Type;
-		Definition.SubType = Record.SubType;
+		Definition.ItemType = static_cast<EMT2ItemType>(Record.Type);
+		Definition.SubType = FMT2ItemSubtype::FromLegacy(Definition.ItemType,Record.SubType);
 		Definition.Size = FMath::Max<int32>(Record.Size, 1);
 		Definition.WearFlags = static_cast<int32>(Record.WearFlags);
 		Definition.AntiFlags = static_cast<int32>(Record.AntiFlags);

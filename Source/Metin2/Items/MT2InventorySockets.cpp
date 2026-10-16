@@ -76,7 +76,7 @@ EMT2MetinSocketApplyResult UMT2InventoryComponent::ApplyMetinStone(
 		[Stone](const FMT2MetinSocket& Socket)
 		{
 			const int32 SocketGrade = Socket.Type == EMT2MetinSocketType::Gold ? 2 : 1;
-			return !Socket.Stone && SocketGrade >= Stone->RequiredSocketGrade;
+			return !Socket.Stone && SocketGrade >= static_cast<int32>(Stone->RequiredSocketGrade);
 		});
 	if (!OpenSocket)
 	{

@@ -11,6 +11,7 @@
 
 #include "Components/ActorComponent.h"
 #include "CoreMinimal.h"
+#include "Player/MT2PlayerTypes.h"
 #include "MT2MobAIComponent.generated.h"
 
 class AAIController;
@@ -101,11 +102,11 @@ private:
 	int32 AIFlags = 0;
 
 	// mob_proto extended AI flags; not wired yet.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Mob|AI", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(meta=(SemanticReservedMask))
 	int32 ExtendedAIFlags = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Mob|AI", meta = (AllowPrivateAccess = "true"))
-	int32 Empire = 0;
+	EMT2Empire Empire = EMT2Empire::None;
 
 	// mob_proto AGGRESSIVE_SIGHT: how far the mob notices targets.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Mob|AI", meta = (AllowPrivateAccess = "true", Units = "cm"))

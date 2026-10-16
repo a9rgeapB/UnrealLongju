@@ -376,7 +376,7 @@ bool AMT2Mob::TryAttackTarget(AActor* TargetActor)
 		false);
 
 	AttackExternalForce = 0.f;
-	AttackHittingType = 2;
+	AttackHittingType = EMT2MotionHittingType::Normal;
 	PlayMobMotion(EMT2MobMotion::NormalAttack);
 	return GetCombatComponent()->PerformBasicAttackOnTarget(TargetActor, AttackExternalForce, AttackHittingType);
 }
@@ -409,8 +409,8 @@ bool AMT2Mob::PlayMobMotion(EMT2MobMotion Motion)
 	{
 		GetCombatComponent()->SetBasicAttackMotion(Sequence, GetAttackMotionPlayRate());
 		const auto* Data = Sequence ? Sequence->GetAssetUserData<UMT2AnimationMotionData>() : nullptr;
-		AttackExternalForce = Data && Data->HittingType != 0 ? Data->ExternalForce : 0.f;
-		AttackHittingType = Data ? Data->HittingType : 2;
+		AttackExternalForce = Data && Data->HittingType != EMT2MotionHittingType::None ? Data->ExternalForce : 0.f;
+		AttackHittingType = Data ? Data->HittingType : EMT2MotionHittingType::Normal;
 	}
 	UE_LOG(LogMT2MobMotion, Verbose,
 		TEXT("[MT2MobMotion] '%s' PlayMobMotion(%d) VariantFound=%s Sequence='%s'"),
@@ -558,15 +558,15 @@ bool AMT2Mob::PlayMobMotion(EMT2MobMotion Motion)
 	return true;
 }
 
-void AMT2Mob::PlayHitReaction(const AActor* Attacker, int32 HittingType, bool bSyncPush)
+void AMT2Mob::PlayHitReaction(const AActor* Attacker, EMT2MotionHittingType HittingType, bool bSyncPush)
 {
 	if (!HasAuthority() || !IsValid(Attacker) || GetHealthComponent()->IsDead() ||
-		bKnockdownMotionLocked || HittingType == 0)
+		bKnockdownMotionLocked || HittingType == EMT2MotionHittingType::None)
 	{
 		return;
 	}
 	const bool bFront = FVector::DotProduct(Attacker->GetActorForwardVector(), GetActorForwardVector()) < 0.f;
-	if (HittingType == 1 && CanBeKnockedBack())
+	if (HittingType == EMT2MotionHittingType::Knockdown && CanBeKnockedBack())
 	{
 		// __HitGreate does not interrupt a skill, unlike an ordinary attack.
 		if (bCombatMotionLocked && ReplicatedMotion >= EMT2MobMotion::Special1 &&

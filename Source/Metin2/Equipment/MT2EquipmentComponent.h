@@ -49,7 +49,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	void EquipWeapon(
 		TSoftObjectPtr<UStaticMesh> Weapon, FName AttachBone = NAME_None,
-		int32 WeaponSubType = 0, int32 RefinementLevel = 0);
+		EMT2WeaponSubType WeaponSubType = EMT2WeaponSubType::Sword, int32 RefinementLevel = 0);
 
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	void UnequipWeapon();
@@ -61,7 +61,7 @@ public:
 	UStaticMeshComponent* GetWeaponMeshComponent() const { return WeaponMeshComponent; }
 
 	UFUNCTION(BlueprintPure, Category = "Equipment")
-	int32 GetEquippedWeaponSubType() const { return EquippedWeaponSubType; }
+	EMT2WeaponSubType GetEquippedWeaponSubType() const { return EquippedWeaponSubType; }
 
 	// Body armor replaces the character's whole skeletal mesh rather than attaching a separate mesh.
 	// UnequipArmor needs the base (unequipped) body mesh to revert to, since there's nothing else on
@@ -125,7 +125,7 @@ private:
 	int32 ArmorRequestId = 0;
 	int32 WeaponGlitterRequestId = 0;
 	int32 ArmorGlitterRequestId = 0;
-	int32 EquippedWeaponSubType = INDEX_NONE;
+	EMT2WeaponSubType EquippedWeaponSubType = EMT2WeaponSubType::None;
 	int32 EquippedWeaponRefinementLevel = 0;
 	int32 EquippedArmorRefinementLevel = 0;
 	bool bArmorEquipped = false;

@@ -394,7 +394,7 @@ FString AMT2WorldItem::GetItemDisplayName() const
 			UMT2SkillSet::FindSkillAcrossSets(ItemInstance.SkillVnum))
 		{
 			Name = FString::Printf(
-				TEXT("%s Skill Book"), *Skill->GetGradeDisplayName(0).ToString());
+				TEXT("%s Skill Book"), *Skill->GetGradeDisplayName(EMT2SkillMastery::Normal).ToString());
 		}
 	}
 	if (ItemInstance.Count > 1)
@@ -451,17 +451,17 @@ void AMT2WorldItem::MulticastPlayDropSound_Implementation(int32 DroppedVnum)
 	const TSoftObjectPtr<USoundBase>* SelectedSound = &Settings.WorldItemDefaultDropSound;
 	if (const UMT2ItemWeaponTemplate* Weapon = Cast<UMT2ItemWeaponTemplate>(Template))
 	{
-		SelectedSound = Weapon->WeaponSubType == 2
+		SelectedSound = Weapon->WeaponSubType == EMT2WeaponSubType::Bow
 			? &Settings.WorldItemBowDropSound
-			: Weapon->WeaponSubType == 6
+			: Weapon->WeaponSubType == EMT2WeaponSubType::Arrow
 				? &Settings.WorldItemDefaultDropSound
 				: &Settings.WorldItemWeaponDropSound;
 	}
 	else if (const UMT2ItemArmorTemplate* Armor = Cast<UMT2ItemArmorTemplate>(Template))
 	{
-		SelectedSound = Armor->ArmorSubType == 0
+		SelectedSound = Armor->ArmorSubType == EMT2ArmorSubType::Body
 			? &Settings.WorldItemArmorDropSound
-			: (Armor->ArmorSubType == 5 || Armor->ArmorSubType == 6)
+			: (Armor->ArmorSubType == EMT2ArmorSubType::Neck || Armor->ArmorSubType == EMT2ArmorSubType::Ear)
 				? &Settings.WorldItemAccessoryDropSound
 				: &Settings.WorldItemDefaultDropSound;
 	}

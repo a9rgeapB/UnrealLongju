@@ -302,7 +302,7 @@ bool AMT2DevilTowerRoom::CanRefine(AMT2PlayerState* Player, const AActor* Target
 	const auto* Armor = Cast<UMT2ItemArmorTemplate>(Item);
 	if (!Armor) return false;
 	// Legacy ARMOR_BODY=0, ARMOR_HEAD=1, ARMOR_SHIELD=6; the other armor types are accessories.
-	const bool bArmor = Armor->ArmorSubType == 0 || Armor->ArmorSubType == 1 || Armor->ArmorSubType == 6;
+	const bool bArmor = Armor->ArmorSubType == EMT2ArmorSubType::Body || Armor->ArmorSubType == EMT2ArmorSubType::Head || Armor->ArmorSubType == EMT2ArmorSubType::Ear;
 	return Vnum == 20075 ? bArmor : !bArmor;
 }
 

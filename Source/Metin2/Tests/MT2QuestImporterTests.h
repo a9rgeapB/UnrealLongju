@@ -651,13 +651,13 @@ bool FMT2QuestGrandMasterTrainingTest::RunTest(const FString& Parameters)
 	Settings->GrandMasterSuccessDenominators.Init(1, 10);
 	Settings->GrandMasterMinimumReads.Init(0, 10);
 	Settings->GrandMasterMaximumReads.Init(100, 10);
-	Skills->SkillGroup = 1;
-	Skills->CachedSkillSetGroup = 1; Skills->CachedSkillSetRace = EMT2CharacterRace::Warrior;
+	Skills->SkillGroup = EMT2SkillGroup::First;
+	Skills->CachedSkillSetGroup = EMT2SkillGroup::First; Skills->CachedSkillSetRace = EMT2CharacterRace::Warrior;
 	Skills->CachedSkillSet = NewObject<UMT2SkillSet>(Skills);
 	auto Define = [&](int32 Vnum, int32 Type)
 	{
 		UMT2SkillDefinition* Definition = NewObject<UMT2SkillDefinition>(Skills->CachedSkillSet);
-		Definition->Vnum = Vnum; Definition->LegacySkillType = Type;
+		Definition->Vnum = Vnum; Definition->LegacySkillType = FMT2LegacySkillClassSelection::FromLegacy(Type);
 		Skills->CachedSkillSet->ActiveSkills.Add(Definition);
 		Skills->SetSkillLevel(Vnum, 30);
 		return Definition;
@@ -675,9 +675,9 @@ bool FMT2QuestGrandMasterTrainingTest::RunTest(const FString& Parameters)
 	Skills->SetSkillLevel(113, 1);
 	TestFalse(TEXT("Other learned anti skill in same family rejects training"), Skills->CanTrainGrandMasterSkill(112));
 	Skills->SetSkillLevel(113, 0);
-	Main->LegacySkillType = INDEX_NONE;
+	Main->LegacySkillType.Type = EMT2LegacySkillClass::Unspecified;
 	TestFalse(TEXT("Missing legacy metadata cannot silently train"), Skills->CanTrainGrandMasterSkill(1));
-	Main->LegacySkillType = 1;
+	Main->LegacySkillType.Type = EMT2LegacySkillClass::Warrior;
 	for (int32 Level : {0, 20, 29, 40}) { Skills->SetSkillLevel(1, Level); TestFalse(TEXT("Only GM mastery eligible"), Skills->TrainGrandMasterSkill(1)); }
 	Skills->SetSkillLevel(1, 30);
 	FMT2QuestContext Context; Context.Player = Player; Context.PlayerState = PlayerState; Context.Manager = Manager;
@@ -703,8 +703,8 @@ bool FMT2QuestGrandMasterTrainingTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Numeric strings truncate, counter written to legacy quest flag"), Manager->GetQuestFlag(Flag), 1);
 	TestEqual(TEXT("Failure does not advance level"), Skills->GetSkillLevel(1), 30);
 	TestTrue(TEXT("Accepted failure sets 8..12 hour per-skill deadline"), Skills->GetSkillBookCooldownEnd(1) >= Before + 28800 && Skills->GetSkillBookCooldownEnd(1) <= FDateTime::UtcNow().ToUnixTimestamp() + 43200);
-	FMT2StatusEffect Bonus; Bonus.Type = MT2AffectId::SkillBookGuaranteedSuccess; Bonus.RemainingSeconds = 60;
-	FMT2StatusEffect Bypass; Bypass.Type = MT2AffectId::SkillBookNoCooldown; Bypass.RemainingSeconds = 60;
+	FMT2StatusEffect Bonus; Bonus.Type = FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookGuaranteedSuccess); Bonus.RemainingSeconds = 60;
+	FMT2StatusEffect Bypass; Bypass.Type = FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookNoCooldown); Bypass.RemainingSeconds = 60;
 	Player->GetStatusEffectComponent()->RestoreEffects({Bonus, Bypass});
 	Settings->GrandMasterSuccessDenominators.Init(2, 10);
 	TestFalse(TEXT("Bonus halves denominator two to one, not guaranteed success"), Read(TEXT("pc.learn_grand_master_skill(1)")).AsBool());
@@ -780,8 +780,8 @@ bool FMT2QuestBookDelayTest::RunTest(const FString& Parameters)
 	const FMT2QuestValue Empty = Read(TEXT("pc.is_skill_book_no_delay()"));
 	TestTrue(TEXT("False is a Lua boolean"), Empty.bIsBoolean);
 	TestFalse(TEXT("No bypass affect"), Empty.AsBool());
-	FMT2StatusEffect Bypass; Bypass.Type = MT2AffectId::SkillBookNoCooldown; Bypass.RemainingSeconds = 60;
-	FMT2StatusEffect Bonus; Bonus.Type = MT2AffectId::SkillBookGuaranteedSuccess; Bonus.RemainingSeconds = 60;
+	FMT2StatusEffect Bypass; Bypass.Type = FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookNoCooldown); Bypass.RemainingSeconds = 60;
+	FMT2StatusEffect Bonus; Bonus.Type = FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookGuaranteedSuccess); Bonus.RemainingSeconds = 60;
 	Effects->RestoreEffects({Bypass, Bonus});
 	TestTrue(TEXT("Reads restored real bypass affect"), Read(TEXT("pc.is_skill_book_no_delay()")).AsBool());
 	Read(TEXT("true or pc.remove_skill_book_no_delay()"));
@@ -1350,8 +1350,8 @@ bool FMT2QuestHairTest::RunTest(const FString& Parameters)
 	Manager->PushFrame(Nodes); Manager->RunPendingFrames();
 	TestEqual(TEXT("Nested hair table lookup"), Manager->GetScriptVariable(TEXT("shape")).Number, 1001.0);
 	TestEqual(TEXT("Hair selected"), PlayerState->GetHairShape(), 1001);
-	TestTrue(TEXT("Hair stat bonus applied"), Player->GetStatusEffectComponent()->HasEffectType(514));
-	TestEqual(TEXT("Earlier affect argument captured before later helper mutation"), Player->GetStatusEffectComponent()->GetEffectValueByType(514), 10);
+	TestTrue(TEXT("Hair stat bonus applied"), Player->GetStatusEffectComponent()->HasEffectType(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Hair)));
+	TestEqual(TEXT("Earlier affect argument captured before later helper mutation"), Player->GetStatusEffectComponent()->GetEffectValueByType(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Hair)), 10);
 	TestTrue(TEXT("Absolute hair deadline"), Manager->GetQuestFlag(TEXT("limit_time")) > FDateTime::UtcNow().ToUnixTimestamp());
 	PlayerState->SetHairExpiry(FDateTime::UtcNow().ToUnixTimestamp() - 1);
 	TestEqual(TEXT("Expired hair reset"), PlayerState->GetHairShape(), 0);

@@ -13,13 +13,14 @@
 #include "CoreMinimal.h"
 #include "Player/MT2PlayerTypes.h"
 #include "Skills/MT2SkillTypes.h"
+#include "Components/MT2AffectTypes.h"
 #include "MT2SkillComponent.generated.h"
 
 class UMT2SkillDefinition;
 class UMT2SkillSet;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMT2SkillLevelsChangedSignature);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMT2SkillGroupChangedSignature, int32, NewSkillGroup);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMT2SkillGroupChangedSignature, EMT2SkillGroup, NewSkillGroup);
 
 // Lives on the PlayerState (survives respawns; replication and persistence ride the PlayerState
 // pipeline). Recreates the old CHARACTER skill handling: skill group selection at level 5,
@@ -45,7 +46,7 @@ public:
 
 	// 0 = no group chosen yet (the old skill window shows the group-selection page).
 	UFUNCTION(BlueprintPure, Category = "Skills")
-	int32 GetSkillGroup() const { return SkillGroup; }
+	EMT2SkillGroup GetSkillGroup() const { return SkillGroup; }
 
 	// Resolved skill set for the owner's race + chosen group; null until a group is selected.
 	UFUNCTION(BlueprintPure, Category = "Skills")
@@ -56,7 +57,7 @@ public:
 
 	// Old SetSkillGroup: one-shot choice, requires character level >= 5 and group 1..2.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Skills")
-	bool SelectSkillGroup(int32 NewSkillGroup);
+	bool SelectSkillGroup(EMT2SkillGroup NewSkillGroup);
 
 	// Old SkillLevelUp(SKILL_UP_BY_POINT): spends one PlayerState skill point, all gates included.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Skills")
@@ -108,7 +109,7 @@ public:
 	void ServerLearnSkillByPoint(int32 SkillVnum);
 
 	UFUNCTION(Server, Reliable, BlueprintCallable, Category = "Skills")
-	void ServerSelectSkillGroup(int32 NewSkillGroup);
+	void ServerSelectSkillGroup(EMT2SkillGroup NewSkillGroup);
 
 	UPROPERTY(BlueprintAssignable, Category = "Skills")
 	FMT2SkillLevelsChangedSignature OnSkillLevelsChanged;
@@ -136,8 +137,8 @@ private:
 
 	EMT2CharacterRace GetOwnerRace() const;
 	int32 GetOwnerCharacterLevel() const;
-	bool HasBookReadingEffect(int32 AffectType) const;
-	void ConsumeBookReadingEffect(int32 AffectType);
+	bool HasBookReadingEffect(FMT2AffectIdentifier AffectType) const;
+	void ConsumeBookReadingEffect(FMT2AffectIdentifier AffectType);
 	void MarkPersistenceDirty() const;
 
 	UPROPERTY(Replicated)
@@ -157,13 +158,13 @@ private:
 	TMap<int32, int64> SkillBookCooldownEnds;
 
 	UPROPERTY(ReplicatedUsing = OnRep_SkillGroup)
-	int32 SkillGroup = 0;
+	EMT2SkillGroup SkillGroup = EMT2SkillGroup::None;
 
 	// Cache for GetSkillSet; rebuilt when the group changes or the race differs.
 	UPROPERTY(Transient)
 	mutable TObjectPtr<UMT2SkillSet> CachedSkillSet;
 
-	mutable int32 CachedSkillSetGroup = 0;
+	mutable EMT2SkillGroup CachedSkillSetGroup = EMT2SkillGroup::None;
 	mutable EMT2CharacterRace CachedSkillSetRace = EMT2CharacterRace::Warrior;
 
 	struct FClientCooldown

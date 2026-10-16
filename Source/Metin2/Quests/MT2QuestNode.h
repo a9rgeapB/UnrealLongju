@@ -10,6 +10,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Items/MT2ItemTypes.h"
 #include "Player/MT2PlayerTypes.h"
 #include "Quests/MT2QuestTableAsset.h"
 #include "Quests/MT2QuestTypes.h"
@@ -881,7 +882,7 @@ public:
 	EMT2QuestAffectOperation Operation = EMT2QuestAffectOperation::AddQuest;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Affect")
-	int32 ApplyType = 0;
+	EMT2ItemBonusType ApplyType = EMT2ItemBonusType::None;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Affect")
 	int32 Value = 0;

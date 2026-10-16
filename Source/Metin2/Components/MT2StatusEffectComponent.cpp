@@ -84,7 +84,7 @@ bool UMT2StatusEffectComponent::AddEffect(const FMT2StatusEffect& Effect, bool b
 	return true;
 }
 
-int32 UMT2StatusEffectComponent::RemoveEffectsByType(int32 Type)
+int32 UMT2StatusEffectComponent::RemoveEffectsByType(FMT2AffectIdentifier Type)
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority())
 	{
@@ -140,11 +140,14 @@ int32 UMT2StatusEffectComponent::RemoveEffectsOnDeath()
 	return Removed;
 }
 
-bool UMT2StatusEffectComponent::HasEffectFlag(int32 Flag) const
+bool UMT2StatusEffectComponent::HasEffectFlag(EMT2EffectFlag Flag) const
 {
+	const uint8 Position=static_cast<uint8>(Flag);
+	if (Position==0 || Position>=32) { return false; }
+	const int32 Mask=static_cast<int32>(uint32(1)<<Position);
 	for (const FMT2StatusEffect& Effect : Effects)
 	{
-		if ((Effect.Flags & Flag) != 0)
+		if ((Effect.Flags & Mask) != 0)
 		{
 			return true;
 		}
@@ -164,13 +167,13 @@ bool UMT2StatusEffectComponent::HasEffectOfKind(EMT2StatusEffectKind Kind) const
 	return false;
 }
 
-bool UMT2StatusEffectComponent::HasEffectType(int32 Type) const
+bool UMT2StatusEffectComponent::HasEffectType(FMT2AffectIdentifier Type) const
 {
 	return Effects.ContainsByPredicate(
 		[Type](const FMT2StatusEffect& Effect) { return Effect.Type == Type; });
 }
 
-int32 UMT2StatusEffectComponent::GetEffectValueByType(int32 Type) const
+int32 UMT2StatusEffectComponent::GetEffectValueByType(FMT2AffectIdentifier Type) const
 {
 	for (const FMT2StatusEffect& Effect : Effects)
 	{
@@ -182,7 +185,7 @@ int32 UMT2StatusEffectComponent::GetEffectValueByType(int32 Type) const
 	return 0;
 }
 
-bool UMT2StatusEffectComponent::UpdateEffectValueByType(int32 Type, int32 NewValue)
+bool UMT2StatusEffectComponent::UpdateEffectValueByType(FMT2AffectIdentifier Type, int32 NewValue)
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority())
 	{

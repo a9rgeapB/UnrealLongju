@@ -168,7 +168,7 @@ void UMT2SkillSlotWidget::SetSkill(const UMT2SkillDefinition* Definition, int32 
 		return;
 	}
 	UTexture2D* Atlas = Definition ? Definition->IconAtlas.LoadSynchronous() : nullptr;
-	const FMT2AtlasRect Region = Definition ? Definition->GetIconRegion(Grade) : FMT2AtlasRect(0, 0, 0, 0);
+	const FMT2AtlasRect Region = Definition ? Definition->GetIconRegion(static_cast<EMT2SkillMastery>(Grade)) : FMT2AtlasRect(0, 0, 0, 0);
 	if (Atlas && Region.IsValid())
 	{
 		IconImage->SetAtlas(Atlas, Region);
@@ -349,7 +349,7 @@ void UMT2SkillSlotWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaT
 	const UMT2StatusEffectComponent* StatusEffects = Character
 		? Character->GetStatusEffectComponent() : nullptr;
 	const bool bNowActive = bCurrentGradeCell && SkillVnum > 0 && StatusEffects
-		&& StatusEffects->HasEffectType(SkillVnum);
+		&& StatusEffects->HasEffectType(FMT2AffectIdentifier::FromSkillVnum(SkillVnum));
 	if (bNowActive != bActiveSkill)
 	{
 		bActiveSkill = bNowActive;

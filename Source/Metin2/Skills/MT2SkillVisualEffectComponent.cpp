@@ -37,7 +37,7 @@ namespace
 		{
 			return true;
 		}
-		const bool bTwoHanded = Equipment && Equipment->GetEquippedWeaponSubType() == 3;
+		const bool bTwoHanded = Equipment && Equipment->GetEquippedWeaponSubType() == EMT2WeaponSubType::TwoHanded;
 		return RequiredMode == EMT2SkillVisualWeaponMode::TwoHanded
 			? bTwoHanded : !bTwoHanded;
 	}
@@ -93,13 +93,13 @@ void UMT2SkillVisualEffectComponent::RefreshEffects()
 	TSet<int32> ProcessedSkills;
 	for (const FMT2StatusEffect& StatusEffect : StatusEffects->GetEffects())
 	{
-		if (StatusEffect.Type <= 0 || ProcessedSkills.Contains(StatusEffect.Type))
+		if (StatusEffect.Type.ToLegacyId() <= 0 || ProcessedSkills.Contains(StatusEffect.Type.ToLegacyId()))
 		{
 			continue;
 		}
-		ProcessedSkills.Add(StatusEffect.Type);
+		ProcessedSkills.Add(StatusEffect.Type.ToLegacyId());
 
-		const UMT2SkillDefinition* Definition = Skills->FindSkillDefinition(StatusEffect.Type);
+		const UMT2SkillDefinition* Definition = Skills->FindSkillDefinition(StatusEffect.Type.ToLegacyId());
 		if (!Definition)
 		{
 			continue;

@@ -124,7 +124,7 @@ const FMT2ItemBonusDefinition* UMT2ItemBonusSettings::FindDefinition(
 		Kind == EMT2ItemBonusKind::Rare ? RareBonuses : NormalBonuses;
 	return Definitions.FindByPredicate([ApplyType](const FMT2ItemBonusDefinition& Definition)
 	{
-		return Definition.ApplyType == ApplyType;
+		return static_cast<int32>(Definition.ApplyType) == ApplyType;
 	});
 }
 

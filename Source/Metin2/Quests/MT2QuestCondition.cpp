@@ -57,8 +57,8 @@ bool UMT2QuestCondition_Flag::Evaluate(const FMT2QuestContext& Context) const
 
 bool UMT2QuestCondition_Empire::Evaluate(const FMT2QuestContext& Context) const
 {
-	const int32 Current = Context.PlayerState
-		? static_cast<int32>(Context.PlayerState->GetEmpire()) : 0;
+	const EMT2Empire Current = Context.PlayerState
+		? Context.PlayerState->GetEmpire() : EMT2Empire::None;
 	return (Current == Empire) != bInvert;
 }
 

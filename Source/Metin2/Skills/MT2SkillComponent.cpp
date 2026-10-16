@@ -47,7 +47,7 @@ int32 UMT2SkillComponent::GetOwnerCharacterLevel() const
 	return State ? State->GetCharacterLevel() : 0;
 }
 
-bool UMT2SkillComponent::HasBookReadingEffect(int32 AffectType) const
+bool UMT2SkillComponent::HasBookReadingEffect(FMT2AffectIdentifier AffectType) const
 {
 	const AMT2PlayerState* State = Cast<AMT2PlayerState>(GetOwner());
 	const AMT2CharacterBase* Character = State ? Cast<AMT2CharacterBase>(State->GetPawn()) : nullptr;
@@ -55,7 +55,7 @@ bool UMT2SkillComponent::HasBookReadingEffect(int32 AffectType) const
 	return Effects && Effects->HasEffectType(AffectType);
 }
 
-void UMT2SkillComponent::ConsumeBookReadingEffect(int32 AffectType)
+void UMT2SkillComponent::ConsumeBookReadingEffect(FMT2AffectIdentifier AffectType)
 {
 	AMT2PlayerState* State = Cast<AMT2PlayerState>(GetOwner());
 	AMT2CharacterBase* Character = State ? Cast<AMT2CharacterBase>(State->GetPawn()) : nullptr;
@@ -93,7 +93,7 @@ TArray<FMT2SkillLevelEntry> UMT2SkillComponent::GetSkillLevels() const
 
 UMT2SkillSet* UMT2SkillComponent::GetSkillSet() const
 {
-	if (SkillGroup <= 0)
+	if (SkillGroup == EMT2SkillGroup::None)
 	{
 		return nullptr;
 	}
@@ -113,14 +113,14 @@ UMT2SkillDefinition* UMT2SkillComponent::FindSkillDefinition(int32 SkillVnum) co
 	return SkillSet ? SkillSet->FindSkill(SkillVnum) : nullptr;
 }
 
-bool UMT2SkillComponent::SelectSkillGroup(int32 NewSkillGroup)
+bool UMT2SkillComponent::SelectSkillGroup(EMT2SkillGroup NewSkillGroup)
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority())
 	{
 		return false;
 	}
 	// Old SetSkillGroup: only groups 1/2, only once, only from character level 5.
-	if (NewSkillGroup < 1 || NewSkillGroup > 2 || SkillGroup != 0 ||
+	if ((NewSkillGroup != EMT2SkillGroup::First && NewSkillGroup != EMT2SkillGroup::Second) || SkillGroup != EMT2SkillGroup::None ||
 		GetOwnerCharacterLevel() < MT2SkillLimits::SkillGroupSelectLevel)
 	{
 		return false;
@@ -139,7 +139,7 @@ bool UMT2SkillComponent::SelectSkillGroup(int32 NewSkillGroup)
 bool UMT2SkillComponent::CanLearnSkillByPoint(int32 SkillVnum) const
 {
 	const UMT2SkillDefinition* Skill = FindSkillDefinition(SkillVnum);
-	if (!Skill || SkillGroup == 0)
+	if (!Skill || SkillGroup == EMT2SkillGroup::None)
 	{
 		return false;
 	}
@@ -213,7 +213,7 @@ bool UMT2SkillComponent::CanReadSkillBook(int32 SkillVnum) const
 	const AMT2PlayerState* State = Cast<AMT2PlayerState>(GetOwner());
 	const int64 Cost = FMath::Max<int64>(UMT2GameplaySettings::Get().SkillBookExperienceCost, 0);
 	const bool bCooldownReady = GetSkillBookCooldownRemaining(SkillVnum) <= 0 ||
-		HasBookReadingEffect(MT2AffectId::SkillBookNoCooldown);
+		HasBookReadingEffect(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookNoCooldown));
 	return State && State->GetExperience() >= Cost && bCooldownReady;
 }
 
@@ -245,7 +245,7 @@ FText UMT2SkillComponent::GetSkillBookDenyReason(int32 SkillVnum) const
 			return NSLOCTEXT("MT2SkillBook", "NoExp", "You need more experience to read a skill book.");
 		}
 		const int64 Remaining = GetSkillBookCooldownRemaining(SkillVnum);
-		if (Remaining > 0 && !HasBookReadingEffect(MT2AffectId::SkillBookNoCooldown))
+		if (Remaining > 0 && !HasBookReadingEffect(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookNoCooldown)))
 		{
 			const int64 TotalMinutes = (Remaining + 59) / 60;
 			const int64 Hours = TotalMinutes / 60;
@@ -260,7 +260,7 @@ FText UMT2SkillComponent::GetSkillBookDenyReason(int32 SkillVnum) const
 
 	// Not in the player's set: another class of the same race, or another race entirely?
 	const EMT2CharacterRace MyRace = GetOwnerRace();
-	for (int32 Group = 1; Group <= 2; ++Group)
+	for (EMT2SkillGroup Group : {EMT2SkillGroup::First,EMT2SkillGroup::Second})
 	{
 		const UMT2SkillSet* Set = UMT2SkillSet::FindSkillSet(MyRace, Group);
 		if (Set && Set->ContainsSkill(SkillVnum))
@@ -275,7 +275,7 @@ FText UMT2SkillComponent::GetSkillBookDenyReason(int32 SkillVnum) const
 		{
 			continue;
 		}
-		for (int32 Group = 1; Group <= 2; ++Group)
+		for (EMT2SkillGroup Group : {EMT2SkillGroup::First,EMT2SkillGroup::Second})
 		{
 			const UMT2SkillSet* Set = UMT2SkillSet::FindSkillSet(Race, Group);
 			if (Set && Set->ContainsSkill(SkillVnum))
@@ -301,11 +301,11 @@ EMT2SkillBookResult UMT2SkillComponent::LearnSkillByBook(int32 SkillVnum, int32&
 	State->AddExperience(-Cost);
 
 	const bool bGuaranteedSuccess =
-		HasBookReadingEffect(MT2AffectId::SkillBookGuaranteedSuccess);
+		HasBookReadingEffect(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookGuaranteedSuccess));
 	// Both one-shot items expire on the next accepted book read. The no-cooldown affect is consumed
 	// even when this skill happened to be ready, matching the requested "next book" semantics.
-	ConsumeBookReadingEffect(MT2AffectId::SkillBookNoCooldown);
-	ConsumeBookReadingEffect(MT2AffectId::SkillBookGuaranteedSuccess);
+	ConsumeBookReadingEffect(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookNoCooldown));
+	ConsumeBookReadingEffect(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookGuaranteedSuccess));
 
 	const int64 Now = FDateTime::UtcNow().ToUnixTimestamp();
 	const int64 Cooldown = FMath::Max(UMT2GameplaySettings::Get().SkillBookCooldownSeconds, 0);
@@ -359,15 +359,24 @@ bool UMT2SkillComponent::CanTrainGrandMasterSkill(int32 SkillVnum) const
 	if (SkillVnum <= 0 || SkillVnum >= 255 || GetSkillMastery(SkillVnum) != EMT2SkillMastery::GrandMaster) { return false; }
 	const UMT2SkillDefinition* Skill = FindSkillDefinition(SkillVnum);
 	if (!Skill) { Skill = UMT2SkillSet::FindSkillAcrossSets(SkillVnum); }
-	if (!Skill || Skill->LegacySkillType <= 0) { return false; }
+	if (!Skill || Skill->LegacySkillType.Type==EMT2LegacySkillClass::Unspecified ||
+		Skill->LegacySkillType.Type==EMT2LegacySkillClass::Support || Skill->LegacySkillType.Type==EMT2LegacySkillClass::Unsupported) { return false; }
 	// IsLearnableSkill: the chosen group need not contain this skill; raw proto job owns eligibility.
-	if (Skill->LegacySkillType == 5)
+	if (Skill->LegacySkillType.Type == EMT2LegacySkillClass::Horse)
 	{
 		return SkillVnum != 140 || GetOwnerRace() == EMT2CharacterRace::Assassin;
 	}
-	if (SkillGroup == 0) { return false; }
-	if (Skill->LegacySkillType - 1 == static_cast<int32>(GetOwnerRace())) { return true; }
-	if (Skill->LegacySkillType == 6 && SkillVnum >= 112 && SkillVnum <= 119)
+	if (SkillGroup == EMT2SkillGroup::None) { return false; }
+	EMT2LegacySkillClass RaceClass=EMT2LegacySkillClass::Unspecified;
+	switch (GetOwnerRace())
+	{
+	case EMT2CharacterRace::Warrior: RaceClass=EMT2LegacySkillClass::Warrior; break;
+	case EMT2CharacterRace::Assassin: RaceClass=EMT2LegacySkillClass::Assassin; break;
+	case EMT2CharacterRace::Sura: RaceClass=EMT2LegacySkillClass::Sura; break;
+	case EMT2CharacterRace::Shaman: RaceClass=EMT2LegacySkillClass::Shaman; break;
+	}
+	if (Skill->LegacySkillType.Type == RaceClass) { return true; }
+	if (Skill->LegacySkillType.Type == EMT2LegacySkillClass::AntiSkill && SkillVnum >= 112 && SkillVnum <= 119)
 	{
 		const int32 First = SkillVnum < 116 ? 112 : 116;
 		for (int32 Vnum = First; Vnum < First + 4; ++Vnum)
@@ -411,10 +420,10 @@ bool UMT2SkillComponent::TrainGrandMasterSkill(int32 SkillVnum)
 		State->GetQuestManagerComponent()->SetQuestFlag(
 			FName(*FString::Printf(TEXT("training_grandmaster_skill.skill%d"), SkillVnum)), TotalReads);
 	}
-	if (HasBookReadingEffect(MT2AffectId::SkillBookGuaranteedSuccess))
+	if (HasBookReadingEffect(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookGuaranteedSuccess)))
 	{
 		Denominator = Denominator / 2 + Denominator % 2;
-		ConsumeBookReadingEffect(MT2AffectId::SkillBookGuaranteedSuccess);
+		ConsumeBookReadingEffect(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookGuaranteedSuccess));
 	}
 	bool bSucceeded = FMath::RandRange(1, Denominator) == 2;
 	if (TotalReads < MinimumReads)
@@ -536,7 +545,7 @@ void UMT2SkillComponent::ResetAllSkills()
 	{
 		SkillLevels.SetSkillLevel(Skill.SkillVnum, 0);
 	}
-	SkillGroup = 0;
+	SkillGroup = EMT2SkillGroup::None;
 	MasteryReadCounts.Reset();
 	GrandMasterReadCounts.Reset();
 	SkillBookCooldownEnds.Reset();
@@ -550,7 +559,7 @@ void UMT2SkillComponent::ServerLearnSkillByPoint_Implementation(int32 SkillVnum)
 	LearnSkillByPoint(SkillVnum);
 }
 
-void UMT2SkillComponent::ServerSelectSkillGroup_Implementation(int32 NewSkillGroup)
+void UMT2SkillComponent::ServerSelectSkillGroup_Implementation(EMT2SkillGroup NewSkillGroup)
 {
 	SelectSkillGroup(NewSkillGroup);
 }
@@ -567,7 +576,7 @@ void UMT2SkillComponent::RestorePersistedSkillGroup(int32 SavedSkillGroup)
 	{
 		return;
 	}
-	const int32 ClampedGroup = FMath::Clamp(SavedSkillGroup, 0, 2);
+	const EMT2SkillGroup ClampedGroup = static_cast<EMT2SkillGroup>(FMath::Clamp(SavedSkillGroup, 0, 2));
 	if (SkillGroup != ClampedGroup)
 	{
 		SkillGroup = ClampedGroup;

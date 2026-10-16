@@ -640,14 +640,14 @@ void UMT2InventoryWidget::PlayItemSound(const UMT2ItemTemplate* Template, bool b
 	if (const UMT2ItemWeaponTemplate* Weapon = Cast<UMT2ItemWeaponTemplate>(Template))
 	{
 		// Old EWeaponSubTypes: bow=2, arrow=6. Arrows use the generic sound.
-		SelectedSound = Weapon->WeaponSubType == 2 ? &BowItemSound
-			: Weapon->WeaponSubType == 6 ? &DefaultItemSound : &WeaponItemSound;
+		SelectedSound = Weapon->WeaponSubType == EMT2WeaponSubType::Bow ? &BowItemSound
+			: Weapon->WeaponSubType == EMT2WeaponSubType::Arrow ? &DefaultItemSound : &WeaponItemSound;
 	}
 	else if (const UMT2ItemArmorTemplate* Armor = Cast<UMT2ItemArmorTemplate>(Template))
 	{
 		// Old EArmorSubTypes: body=0, neck=5, ear=6.
-		SelectedSound = Armor->ArmorSubType == 0 ? &ArmorItemSound
-			: (Armor->ArmorSubType == 5 || Armor->ArmorSubType == 6)
+		SelectedSound = Armor->ArmorSubType == EMT2ArmorSubType::Body ? &ArmorItemSound
+			: (Armor->ArmorSubType == EMT2ArmorSubType::Neck || Armor->ArmorSubType == EMT2ArmorSubType::Ear)
 				? &AccessoryItemSound : &DefaultItemSound;
 	}
 	else if (bUseSound)
@@ -655,12 +655,12 @@ void UMT2InventoryWidget::PlayItemSound(const UMT2ItemTemplate* Template, bool b
 		if (const UMT2ItemUseTemplate* UseItem = Cast<UMT2ItemUseTemplate>(Template))
 		{
 			// Potion, ability-up, no-delay potion and continuous potion all use the potion cue.
-			if (UseItem->UseSubType == 0 || UseItem->UseSubType == 7 ||
-				UseItem->UseSubType == 11 || UseItem->UseSubType == 16)
+			if (UseItem->UseSubType == EMT2UseSubType::Potion || UseItem->UseSubType == EMT2UseSubType::AbilityUp ||
+				UseItem->UseSubType == EMT2UseSubType::PotionNoDelay || UseItem->UseSubType == EMT2UseSubType::PotionContinue)
 			{
 				SelectedSound = &PotionItemSound;
 			}
-			else if (UseItem->UseSubType == 1)
+			else if (UseItem->UseSubType == EMT2UseSubType::Talisman)
 			{
 				SelectedSound = &PortalItemSound;
 			}

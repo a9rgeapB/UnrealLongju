@@ -56,7 +56,7 @@ int32 UMT2ImportItemsCommandlet::Main(const FString& Params)
 			const FMT2ItemDefinition& D = Record.Definition;
 			UE_LOG(LogTemp, Display,
 				TEXT("[MT2ItemDiag] Vnum=%d Name=%s Type=%d SubType=%d Size=%d WearFlags=%d BuyPrice=%lld SellPrice=%lld Values=[%d,%d,%d,%d,%d,%d] Icon=%s Mesh=%s"),
-				D.Vnum, *D.InternalName, D.ItemType, D.SubType, D.Size, D.WearFlags, D.BuyPrice, D.SellPrice,
+				D.Vnum, *D.InternalName, static_cast<int32>(D.ItemType), D.SubType.ToLegacy(), D.Size, D.WearFlags, D.BuyPrice, D.SellPrice,
 				D.Values.IsValidIndex(0) ? D.Values[0] : -1, D.Values.IsValidIndex(1) ? D.Values[1] : -1,
 				D.Values.IsValidIndex(2) ? D.Values[2] : -1, D.Values.IsValidIndex(3) ? D.Values[3] : -1,
 				D.Values.IsValidIndex(4) ? D.Values[4] : -1, D.Values.IsValidIndex(5) ? D.Values[5] : -1,
@@ -81,12 +81,12 @@ int32 UMT2ImportItemsCommandlet::Main(const FString& Params)
 	int32 OnlyVnum = 0;
 	if (FParse::Param(*Params, TEXT("PickaxesOnly")))
 	{
-		Records.RemoveAll([](const FMT2ItemImportRecord& Record) { return Record.Definition.ItemType != 24; });
+		Records.RemoveAll([](const FMT2ItemImportRecord& Record) { return Record.Definition.ItemType != EMT2ItemType::Pick; });
 		UE_LOG(LogTemp, Display, TEXT("Filtered import to %d pickaxes."), Records.Num());
 	}
 	if (FParse::Param(*Params, TEXT("FishingRodsOnly")))
 	{
-		Records.RemoveAll([](const FMT2ItemImportRecord& Record) { return Record.Definition.ItemType != 13; });
+		Records.RemoveAll([](const FMT2ItemImportRecord& Record) { return Record.Definition.ItemType != EMT2ItemType::Rod; });
 		UE_LOG(LogTemp, Display, TEXT("Filtered import to %d fishing rods."), Records.Num());
 	}
 	if (FParse::Value(*Params, TEXT("OnlyVnum="), OnlyVnum) && OnlyVnum > 0)

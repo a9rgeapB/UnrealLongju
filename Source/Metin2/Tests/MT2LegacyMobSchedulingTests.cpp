@@ -73,7 +73,7 @@ bool FMT2LegacyMobSchedulingTest::RunTest(const FString&)
 	TargetASC->SetNumericAttributeBase(UMT2CoreAttributeSet::GetHealthAttribute(), 100.f);
 	Target->GetHealthComponent()->InitializeWithAbilitySystem(TargetASC);
 	AI->AIFlags = 1 << static_cast<int32>(EMT2MobAIFlag::AttackMobs);
-	AI->Empire = 1; AI->LeashRadius = 10000.f;
+	AI->Empire = EMT2Empire::Shinsoo; AI->LeashRadius = 10000.f;
 	Movement->SetMovementMode(MOVE_Walking); Movement->MaxWalkSpeed = 200.f;
 	Mob->SetActorLocation(FVector(0,0,110));
 	AI->SetTargetActor(Target);

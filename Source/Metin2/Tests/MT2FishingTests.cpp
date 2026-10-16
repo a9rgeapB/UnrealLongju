@@ -204,7 +204,7 @@ bool FMT2FishingPresentationTest::RunTest(const FString&)
 	const TSoftObjectPtr<UStaticMesh> RodMesh=Rod->WorldMesh.IsNull() ? GetDefault<UMT2FishingSettings>()->RodMesh : Rod->WorldMesh;
 	TestNotNull(TEXT("Configured rod mesh loads"),RodMesh.LoadSynchronous());
 	auto* Equipment=Player->GetEquipmentComponent(); const int32 Request=Equipment->ArmorRequestId;
-	Equipment->EquipWeapon(RodMesh,TEXT("equip_right_hand"),INDEX_NONE);
+	Equipment->EquipWeapon(RodMesh,TEXT("equip_right_hand"),EMT2WeaponSubType::None);
 	Equipment->OnWeaponLoaded(Equipment->WeaponRequestId,RodMesh.ToSoftObjectPath());
 	TestTrue(TEXT("Rod visible on hand"),Equipment->GetWeaponMeshComponent()->IsVisible() && Equipment->GetWeaponMeshComponent()->GetStaticMesh()==RodMesh.Get());
 	auto* Fishing=Player->GetFishingComponent();

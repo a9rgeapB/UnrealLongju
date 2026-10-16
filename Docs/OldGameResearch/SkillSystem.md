@@ -12,6 +12,10 @@ Sources studied:
 
 Sections 1–5 describe the external original game, not current port coverage. Current learning/casting is implemented in `UMT2SkillComponent` / `UMT2SkillCastComponent`; current book rules and grand-master backend are documented in [SkillBooks](SkillBooks.md) and [QuestPortingStatus](QuestPortingStatus.md). The implementation does not establish complete gameplay parity.
 
+## Current Unreal authoring
+
+Skill class selection offers named Unspecified, Support, job, Horse, and AntiSkill choices while retaining signed/unsupported imported values. Specialization uses `EMT2SkillGroup` (None, First, Second), and mastery APIs use `EMT2SkillMastery`. Bonus selectors use `EMT2ItemBonusType`; `PointOnName` still names the legacy character point and is explicitly mapped rather than treated as an APPLY ordinal. Skill and affect masks retain their numeric storage with named bit choices, including high skill bits.
+
 ## 1. Data model
 
 ### Server proto (`CSkillProto`, loaded from skill_proto / skilltable)

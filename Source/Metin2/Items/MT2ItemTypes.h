@@ -10,11 +10,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Items/MT2ItemSemanticTypes.h"
+#include "Player/MT2PlayerTypes.h"
 #include "MT2ItemTypes.generated.h"
 
 // Old item_proto masks remain int32 at runtime. These enums expose their bits as named editor
 // checkboxes without changing serialized values or importer compatibility.
-UENUM(meta = (Bitflags))
+UENUM(BlueprintType, meta = (Bitflags))
 enum class EMT2ItemFlag : uint8
 {
 	Refineable = 0,
@@ -34,7 +36,7 @@ enum class EMT2ItemFlag : uint8
 	Applicable = 14
 };
 
-UENUM(meta = (Bitflags))
+UENUM(BlueprintType, meta = (Bitflags))
 enum class EMT2ItemAntiFlag : uint8
 {
 	Female = 0,
@@ -57,7 +59,7 @@ enum class EMT2ItemAntiFlag : uint8
 	Safebox = 17
 };
 
-UENUM(meta = (Bitflags))
+UENUM(BlueprintType, meta = (Bitflags))
 enum class EMT2ItemImmuneFlag : uint8
 {
 	Paralysis = 0,
@@ -69,7 +71,7 @@ enum class EMT2ItemImmuneFlag : uint8
 	Terror = 6
 };
 
-UENUM(meta = (Bitflags))
+UENUM(BlueprintType, meta = (Bitflags))
 enum class EMT2ItemWearFlag : uint8
 {
 	Body = 0,
@@ -484,10 +486,10 @@ struct METIN2_API FMT2ItemArmorVisualDefinition
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Armor")
-	uint8 Race = 0;
+	EMT2CharacterRace Race = EMT2CharacterRace::Warrior;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Armor")
-	uint8 Sex = 0;
+	EMT2CharacterSex Sex = EMT2CharacterSex::Male;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Armor")
 	FString MeshObjectPath;
@@ -502,10 +504,10 @@ struct METIN2_API FMT2ItemHairVisualDefinition
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hair")
-	uint8 Race = 0;
+	EMT2CharacterRace Race = EMT2CharacterRace::Warrior;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hair")
-	uint8 Sex = 0;
+	EMT2CharacterSex Sex = EMT2CharacterSex::Male;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hair")
 	FString MeshObjectPath;
@@ -535,11 +537,11 @@ struct METIN2_API FMT2ItemDefinition
 
 	// EItemTypes ordinal from the old client's common/enums.h (ITEM_TYPE_WEAPON=1, ITEM_TYPE_ARMOR=2, ...).
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Identity")
-	int32 ItemType = 0;
+	EMT2ItemType ItemType = EMT2ItemType::None;
 
 	// EWeaponSubTypes / EArmorSubTypes ordinal; meaning depends on ItemType.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Identity")
-	int32 SubType = 0;
+	FMT2ItemSubtype SubType;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Identity")
 	int32 Size = 1;
@@ -602,7 +604,7 @@ struct METIN2_API FMT2ItemDefinition
 
 	// Old item_proto addon_type. -1 generates the paired average/skill-damage attributes.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats")
-	int32 BonusAddonType = 0;
+	FMT2ItemAddonSelection BonusAddonType;
 
 	// item_proto Specular strength (visual shine); not wired yet.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation")
@@ -635,4 +637,11 @@ struct METIN2_API FMT2ItemDefinition
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation")
 	TArray<FMT2ItemHairVisualDefinition> HairVisuals;
+	void PostSerialize(const FArchive& Archive) { if (Archive.IsLoading()) { SubType.ResolveLegacyFamily(ItemType); } }
+	bool ImportTextItem(const TCHAR*& Buffer,int32 PortFlags,UObject* Parent,FOutputDevice* ErrorText);
+};
+
+template<> struct TStructOpsTypeTraits<FMT2ItemDefinition> : TStructOpsTypeTraitsBase2<FMT2ItemDefinition>
+{
+	enum { WithPostSerialize=true, WithImportTextItem=true };
 };

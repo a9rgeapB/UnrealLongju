@@ -75,18 +75,18 @@ void UMT2UseItemTooltipWidget::BuildTypeSpecific(
 	}
 	switch (Use->UseSubType)
 	{
-	case 0:  // USE_POTION: over-time restore
-	case 11: // USE_POTION_NODELAY: instant restore
+	case EMT2UseSubType::Potion:  // USE_POTION: over-time restore
+	case EMT2UseSubType::PotionNoDelay: // USE_POTION_NODELAY: instant restore
 		if (Use->HealthRecovery > 0) AddLine(FString::Printf(TEXT("Restores %d HP"), Use->HealthRecovery), PositiveColor);
 		if (Use->ManaRecovery > 0) AddLine(FString::Printf(TEXT("Restores %d MP"), Use->ManaRecovery), PositiveColor);
-		if (Use->UseSubType == 11)
+		if (Use->UseSubType == EMT2UseSubType::PotionNoDelay)
 		{
 			if (Use->HealthRecoveryPercent > 0) AddLine(FString::Printf(TEXT("Restores %d%% of Max HP"), Use->HealthRecoveryPercent), PositiveColor);
 			if (Use->ManaRecoveryPercent > 0) AddLine(FString::Printf(TEXT("Restores %d%% of Max MP"), Use->ManaRecoveryPercent), PositiveColor);
 		}
 		break;
 
-	case 7: // USE_ABILITY_UP: timed stat buff (VALUE0=apply, VALUE1=duration s, VALUE2=magnitude)
+	case EMT2UseSubType::AbilityUp: // USE_ABILITY_UP: timed stat buff (VALUE0=apply, VALUE1=duration s, VALUE2=magnitude)
 	{
 		AddLine(FormatApply(static_cast<int32>(Use->GrantedBonus), Use->GrantedBonusValue), PositiveColor);
 		const int32 Duration = Use->BuffDurationSeconds;

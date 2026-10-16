@@ -999,7 +999,7 @@ void AMT2PlayerController::ClientNotifyItemReceived_Implementation(
 		{
 			ItemName = FText::Format(
 				NSLOCTEXT("MT2Rewards", "SkillBookName", "{0} Skill Book"),
-				Skill->GetGradeDisplayName(0));
+				Skill->GetGradeDisplayName(EMT2SkillMastery::Normal));
 		}
 	}
 	const FText Message = Count > 1

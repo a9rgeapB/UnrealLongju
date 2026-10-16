@@ -1,6 +1,21 @@
 #include "Animation/MT2AnimationMotionData.h"
 #include "String/LexFromString.h"
 
+namespace
+{
+	bool ReadHittingType(const FString& Token,EMT2MotionHittingType& Out)
+	{
+		int32 Raw=0;
+		if (!LexTryParseString(Raw,*Token)) { return false; }
+		if (Raw<0 || Raw>2)
+		{
+			UE_LOG(LogTemp,Warning,TEXT("Unsupported motion HittingType %d; retaining the preceding hit kind."),Raw);
+			return false;
+		}
+		Out=static_cast<EMT2MotionHittingType>(Raw); return true;
+	}
+}
+
 void UMT2AnimationMotionData::ReadAttackEvents(const FString& Script, TArray<FMT2MotionAttackEvent>& OutEvents)
 {
 	struct FScope
@@ -38,7 +53,7 @@ void UMT2AnimationMotionData::ReadAttackEvents(const FString& Script, TArray<FMT
 		{
 			if (Scopes.Num() <= 1) { continue; }
 			const FScope Scope = Scopes.Pop();
-			if (Scope.Event.HittingType != 0 && Scope.Start >= 0.f &&
+			if (Scope.Event.HittingType != EMT2MotionHittingType::None && Scope.Start >= 0.f &&
 				(Scope.EventType == 4 || (Scope.bNormal && Scope.End > Scope.Start)))
 			{
 				FMT2MotionAttackEvent Event = Scope.Event;
@@ -53,7 +68,7 @@ void UMT2AnimationMotionData::ReadAttackEvents(const FString& Script, TArray<FMT
 		float Value = 0.f;
 		if (!LexTryParseString(Value, *Tokens[1]) || !FMath::IsFinite(Value)) { continue; }
 		const FString& Key = Tokens[0];
-		if (Key == TEXT("HittingType")) { LexTryParseString(Scope.Event.HittingType, *Tokens[1]); }
+		if (Key == TEXT("HittingType")) { ReadHittingType(Tokens[1],Scope.Event.HittingType); }
 		else if (Key == TEXT("ExternalForce")) { Scope.Event.ExternalForce = FMath::Max(Value, 0.f); }
 		else if (Key == TEXT("MotionEventType")) { LexTryParseString(Scope.EventType, *Tokens[1]); }
 		else if (Key == TEXT("StartingTime") || Key == TEXT("AttackingStartTime")) { Scope.Start = Value; }
@@ -63,25 +78,25 @@ void UMT2AnimationMotionData::ReadAttackEvents(const FString& Script, TArray<FMT
 	OutEvents.Sort([](const FMT2MotionAttackEvent& A, const FMT2MotionAttackEvent& B) { return A.TimeSeconds < B.TimeSeconds; });
 }
 
-void UMT2AnimationMotionData::ReadKnockbackMetadata(const FString& Script, float& OutForce, int32& OutHittingType)
+void UMT2AnimationMotionData::ReadKnockbackMetadata(const FString& Script, float& OutForce, EMT2MotionHittingType& OutHittingType)
 {
-	OutForce = 0; OutHittingType = 0;
-	int32 CurrentHitType = 0;
-	TArray<int32> HitTypeStack;
+	OutForce = 0; OutHittingType = EMT2MotionHittingType::None;
+	EMT2MotionHittingType CurrentHitType = EMT2MotionHittingType::None;
+	TArray<EMT2MotionHittingType> HitTypeStack;
 	TArray<FString> Lines; Script.ParseIntoArrayLines(Lines);
 	for (FString Line : Lines)
 	{
 		Line.TrimStartAndEndInline();
 		if (Line == TEXT("{")) { HitTypeStack.Add(CurrentHitType); continue; }
-		if (Line == TEXT("}")) { CurrentHitType = HitTypeStack.IsEmpty() ? 0 : HitTypeStack.Pop(); continue; }
+		if (Line == TEXT("}")) { CurrentHitType = HitTypeStack.IsEmpty() ? EMT2MotionHittingType::None : HitTypeStack.Pop(); continue; }
 		TArray<FString> Tokens; Line.ParseIntoArrayWS(Tokens);
 		if (Tokens.Num() < 2) { continue; }
-		if (Tokens[0] == TEXT("HittingType")) { LexTryParseString(CurrentHitType, *Tokens[1]); }
+		if (Tokens[0] == TEXT("HittingType")) { ReadHittingType(Tokens[1],CurrentHitType); }
 		else if (Tokens[0] == TEXT("ExternalForce"))
 		{
 			float Force;
-			if (LexTryParseString(Force, *Tokens[1]) && FMath::IsFinite(Force) && Force >= 0 && CurrentHitType != 0 &&
-				(Force > OutForce || OutHittingType == 0))
+			if (LexTryParseString(Force, *Tokens[1]) && FMath::IsFinite(Force) && Force >= 0 && CurrentHitType != EMT2MotionHittingType::None &&
+				(Force > OutForce || OutHittingType == EMT2MotionHittingType::None))
 			{ OutForce = Force; OutHittingType = CurrentHitType; }
 		}
 	}

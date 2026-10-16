@@ -14,7 +14,7 @@
 #include "Items/MT2ItemTypes.h"
 #include "MT2ItemBonusSettings.generated.h"
 
-UENUM(BlueprintType, meta = (Bitflags))
+UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
 enum class EMT2ItemBonusTarget : uint8
 {
 	None = 0,
@@ -43,7 +43,7 @@ struct METIN2_API FMT2ItemBonusDefinition
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bonus")
-	int32 ApplyType = 0;
+	EMT2ItemBonusType ApplyType = EMT2ItemBonusType::None;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bonus")
 	FString DisplayName;
@@ -58,7 +58,7 @@ struct METIN2_API FMT2ItemBonusDefinition
 	int32 EligibleItemFlags = 0;
 
 	// Maximum available bonus level for each eligible equipment type.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bonus")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bonus", meta=(SemanticQuantityMap))
 	TMap<EMT2ItemBonusTarget, int32> MaxLevelByItemType;
 
 	// Values for attribute levels 1..5.
@@ -99,10 +99,10 @@ struct METIN2_API FMT2DamageAddonFormula
 	FIntPoint AverageDamageHighSkillExtraRange = FIntPoint(1, 5);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Formula")
-	int32 SkillDamageApplyType = 71;
+	EMT2ItemBonusType SkillDamageApplyType = EMT2ItemBonusType::SkillDamage;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Formula")
-	int32 AverageDamageApplyType = 72;
+	EMT2ItemBonusType AverageDamageApplyType = EMT2ItemBonusType::AverageDamage;
 };
 
 UCLASS(Config = Game, DefaultConfig, meta = (DisplayName = "MT2 Item Bonuses"))
@@ -144,7 +144,7 @@ public:
 	int32 RareBonusMaximum = 2;
 
 	UPROPERTY(EditAnywhere, Config, BlueprintReadOnly, Category = "Rules")
-	int32 DamageAddonType = -1;
+	FMT2ItemAddonSelection DamageAddonType = FMT2ItemAddonSelection::FromLegacy(-1);
 
 	UPROPERTY(EditAnywhere, Config, BlueprintReadOnly, Category = "Rules", meta = (EditFixedSize))
 	TArray<int32> AddNormalValueLevelWeights = {40, 50, 10, 0, 0};

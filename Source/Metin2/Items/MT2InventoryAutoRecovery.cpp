@@ -96,8 +96,8 @@ void UMT2InventoryComponent::RefreshAutoRecoveryEffect(
 		return;
 	}
 	const bool bHealth = Template.Resource == EMT2AutoRecoveryResource::Health;
-	const int32 AffectType = bHealth
-		? MT2AffectId::AutoHealthRecovery : MT2AffectId::AutoManaRecovery;
+	const FMT2AffectIdentifier AffectType = bHealth
+		? FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::AutoHealthRecovery) : FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::AutoManaRecovery);
 	if (!Effects->UpdateEffectValueByType(AffectType, RemainingAmount))
 	{
 		FMT2StatusEffect Effect;
@@ -125,7 +125,7 @@ void UMT2InventoryComponent::StopAutoRecoveryEffectForSlot(const FMT2ItemSlot& S
 	if (Template && Effects)
 	{
 		Effects->RemoveEffectsByType(Template->Resource == EMT2AutoRecoveryResource::Health
-			? MT2AffectId::AutoHealthRecovery : MT2AffectId::AutoManaRecovery);
+			? FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::AutoHealthRecovery) : FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::AutoManaRecovery));
 	}
 }
 

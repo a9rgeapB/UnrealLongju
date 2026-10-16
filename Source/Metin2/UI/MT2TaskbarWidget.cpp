@@ -62,8 +62,8 @@ void UMT2TaskbarWidget::RefreshResourceBars()
 	const UMT2StaminaComponent* Stamina = Character ? Character->GetStaminaComponent() : nullptr;
 	// Pending potion recovery still to be applied, so the gauge can draw the translucent target bar.
 	const UMT2StatusEffectComponent* StatusEffects = Character ? Character->GetStatusEffectComponent() : nullptr;
-	const float HealthPool = StatusEffects ? StatusEffects->GetEffectValueByType(MT2AffectId::HealthRecovery) : 0.0f;
-	const float ManaPool = StatusEffects ? StatusEffects->GetEffectValueByType(MT2AffectId::ManaRecovery) : 0.0f;
+	const float HealthPool = StatusEffects ? StatusEffects->GetEffectValueByType(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::HealthRecovery)) : 0.0f;
+	const float ManaPool = StatusEffects ? StatusEffects->GetEffectValueByType(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::ManaRecovery)) : 0.0f;
 	ResourceGaugeWidget->SetResourceValues(
 		Health ? Health->GetHealth() : 0.0f,
 		Health ? Health->GetMaxHealth() : 0.0f,

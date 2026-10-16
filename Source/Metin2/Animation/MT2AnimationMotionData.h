@@ -11,6 +11,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/AssetUserData.h"
+#include "Animation/MT2MotionTypes.h"
 #include "MT2AnimationMotionData.generated.h"
 
 class UParticleSystem;
@@ -26,7 +27,7 @@ struct METIN2_API FMT2MotionAttackEvent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "MT2 Motion|Attack")
 	float ExternalForce = 0.f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "MT2 Motion|Attack")
-	int32 HittingType = 0;
+	EMT2MotionHittingType HittingType = EMT2MotionHittingType::None;
 	bool operator==(const FMT2MotionAttackEvent& Other) const
 	{
 		return TimeSeconds == Other.TimeSeconds && EndTimeSeconds == Other.EndTimeSeconds &&
@@ -89,7 +90,7 @@ public:
 
 	// .msa AttackingData HittingType: 1 = blow/knockback hit, 2 = normal hit.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "MT2 Motion|Attack")
-	int32 HittingType = 0;
+	EMT2MotionHittingType HittingType = EMT2MotionHittingType::None;
 
 	// Seconds into the motion at which each attack lands, one per .msa MotionEventType 4
 	// (SPECIAL_ATTACKING) event's StartingTime. Empty for non-attack motions (buffs). More than one
@@ -121,6 +122,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "MT2 Motion|Combo")
 	bool bHasComboInputData = false;
-	static void ReadKnockbackMetadata(const FString& Script, float& OutForce, int32& OutHittingType);
+	static void ReadKnockbackMetadata(const FString& Script, float& OutForce, EMT2MotionHittingType& OutHittingType);
 	static void ReadAttackEvents(const FString& Script, TArray<FMT2MotionAttackEvent>& OutEvents);
 };

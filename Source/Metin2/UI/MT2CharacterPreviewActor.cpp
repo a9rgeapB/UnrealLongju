@@ -244,15 +244,15 @@ void AMT2CharacterPreviewActor::ApplyCharacterSummary(const FMT2CharacterSummary
 			TSoftObjectPtr<UParticleSystem> GlitterAsset;
 			switch (Weapon->WeaponSubType)
 			{
-			case 1:
-			case 4:
-			case 6:
+			case EMT2WeaponSubType::Dagger:
+			case EMT2WeaponSubType::Bell:
+			case EMT2WeaponSubType::Arrow:
 				GlitterAsset = GlitterSet->SmallWeapon;
 				break;
-			case 2:
+			case EMT2WeaponSubType::Bow:
 				GlitterAsset = GlitterSet->Bow;
 				break;
-			case 5:
+			case EMT2WeaponSubType::Fan:
 				GlitterAsset = GlitterSet->FanBell;
 				break;
 			default:
@@ -264,7 +264,7 @@ void AMT2CharacterPreviewActor::ApplyCharacterSummary(const FMT2CharacterSummary
 			{
 				FVector RelativeLocation = FVector::ZeroVector;
 				FVector RelativeScale = FVector::OneVector;
-				if (Weapon->WeaponSubType == 0 || Weapon->WeaponSubType == 3)
+				if (Weapon->WeaponSubType == EMT2WeaponSubType::Sword || Weapon->WeaponSubType == EMT2WeaponSubType::TwoHanded)
 				{
 					const UMT2GameplaySettings& Settings = UMT2GameplaySettings::Get();
 					const FBoxSphereBounds Bounds = LoadedWeaponMesh->GetBounds();

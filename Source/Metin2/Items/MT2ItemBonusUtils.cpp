@@ -15,7 +15,7 @@ EMT2ItemBonusTarget MT2ItemBonusUtils::ResolveTarget(const UMT2ItemTemplate* Tem
 {
 	if (const UMT2ItemWeaponTemplate* Weapon = Cast<UMT2ItemWeaponTemplate>(Template))
 	{
-		return Weapon->WeaponSubType == 6
+		return Weapon->WeaponSubType == EMT2WeaponSubType::Arrow
 			? EMT2ItemBonusTarget::None : EMT2ItemBonusTarget::Weapon;
 	}
 	const UMT2ItemArmorTemplate* Armor = Cast<UMT2ItemArmorTemplate>(Template);
@@ -25,13 +25,13 @@ EMT2ItemBonusTarget MT2ItemBonusUtils::ResolveTarget(const UMT2ItemTemplate* Tem
 	}
 	switch (Armor->ArmorSubType)
 	{
-	case 0: return EMT2ItemBonusTarget::Body;
-	case 1: return EMT2ItemBonusTarget::Head;
-	case 2: return EMT2ItemBonusTarget::Shield;
-	case 3: return EMT2ItemBonusTarget::Wrist;
-	case 4: return EMT2ItemBonusTarget::Foots;
-	case 5: return EMT2ItemBonusTarget::Neck;
-	case 6: return EMT2ItemBonusTarget::Ear;
+	case EMT2ArmorSubType::Body: return EMT2ItemBonusTarget::Body;
+	case EMT2ArmorSubType::Head: return EMT2ItemBonusTarget::Head;
+	case EMT2ArmorSubType::Shield: return EMT2ItemBonusTarget::Shield;
+	case EMT2ArmorSubType::Wrist: return EMT2ItemBonusTarget::Wrist;
+	case EMT2ArmorSubType::Foots: return EMT2ItemBonusTarget::Foots;
+	case EMT2ArmorSubType::Neck: return EMT2ItemBonusTarget::Neck;
+	case EMT2ArmorSubType::Ear: return EMT2ItemBonusTarget::Ear;
 	default: return EMT2ItemBonusTarget::None;
 	}
 }
@@ -77,10 +77,10 @@ bool MT2ItemBonusUtils::AddRandomBonus(
 	for (const FMT2ItemBonusDefinition& Definition : Definitions)
 	{
 		const int32* MaximumLevel = Definition.MaxLevelByItemType.Find(Target);
-		if (Definition.ApplyType <= 0 || Definition.SelectionWeight <= 0 ||
+		if (Definition.ApplyType == EMT2ItemBonusType::None || Definition.SelectionWeight <= 0 ||
 			!MaximumLevel || *MaximumLevel <= 0 ||
 			(Definition.EligibleItemFlags & static_cast<int32>(Target)) == 0 ||
-			HasBonusType(Item.Bonuses, Definition.ApplyType, Kind))
+			HasBonusType(Item.Bonuses, static_cast<int32>(Definition.ApplyType), Kind))
 		{
 			continue;
 		}
@@ -103,7 +103,7 @@ bool MT2ItemBonusUtils::AddRandomBonus(
 		return false;
 	}
 	FMT2ItemBonus& Bonus = Item.Bonuses.AddDefaulted_GetRef();
-	Bonus.Type = static_cast<EMT2ItemBonusType>(Definition.ApplyType);
+	Bonus.Type = Definition.ApplyType;
 	Bonus.Value = Definition.Values[LevelIndex];
 	Bonus.Kind = Kind;
 	return true;
@@ -127,9 +127,9 @@ void MT2ItemBonusUtils::AddDamageAddon(FMT2ItemSlot& Item, const FMT2DamageAddon
 		(FMath::Abs(Skill) <= Formula.SkillDamageThreshold ? FMath::Abs(Noise) : 0) +
 		FMath::RandRange(ExtraRange.X, ExtraRange.Y);
 	FMT2ItemBonus& AverageBonus = Item.Bonuses.AddDefaulted_GetRef();
-	AverageBonus.Type = static_cast<EMT2ItemBonusType>(Formula.AverageDamageApplyType);
+	AverageBonus.Type = Formula.AverageDamageApplyType;
 	AverageBonus.Value = Average;
 	FMT2ItemBonus& SkillBonus = Item.Bonuses.AddDefaulted_GetRef();
-	SkillBonus.Type = static_cast<EMT2ItemBonusType>(Formula.SkillDamageApplyType);
+	SkillBonus.Type = Formula.SkillDamageApplyType;
 	SkillBonus.Value = Skill;
 }

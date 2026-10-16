@@ -28,7 +28,7 @@ namespace
 	{
 		const AMT2PlayerCharacter* Character = State
 			? Cast<AMT2PlayerCharacter>(State->GetPawn()) : nullptr;
-		return Character ? FMath::Max(Character->GetItemApplyBonus(static_cast<int32>(Type)), 0) : 0;
+		return Character ? FMath::Max(Character->GetItemApplyBonus(Type), 0) : 0;
 	}
 
 	int64 ApplyPercentBonus(int64 Amount, int32 Percent)

@@ -11,7 +11,7 @@ bool UMT2InventoryComponent::ApplyFishingBait(int32 InventorySlot)
 	if (!Player || !Player->HasAuthority() || Player->GetHealthComponent()->IsDead() || Player->GetFishingComponent()->IsFishing() ||
 		!Slots.IsValidIndex(InventorySlot) || Slots[InventorySlot].IsEmpty() || !Equipment.IsValidIndex(4)) { return false; }
 	const auto* Bait = Cast<UMT2ItemUseTemplate>(ResolveTemplate(Slots[InventorySlot].Vnum));
-	if (!Bait || Bait->UseSubType != 6 || Bait->HealthRecovery <= 0 || !Cast<UMT2ItemRodTemplate>(ResolveTemplate(Equipment[4].Vnum))) { return false; }
+	if (!Bait || Bait->UseSubType != EMT2UseSubType::Bait || Bait->HealthRecovery <= 0 || !Cast<UMT2ItemRodTemplate>(ResolveTemplate(Equipment[4].Vnum))) { return false; }
 	// USE_BAIT's Value0 was already imported into HealthRecovery; retain existing bait assets.
 	Equipment[4].MetinSockets.SetNum(3); Equipment[4].MetinSockets[2].Value = Bait->HealthRecovery;
 	if (--Slots[InventorySlot].Count == 0) { Slots[InventorySlot] = FMT2ItemSlot(); }

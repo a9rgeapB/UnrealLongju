@@ -143,14 +143,14 @@ bool FMT2MiningAuthorityTest::RunTest(const FString&)
 	Player->GetHealthComponent()->SetHealth(90);
 	TestFalse(TEXT("Damage interrupts mining immediately"),Mining->IsMining());
 	Player->GetHealthComponent()->SetHealth(100);
-	FMT2StatusEffect Stun; Stun.Type=999; Stun.Flags=1<<6; Stun.RemainingSeconds=10;
+	FMT2StatusEffect Stun; Stun.Type=FMT2AffectIdentifier::FromLegacyId(999); Stun.Flags=1<<6; Stun.RemainingSeconds=10;
 	Player->GetStatusEffectComponent()->AddEffect(Stun);
 	TestFalse(TEXT("Stunned players cannot mine"),Mining->StartMining(Vein));
-	Mining->CancelMining(); Player->GetStatusEffectComponent()->RemoveEffectsByType(999);
+	Mining->CancelMining(); Player->GetStatusEffectComponent()->RemoveEffectsByType(FMT2AffectIdentifier::FromLegacyId(999));
 	TestTrue(TEXT("Stun cancellation sequence starts"),Mining->StartMining(Vein));
 	Player->GetStatusEffectComponent()->AddEffect(Stun);
 	TestFalse(TEXT("Stun interrupts active mining immediately"),Mining->IsMining());
-	Player->GetStatusEffectComponent()->RemoveEffectsByType(999);
+	Player->GetStatusEffectComponent()->RemoveEffectsByType(FMT2AffectIdentifier::FromLegacyId(999));
 	// Force a successful real RNG path without changing the production chance table.
 	int32 Seed=0;
 	for (;; ++Seed) { FRandomStream Trial(Seed); if (Trial.RandRange(1,100)<=23 && Trial.RandRange(1,100)>20) { break; } }

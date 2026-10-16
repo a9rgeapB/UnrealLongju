@@ -15,7 +15,7 @@ struct METIN2_API FMT2FishingCatch
 	UPROPERTY(EditAnywhere, Config, Category="Fishing") TSoftClassPtr<UMT2ItemTemplate> ItemTemplate;
 	UPROPERTY(EditAnywhere, Config, Category="Fishing") TArray<int32> Weights;
 	UPROPERTY(EditAnywhere, Config, Category="Fishing") int32 Difficulty = 1;
-	UPROPERTY(EditAnywhere, Config, Category="Fishing") int32 TimeProfile = 0;
+	UPROPERTY(EditAnywhere, Config, Category="Fishing", meta=(DisplayName="Timing Profile Index", ToolTip="Index into the editable TimingProfiles table; not a fixed fish or timing type.")) int32 TimeProfile = 0;
 	UPROPERTY(EditAnywhere, Config, Category="Fishing") TArray<int32> LengthRange;
 };
 

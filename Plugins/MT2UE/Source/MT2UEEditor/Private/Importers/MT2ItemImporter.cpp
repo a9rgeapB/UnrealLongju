@@ -535,8 +535,8 @@ namespace
 			{
 				FMT2ItemArmorVisualDefinition& Visual =
 					OutVisuals.FindOrAdd(Pending.ShapeIndex).AddDefaulted_GetRef();
-				Visual.Race = Race;
-				Visual.Sex = Sex;
+				Visual.Race = static_cast<EMT2CharacterRace>(Race);
+				Visual.Sex = static_cast<EMT2CharacterSex>(Sex);
 				Visual.MeshObjectPath = MeshPath;
 				for (int32 SkinIndex = 0; SkinIndex < UE_ARRAY_COUNT(Pending.SourceSkins); ++SkinIndex)
 				{
@@ -681,8 +681,8 @@ namespace
 				{
 					FMT2ItemHairVisualDefinition& Visual =
 						OutVisuals.FindOrAdd(HairIndex).AddDefaulted_GetRef();
-					Visual.Race = Race;
-					Visual.Sex = Sex;
+					Visual.Race = static_cast<EMT2CharacterRace>(Race);
+					Visual.Sex = static_cast<EMT2CharacterSex>(Sex);
 					Visual.MeshObjectPath = MeshPath;
 					Visual.TextureObjectPath = BuildImportedTextureObjectPath(
 						DestinationRoot, HairPath, TargetSkin);
@@ -964,44 +964,44 @@ namespace
 	}
 
 	// EItemTypes ordinals from the old client's common/enums.h.
-	UClass* ResolveTemplateClass(int32 ItemType)
+	UClass* ResolveTemplateClass(EMT2ItemType ItemType)
 	{
 		switch (ItemType)
 		{
-		case 1: return UMT2ItemWeaponTemplate::StaticClass();
-		case 2: return UMT2ItemArmorTemplate::StaticClass();
-		case 3: return UMT2ItemUseTemplate::StaticClass();
-		case 4: return UMT2ItemAutoUseTemplate::StaticClass();
-		case 5: return UMT2ItemMaterialTemplate::StaticClass();
-		case 6: return UMT2ItemSpecialTemplate::StaticClass();
-		case 7: return UMT2ItemToolTemplate::StaticClass();
-		case 8: return UMT2ItemLotteryTemplate::StaticClass();
-		case 9: return UMT2ItemGoldTemplate::StaticClass();
-		case 10: return UMT2ItemMetinStoneTemplate::StaticClass();
-		case 11: return UMT2ItemContainerTemplate::StaticClass();
-		case 12: return UMT2ItemFishTemplate::StaticClass();
-		case 13: return UMT2ItemRodTemplate::StaticClass();
-		case 14: return UMT2ItemResourceTemplate::StaticClass();
-		case 15: return UMT2ItemCampfireTemplate::StaticClass();
-		case 16: return UMT2ItemUniqueTemplate::StaticClass();
-		case 17: return UMT2ItemSkillBookTemplate::StaticClass();
-		case 18: return UMT2ItemQuestTemplate::StaticClass();
-		case 19: return UMT2ItemPolymorphTemplate::StaticClass();
-		case 20: return UMT2ItemTreasureBoxTemplate::StaticClass();
-		case 21: return UMT2ItemTreasureKeyTemplate::StaticClass();
-		case 22: return UMT2ItemSkillForgetTemplate::StaticClass();
-		case 23: return UMT2ItemGiftBoxTemplate::StaticClass();
-		case 24: return UMT2ItemPickTemplate::StaticClass();
-		case 25: return UMT2ItemHairTemplate::StaticClass();
-		case 26: return UMT2ItemTotemTemplate::StaticClass();
-		case 27: return UMT2ItemBlendTemplate::StaticClass();
-		case 28: return UMT2ItemCostumeTemplate::StaticClass();
-		case 29: return UMT2ItemDragonSoulTemplate::StaticClass();
-		case 30: return UMT2ItemSpecialDragonSoulTemplate::StaticClass();
-		case 31: return UMT2ItemExtractTemplate::StaticClass();
-		case 32: return UMT2ItemSecondaryCoinTemplate::StaticClass();
-		case 33: return UMT2ItemRingTemplate::StaticClass();
-		case 34: return UMT2ItemBeltTemplate::StaticClass();
+		case EMT2ItemType::Weapon: return UMT2ItemWeaponTemplate::StaticClass();
+		case EMT2ItemType::Armor: return UMT2ItemArmorTemplate::StaticClass();
+		case EMT2ItemType::Use: return UMT2ItemUseTemplate::StaticClass();
+		case EMT2ItemType::AutoUse: return UMT2ItemAutoUseTemplate::StaticClass();
+		case EMT2ItemType::Material: return UMT2ItemMaterialTemplate::StaticClass();
+		case EMT2ItemType::Special: return UMT2ItemSpecialTemplate::StaticClass();
+		case EMT2ItemType::Tool: return UMT2ItemToolTemplate::StaticClass();
+		case EMT2ItemType::Lottery: return UMT2ItemLotteryTemplate::StaticClass();
+		case EMT2ItemType::Yang: return UMT2ItemGoldTemplate::StaticClass();
+		case EMT2ItemType::Metin: return UMT2ItemMetinStoneTemplate::StaticClass();
+		case EMT2ItemType::Container: return UMT2ItemContainerTemplate::StaticClass();
+		case EMT2ItemType::Fish: return UMT2ItemFishTemplate::StaticClass();
+		case EMT2ItemType::Rod: return UMT2ItemRodTemplate::StaticClass();
+		case EMT2ItemType::Resource: return UMT2ItemResourceTemplate::StaticClass();
+		case EMT2ItemType::Campfire: return UMT2ItemCampfireTemplate::StaticClass();
+		case EMT2ItemType::Unique: return UMT2ItemUniqueTemplate::StaticClass();
+		case EMT2ItemType::SkillBook: return UMT2ItemSkillBookTemplate::StaticClass();
+		case EMT2ItemType::Quest: return UMT2ItemQuestTemplate::StaticClass();
+		case EMT2ItemType::Polymorph: return UMT2ItemPolymorphTemplate::StaticClass();
+		case EMT2ItemType::TreasureBox: return UMT2ItemTreasureBoxTemplate::StaticClass();
+		case EMT2ItemType::TreasureKey: return UMT2ItemTreasureKeyTemplate::StaticClass();
+		case EMT2ItemType::SkillForget: return UMT2ItemSkillForgetTemplate::StaticClass();
+		case EMT2ItemType::GiftBox: return UMT2ItemGiftBoxTemplate::StaticClass();
+		case EMT2ItemType::Pick: return UMT2ItemPickTemplate::StaticClass();
+		case EMT2ItemType::Hair: return UMT2ItemHairTemplate::StaticClass();
+		case EMT2ItemType::Totem: return UMT2ItemTotemTemplate::StaticClass();
+		case EMT2ItemType::Blend: return UMT2ItemBlendTemplate::StaticClass();
+		case EMT2ItemType::Costume: return UMT2ItemCostumeTemplate::StaticClass();
+		case EMT2ItemType::DragonSoul: return UMT2ItemDragonSoulTemplate::StaticClass();
+		case EMT2ItemType::SpecialDragonSoul: return UMT2ItemSpecialDragonSoulTemplate::StaticClass();
+		case EMT2ItemType::Extract: return UMT2ItemExtractTemplate::StaticClass();
+		case EMT2ItemType::SecondaryCoin: return UMT2ItemSecondaryCoinTemplate::StaticClass();
+		case EMT2ItemType::Ring: return UMT2ItemRingTemplate::StaticClass();
+		case EMT2ItemType::Belt: return UMT2ItemBeltTemplate::StaticClass();
 		default: return UMT2ItemSpecialTemplate::StaticClass();
 		}
 	}
@@ -1027,6 +1027,11 @@ namespace
 		TArray<UPackage*>& OutPackagesToSave)
 	{
 		const FMT2ItemDefinition& Definition = Record.Definition;
+		if (!Definition.SubType.IsForFamily(Definition.ItemType))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Item %d has a subtype from a different item family; refusing to author an invalid template."),Definition.Vnum);
+			return nullptr;
+		}
 		const FString Name = FString::Printf(TEXT("BP_Item_%05d"), Definition.Vnum);
 		const FString PackageName = NormalizeItemDestinationRoot(DestinationRoot) / UMT2PathSettings::Path(TEXT("Relative_Items_Blueprints")) / Name;
 		const FString ObjectPath = PackageName + TEXT(".") + Name;
@@ -1036,7 +1041,7 @@ namespace
 			? UMT2MountItemTemplate::StaticClass()
 			: IsMobLureItem(Definition.Vnum)
 			? UMT2MobLureItemTemplate::StaticClass()
-			: Definition.ItemType == 3 && Definition.SubType == 10
+			: Definition.ItemType == EMT2ItemType::Use && Definition.SubType.ToLegacy() == 10
 			? UMT2ItemAutoRecoveryTemplate::StaticClass()
 			: Definition.Vnum == 25040
 			? UMT2ItemRefinementScrollTemplate::StaticClass()
@@ -1047,6 +1052,30 @@ namespace
 				: ResolveTemplateClass(Definition.ItemType);
 
 		UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *ObjectPath);
+		const int32 RawSubtype=Definition.SubType.ToLegacy();
+		if (ParentClass->IsChildOf(UMT2ItemUseTemplate::StaticClass()) &&
+			(RawSubtype==static_cast<int32>(EMT2UseSubType::AbilityUp) || RawSubtype==static_cast<int32>(EMT2UseSubType::Affect)))
+		{
+			const int32 ApplyIndex=RawSubtype==static_cast<int32>(EMT2UseSubType::AbilityUp) ? 0 : 1;
+			EMT2ItemBonusType Apply;
+			if (Definition.Values.IsValidIndex(ApplyIndex) && !MT2ItemSemanticTypes::TryDecodeBonus(Definition.Values[ApplyIndex],Apply))
+			{
+				UE_LOG(LogTemp,Error,TEXT("Item %d has unsupported APPLY ID %d; template not modified."),Definition.Vnum,Definition.Values[ApplyIndex]);
+				return nullptr;
+			}
+		}
+		const UEnum* ClosedSubtype=nullptr;
+		if (ParentClass->IsChildOf(UMT2ItemWeaponTemplate::StaticClass())) { ClosedSubtype=StaticEnum<EMT2WeaponSubType>(); }
+		else if (ParentClass->IsChildOf(UMT2ItemArmorTemplate::StaticClass())) { ClosedSubtype=StaticEnum<EMT2ArmorSubType>(); }
+		else if (ParentClass->IsChildOf(UMT2ItemUseTemplate::StaticClass())) { ClosedSubtype=StaticEnum<EMT2UseSubType>(); }
+		else if (ParentClass->IsChildOf(UMT2ItemAutoUseTemplate::StaticClass())) { ClosedSubtype=StaticEnum<EMT2AutoUseSubType>(); }
+		else if (ParentClass->IsChildOf(UMT2ItemMetinStoneTemplate::StaticClass())) { ClosedSubtype=StaticEnum<EMT2MetinSubType>(); }
+		else if (ParentClass->IsChildOf(UMT2ItemCostumeTemplate::StaticClass())) { ClosedSubtype=StaticEnum<EMT2CostumeSubType>(); }
+		if (ClosedSubtype && (RawSubtype<0 || RawSubtype>=254 || !ClosedSubtype->IsValidEnumValue(RawSubtype)))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Item %d has unsupported subtype %d for %s; raw import data is retained, template not modified."),Definition.Vnum,RawSubtype,*ParentClass->GetName());
+			return nullptr;
+		}
 		bOutCreated = (Blueprint == nullptr);
 		if (!Blueprint)
 		{
@@ -1143,7 +1172,7 @@ namespace
 			}
 			if (UMT2ItemWeaponTemplate* Weapon = Cast<UMT2ItemWeaponTemplate>(Defaults))
 			{
-				Weapon->WeaponSubType = Definition.SubType;
+				Weapon->WeaponSubType = static_cast<EMT2WeaponSubType>(Definition.SubType.ToLegacy());
 				Weapon->MagicDamageMin = Definition.Values.IsValidIndex(1) ? Definition.Values[1] : 0;
 				Weapon->MagicDamageMax = Definition.Values.IsValidIndex(2) ? Definition.Values[2] : 0;
 				Weapon->PhysicalDamageMin = Definition.Values.IsValidIndex(3) ? Definition.Values[3] : 0;
@@ -1154,13 +1183,13 @@ namespace
 			// without this every use-item defaults to sub-type 0 and e.g. speed potions never trigger.
 			if (UMT2ItemUseTemplate* Use = Cast<UMT2ItemUseTemplate>(Defaults))
 			{
-				Use->UseSubType = Definition.SubType;
-				Use->AffectType = 0;
+				Use->UseSubType = static_cast<EMT2UseSubType>(Definition.SubType.ToLegacy());
+				Use->AffectType = FMT2AffectIdentifier();
 				Use->HealthRecovery = Definition.Values.IsValidIndex(0) ? Definition.Values[0] : 0;
 				Use->ManaRecovery = Definition.Values.IsValidIndex(1) ? Definition.Values[1] : 0;
 				Use->HealthRecoveryPercent = Definition.Values.IsValidIndex(3) ? Definition.Values[3] : 0;
 				Use->ManaRecoveryPercent = Definition.Values.IsValidIndex(4) ? Definition.Values[4] : 0;
-				if (Definition.SubType == 7)
+				if (Definition.SubType.ToLegacy() == 7)
 				{
 					Use->GrantedBonus = static_cast<EMT2ItemBonusType>(
 						Definition.Values.IsValidIndex(0) ? Definition.Values[0] : 0);
@@ -1169,11 +1198,11 @@ namespace
 					Use->GrantedBonusValue =
 						Definition.Values.IsValidIndex(2) ? Definition.Values[2] : 0;
 				}
-				else if (Definition.SubType == 8)
+				else if (Definition.SubType.ToLegacy() == 8)
 				{
 					// USE_AFFECT: Value0=affect id, Value1=EApplyTypes, Value2=magnitude,
 					// Value3=duration. This covers the premium rings/gloves/medals generically.
-					Use->AffectType = Definition.Values.IsValidIndex(0) ? Definition.Values[0] : 0;
+					Use->AffectType = FMT2AffectIdentifier::FromLegacyId(Definition.Values.IsValidIndex(0) ? Definition.Values[0] : 0);
 					Use->GrantedBonus = static_cast<EMT2ItemBonusType>(
 						Definition.Values.IsValidIndex(1) ? Definition.Values[1] : 0);
 					Use->GrantedBonusValue =
@@ -1195,7 +1224,7 @@ namespace
 			}
 			else if (UMT2ItemAutoUseTemplate* AutoUse = Cast<UMT2ItemAutoUseTemplate>(Defaults))
 			{
-				AutoUse->AutoUseSubType = Definition.SubType;
+				AutoUse->AutoUseSubType = static_cast<EMT2AutoUseSubType>(Definition.SubType.ToLegacy());
 			}
 			if (UMT2MobLureItemTemplate* MobLure = Cast<UMT2MobLureItemTemplate>(Defaults))
 			{
@@ -1204,7 +1233,7 @@ namespace
 			}
 			if (UMT2ItemArmorTemplate* Armor = Cast<UMT2ItemArmorTemplate>(Defaults))
 			{
-				Armor->ArmorSubType = Definition.SubType;
+				Armor->ArmorSubType = static_cast<EMT2ArmorSubType>(Definition.SubType.ToLegacy());
 				Armor->Defense = Definition.Values.IsValidIndex(1) ? Definition.Values[1] : 0;
 				Armor->ArmorShapeId = Definition.Values.IsValidIndex(3) ? Definition.Values[3] : 0;
 				Armor->RefinementDefense = Definition.Values.IsValidIndex(5) ? Definition.Values[5] : 0;
@@ -1222,15 +1251,15 @@ namespace
 			}
 			if (UMT2ItemUniqueTemplate* Unique = Cast<UMT2ItemUniqueTemplate>(Defaults))
 			{
-				Unique->UniqueSubType = Definition.SubType;
+				Unique->UniqueSubType = FMT2ItemUniqueSubtypeSelection::FromLegacy(Definition.SubType.ToLegacy());
 			}
 			if (UMT2ItemMetinStoneTemplate* MetinStone =
 				Cast<UMT2ItemMetinStoneTemplate>(Defaults))
 			{
-				MetinStone->MetinSubType = Definition.SubType;
+				MetinStone->MetinSubType = static_cast<EMT2MetinSubType>(Definition.SubType.ToLegacy());
 				MetinStone->CompatibleWearFlags = Definition.WearFlags;
-				MetinStone->RequiredSocketGrade = FMath::Clamp(
-					Definition.Values.IsValidIndex(2) ? Definition.Values[2] : 1, 1, 2);
+				MetinStone->RequiredSocketGrade = static_cast<EMT2RequiredMetinSocketGrade>(FMath::Clamp(
+					Definition.Values.IsValidIndex(2) ? Definition.Values[2] : 1, 1, 2));
 				MetinStone->StoneCategory =
 					Definition.Values.IsValidIndex(5) ? Definition.Values[5] : 0;
 			}
@@ -1264,7 +1293,7 @@ namespace
 			}
 			if (UMT2ItemCostumeTemplate* Costume = Cast<UMT2ItemCostumeTemplate>(Defaults))
 			{
-				Costume->CostumeSubType = Definition.SubType;
+				Costume->CostumeSubType = static_cast<EMT2CostumeSubType>(Definition.SubType.ToLegacy());
 				Costume->HairShapeId =
 					Definition.Values.IsValidIndex(3) ? Definition.Values[3] : 0;
 				Costume->HairMeshVariants.Reset();
@@ -1510,7 +1539,7 @@ bool FMT2ItemImporter::Discover(
 	int32 MappedCostumeHairCount = 0;
 	for (FMT2ItemDefinition& Definition : ReadResult.Definitions)
 	{
-		Definition.BonusAddonType = AddonTypes.FindRef(Definition.Vnum);
+		Definition.BonusAddonType = FMT2ItemAddonSelection::FromLegacy(AddonTypes.FindRef(Definition.Vnum));
 		Definition.RefinementLevel = Definition.Vnum % 10;
 		Definition.PreviousRefinedVnum = Definition.RefinementLevel > 0
 			? PreviousRefinedVnums.FindRef(Definition.Vnum) : 0;
@@ -1532,7 +1561,7 @@ bool FMT2ItemImporter::Discover(
 			Definition.Description = Desc->Description;
 		}
 		// ARMOR_BODY uses Value3 as the legacy shape index passed to CInstanceBase::SetShape.
-		if (Definition.ItemType == 2 && Definition.SubType == 0 && Definition.Values.IsValidIndex(3))
+		if (Definition.ItemType == EMT2ItemType::Armor && Definition.SubType.ToLegacy() == 0 && Definition.Values.IsValidIndex(3))
 		{
 			if (const TArray<FMT2ItemArmorVisualDefinition>* Visuals = ArmorVisualsByShape.Find(Definition.Values[3]))
 			{
@@ -1541,7 +1570,7 @@ bool FMT2ItemImporter::Discover(
 			}
 		}
 		// COSTUME_HAIR uses Value3 as the HairIndex in each race's HairData table.
-		if (Definition.ItemType == 28 && Definition.SubType == 1 && Definition.Values.IsValidIndex(3))
+		if (Definition.ItemType == EMT2ItemType::Costume && Definition.SubType.ToLegacy() == 1 && Definition.Values.IsValidIndex(3))
 		{
 			if (const TArray<FMT2ItemHairVisualDefinition>* Visuals =
 				HairVisualsByShape.Find(Definition.Values[3]))
@@ -1724,14 +1753,14 @@ bool FMT2ItemImporter::Import(
 	TMap<int32, const FMT2ItemImportRecord*> TreasureKeysByLockId;
 	for (const FMT2ItemImportRecord& Record : Records)
 	{
-		if (Record.Definition.ItemType == 21 && Record.Definition.Values.IsValidIndex(0))
+		if (Record.Definition.ItemType == EMT2ItemType::TreasureKey && Record.Definition.Values.IsValidIndex(0))
 		{
 			TreasureKeysByLockId.FindOrAdd(Record.Definition.Values[0], &Record);
 		}
 	}
 	for (const FMT2ItemImportRecord& Record : Records)
 	{
-		if (Record.Definition.ItemType != 20 || !Record.Definition.Values.IsValidIndex(0))
+		if (Record.Definition.ItemType != EMT2ItemType::TreasureBox || !Record.Definition.Values.IsValidIndex(0))
 		{
 			continue;
 		}
@@ -1764,7 +1793,7 @@ bool FMT2ItemImporter::Import(
 
 	for (const FMT2ItemImportRecord& Record : Records)
 	{
-		if (Record.Definition.ItemType != 20 && Record.Definition.ItemType != 23)
+		if (Record.Definition.ItemType != EMT2ItemType::TreasureBox && Record.Definition.ItemType != EMT2ItemType::GiftBox)
 		{
 			continue;
 		}

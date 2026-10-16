@@ -209,7 +209,7 @@ void UMT2AdminCommandComponent::CmdStats(const TArray<FString>&)
 	const UEnum* BonusEnum = StaticEnum<EMT2ItemBonusType>();
 	for (int32 Type = 1; Type <= static_cast<int32>(EMT2ItemBonusType::AntiPenetratingChance); ++Type)
 	{
-		const int32 Value = Player->GetItemApplyBonus(Type);
+		const int32 Value = Player->GetItemApplyBonus(static_cast<EMT2ItemBonusType>(Type));
 		if (Value != 0)
 		{
 			const FString Name = BonusEnum
@@ -219,8 +219,8 @@ void UMT2AdminCommandComponent::CmdStats(const TArray<FString>&)
 	}
 	Controller->SendAdminCommandMessage(FString::Printf(
 		TEXT("[Bonuses] Critical %d%% | Penetrating %d%% | Crit resist %d%% | Pen resist %d%%"),
-		Player->GetItemApplyBonus(15), Player->GetItemApplyBonus(16),
-		Player->GetItemApplyBonus(90), Player->GetItemApplyBonus(91)));
+		Player->GetItemApplyBonus(EMT2ItemBonusType::CriticalChance), Player->GetItemApplyBonus(EMT2ItemBonusType::PenetratingChance),
+		Player->GetItemApplyBonus(EMT2ItemBonusType::AntiCriticalChance), Player->GetItemApplyBonus(EMT2ItemBonusType::AntiPenetratingChance)));
 	Controller->SendAdminCommandMessage(ActiveBonuses.IsEmpty()
 		? TEXT("[Bonuses] No active item/status bonuses.")
 		: FString::Printf(TEXT("[Bonuses] %s"), *FString::Join(ActiveBonuses, TEXT(" | "))));
@@ -352,8 +352,13 @@ void UMT2AdminCommandComponent::CmdApplyEffect(const TArray<FString>& Args)
 	// Test hook for the status-effect system: "/a applyType value [durationSeconds]".
 	// e.g. "/a 8 40 30" = +40 movement speed for 30s; omit duration (or pass -1) for infinite.
 	FMT2StatusEffect Effect;
-	Effect.Type = 1000 + FCString::Atoi(*Args[1]);
-	Effect.ApplyType = FCString::Atoi(*Args[1]);
+	const int32 RawApply=FCString::Atoi(*Args[1]);
+	if (!MT2ItemSemanticTypes::TryDecodeBonus(RawApply,Effect.ApplyType))
+	{
+		SendResult(false,TEXT("Unsupported APPLY type."));
+		return;
+	}
+	Effect.Type = FMT2AffectIdentifier::FromLegacyId(1000 + RawApply);
 	Effect.ApplyValue = FCString::Atoi(*Args[2]);
 	Effect.RemainingSeconds = Args.IsValidIndex(3) ? FCString::Atoi(*Args[3]) : -1;
 	StatusEffects->AddEffect(Effect, true);

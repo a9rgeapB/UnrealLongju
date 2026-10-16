@@ -73,7 +73,7 @@ FText UMT2StatusEffectDefinition::GetDescription(const FMT2StatusEffect& Effect)
 {
 	// Premium affects use the original EApplyTypes ordinals. Keep their familiar short wording and
 	// value-first layout; other generic stat affects share the configurable item-bonus formatter.
-	switch (static_cast<EMT2ItemBonusType>(Effect.ApplyType))
+	switch (Effect.ApplyType)
 	{
 	case EMT2ItemBonusType::MallExperienceBonus:
 		return FText::Format(NSLOCTEXT("MT2StatusEffects", "ExperienceBonus", "+{0}% EXP"),
@@ -88,10 +88,10 @@ FText UMT2StatusEffectDefinition::GetDescription(const FMT2StatusEffect& Effect)
 		break;
 	}
 
-	if (Effect.ApplyType > 0)
+	if (Effect.ApplyType != EMT2ItemBonusType::None)
 	{
 		return FText::FromString(GetDefault<UMT2ItemBonusSettings>()->FormatBonus(
-			Effect.ApplyType, Effect.ApplyValue));
+			static_cast<int32>(Effect.ApplyType), Effect.ApplyValue));
 	}
 	return GetDisplayName();
 }

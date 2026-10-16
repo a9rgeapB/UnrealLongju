@@ -665,11 +665,11 @@ namespace
 			UMT2StatusEffectComponent* Effects = Context.Player ? Context.Player->GetStatusEffectComponent() : nullptr;
 			if (Name == TEXT("pc.is_skill_book_no_delay"))
 			{
-				return FMT2QuestValue::Boolean(Effects && Effects->HasEffectType(MT2AffectId::SkillBookNoCooldown));
+				return FMT2QuestValue::Boolean(Effects && Effects->HasEffectType(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookNoCooldown)));
 			}
 			if (Effects && Context.Player->HasAuthority())
 			{
-				Effects->RemoveEffectsByType(MT2AffectId::SkillBookNoCooldown);
+				Effects->RemoveEffectsByType(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::SkillBookNoCooldown));
 			}
 			return FMT2QuestValue();
 		}
@@ -752,7 +752,7 @@ namespace
 		if (Name == TEXT("pc.get_skill_group"))
 		{
 			const UMT2SkillComponent* Skills = State ? State->GetSkillComponent() : nullptr;
-			return FMT2QuestValue(Skills ? Skills->GetSkillGroup() : 0);
+			return FMT2QuestValue(Skills ? static_cast<int32>(Skills->GetSkillGroup()) : 0);
 		}
 		if (Name == TEXT("pc.get_skill_level"))
 		{
@@ -799,7 +799,7 @@ namespace
 		if (Name == TEXT("pc_is_novice"))
 		{
 			const UMT2SkillComponent* Skills = State ? State->GetSkillComponent() : nullptr;
-			return FMT2QuestValue(Skills && Skills->GetSkillGroup() == 0 ? 1.0 : 0.0);
+			return FMT2QuestValue(Skills && Skills->GetSkillGroup() == EMT2SkillGroup::None ? 1.0 : 0.0);
 		}
 		// questlib.lua line 209: is the event's NPC one of the two skill teachers for the player's job?
 		// The vnum lists live at the bottom of questlib.lua and are converted with the other tables.
@@ -1245,7 +1245,7 @@ namespace
 		if (Name == TEXT("pc.is_clear_skill_group"))
 		{
 			const UMT2SkillComponent* Skills = State ? State->GetSkillComponent() : nullptr;
-			return FMT2QuestValue(Skills && Skills->GetSkillGroup() == 0 ? 1.0 : 0.0);
+			return FMT2QuestValue(Skills && Skills->GetSkillGroup() == EMT2SkillGroup::None ? 1.0 : 0.0);
 		}
 		if (Name == TEXT("pc.get_skill_group_name"))
 		{
@@ -1520,13 +1520,13 @@ namespace
 			if (Name == TEXT("item.get_sub_type"))
 			{
 				int32 SubType = 0;
-				if (const UMT2ItemWeaponTemplate* Weapon = Cast<UMT2ItemWeaponTemplate>(Template)) SubType = Weapon->WeaponSubType;
-				else if (const UMT2ItemArmorTemplate* Armor = Cast<UMT2ItemArmorTemplate>(Template)) SubType = Armor->ArmorSubType;
-				else if (const UMT2ItemUseTemplate* Use = Cast<UMT2ItemUseTemplate>(Template)) SubType = Use->UseSubType;
-				else if (const UMT2ItemAutoUseTemplate* AutoUse = Cast<UMT2ItemAutoUseTemplate>(Template)) SubType = AutoUse->AutoUseSubType;
-				else if (const UMT2ItemMaterialTemplate* Material = Cast<UMT2ItemMaterialTemplate>(Template)) SubType = Material->MaterialSubType;
-				else if (const UMT2ItemMetinStoneTemplate* Stone = Cast<UMT2ItemMetinStoneTemplate>(Template)) SubType = Stone->MetinSubType;
-				else if (const UMT2ItemCostumeTemplate* Costume = Cast<UMT2ItemCostumeTemplate>(Template)) SubType = Costume->CostumeSubType;
+				if (const UMT2ItemWeaponTemplate* Weapon = Cast<UMT2ItemWeaponTemplate>(Template)) SubType = static_cast<int32>(Weapon->WeaponSubType);
+				else if (const UMT2ItemArmorTemplate* Armor = Cast<UMT2ItemArmorTemplate>(Template)) SubType = static_cast<int32>(Armor->ArmorSubType);
+				else if (const UMT2ItemUseTemplate* Use = Cast<UMT2ItemUseTemplate>(Template)) SubType = static_cast<int32>(Use->UseSubType);
+				else if (const UMT2ItemAutoUseTemplate* AutoUse = Cast<UMT2ItemAutoUseTemplate>(Template)) SubType = static_cast<int32>(AutoUse->AutoUseSubType);
+				else if (const UMT2ItemMaterialTemplate* Material = Cast<UMT2ItemMaterialTemplate>(Template)) SubType = static_cast<int32>(Material->MaterialSubType);
+				else if (const UMT2ItemMetinStoneTemplate* Stone = Cast<UMT2ItemMetinStoneTemplate>(Template)) SubType = static_cast<int32>(Stone->MetinSubType);
+				else if (const UMT2ItemCostumeTemplate* Costume = Cast<UMT2ItemCostumeTemplate>(Template)) SubType = static_cast<int32>(Costume->CostumeSubType);
 				return FMT2QuestValue(SubType);
 			}
 			if (Name == TEXT("item.get_socket"))

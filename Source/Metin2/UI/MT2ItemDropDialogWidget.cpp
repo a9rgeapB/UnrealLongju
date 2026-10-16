@@ -86,7 +86,7 @@ void UMT2ItemDropDialogWidget::OpenAccessoryDialog(int32 SourceSlot, int32 Targe
 	const auto* Material = Cast<UMT2ItemUseTemplate>(MT2ItemUtils::ResolveTemplate(this,Source.Vnum));
 	const auto* TargetTemplate = MT2ItemUtils::ResolveTemplate(this,Target.Vnum);
 	const auto State = MT2AccessorySockets::Normalize(Target.AccessorySockets);
-	const bool bOpening = Material && Material->UseSubType == 20;
+	const bool bOpening = Material && Material->UseSubType == EMT2UseSubType::AddAccessorySocket;
 	const bool bValid = Player && MT2AccessorySockets::Compatible(Material,TargetTemplate) &&
 		(bOpening ? State.MaximumGrade < 3 : State.CurrentGrade < State.MaximumGrade);
 	PendingAccessoryConfirmation = Player ? Player->NewAccessoryConfirmationId() : 0;

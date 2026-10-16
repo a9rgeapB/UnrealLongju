@@ -54,7 +54,7 @@ namespace
 				UMT2AnimationMotionData::ReadAttackEvents(Script, Events);
 				if (Events.IsEmpty()) { continue; }
 			}
-			float Force; int32 HitType; UMT2AnimationMotionData::ReadKnockbackMetadata(Script, Force, HitType);
+			float Force; EMT2MotionHittingType HitType; UMT2AnimationMotionData::ReadKnockbackMetadata(Script, Force, HitType);
 			auto* Sequence = Cast<UAnimSequence>(Asset.GetAsset());
 			auto* Data = Sequence ? Sequence->GetAssetUserData<UMT2AnimationMotionData>() : nullptr;
 			if (!Data && bRepairEvents && Sequence)

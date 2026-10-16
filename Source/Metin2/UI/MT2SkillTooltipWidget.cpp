@@ -100,7 +100,7 @@ void UMT2SkillTooltipWidget::SetSkill(const UMT2SkillDefinition* Definition, int
 	// block for the current level and a greyed one for the next, and finally the requirements.
 	const EMT2SkillMastery Mastery = MT2SkillMastery::FromLevel(SkillLevel);
 	const int32 Grade = FMath::Min(static_cast<int32>(Mastery), 2);
-	const FString Name = Definition->GetGradeDisplayName(Grade).ToString();
+	const FString Name = Definition->GetGradeDisplayName(static_cast<EMT2SkillMastery>(Grade)).ToString();
 	AddLine(Name.IsEmpty() ? Definition->InternalName : Name, TitleColor, 11);
 
 	AppendLevelLimit(Definition);
@@ -238,7 +238,7 @@ void UMT2SkillTooltipWidget::AppendRequirements(const UMT2SkillDefinition* Defin
 	const int32 CurrentLevel = Skills ? Skills->GetSkillLevel(Definition->PrerequisiteSkillVnum) : 0;
 
 	const FString RequiredName = Required
-		? Required->GetGradeDisplayName(0).ToString()
+		? Required->GetGradeDisplayName(EMT2SkillMastery::Normal).ToString()
 		: FString::Printf(TEXT("skill %d"), Definition->PrerequisiteSkillVnum);
 	// Old AppendSkillRequirement: green once satisfied, red while not.
 	AddLine(FString::Printf(TEXT("Requires %s level %d"),

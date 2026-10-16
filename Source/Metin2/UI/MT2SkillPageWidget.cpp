@@ -286,12 +286,12 @@ void UMT2SkillPageWidget::RefreshSkills()
 		SupportPointsText->SetText(FText::AsNumber(SkillPoints));
 	}
 
-	const int32 SkillGroup = Skills->GetSkillGroup();
+	const EMT2SkillGroup SkillGroup = Skills->GetSkillGroup();
 	const EMT2CharacterRace Race = State->GetCharacterAppearance().Race;
 	const UMT2SkillSet* ActiveSet = Skills->GetSkillSet();
 
 	// Before the level-5 choice the bar offers the two groups; afterwards it names the chosen one.
-	const bool bChoosingGroup = SkillGroup == 0;
+	const bool bChoosingGroup = SkillGroup == EMT2SkillGroup::None;
 	if (GroupNameText)
 	{
 		GroupNameText->SetVisibility(bChoosingGroup ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
@@ -303,8 +303,8 @@ void UMT2SkillPageWidget::RefreshSkills()
 		GroupButton2->SetVisibility(bChoosingGroup ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 		if (bChoosingGroup)
 		{
-			const UMT2SkillSet* Set1 = UMT2SkillSet::FindSkillSet(Race, 1);
-			const UMT2SkillSet* Set2 = UMT2SkillSet::FindSkillSet(Race, 2);
+			const UMT2SkillSet* Set1 = UMT2SkillSet::FindSkillSet(Race, EMT2SkillGroup::First);
+			const UMT2SkillSet* Set2 = UMT2SkillSet::FindSkillSet(Race, EMT2SkillGroup::Second);
 			GroupButton1Text->SetText(Set1 ? Set1->GroupDisplayName : FText::FromString(TEXT("Group 1")));
 			GroupButton2Text->SetText(Set2 ? Set2->GroupDisplayName : FText::FromString(TEXT("Group 2")));
 		}
@@ -360,21 +360,21 @@ void UMT2SkillPageWidget::RefreshSkills()
 	}
 }
 
-void UMT2SkillPageWidget::SelectGroup(int32 Group)
+void UMT2SkillPageWidget::SelectGroup(EMT2SkillGroup Group)
 {
 	if (UMT2SkillComponent* Skills = GetSkillComponent())
 	{
-		if (Skills->GetSkillGroup() == 0)
+		if (Skills->GetSkillGroup() == EMT2SkillGroup::None)
 		{
 			Skills->ServerSelectSkillGroup(Group);
 		}
 	}
 }
 
-void UMT2SkillPageWidget::HandleGroup1Clicked() { SelectGroup(1); }
-void UMT2SkillPageWidget::HandleGroup2Clicked() { SelectGroup(2); }
+void UMT2SkillPageWidget::HandleGroup1Clicked() { SelectGroup(EMT2SkillGroup::First); }
+void UMT2SkillPageWidget::HandleGroup2Clicked() { SelectGroup(EMT2SkillGroup::Second); }
 void UMT2SkillPageWidget::HandleSkillLevelsChanged() { RefreshSkills(); }
-void UMT2SkillPageWidget::HandleSkillGroupChanged(int32) { RefreshSkills(); }
+void UMT2SkillPageWidget::HandleSkillGroupChanged(EMT2SkillGroup) { RefreshSkills(); }
 void UMT2SkillPageWidget::HandleSkillPointsChanged(int32, int32) { RefreshSkills(); }
 
 void UMT2SkillPageWidget::HandleSlotPlusClicked(int32 SkillVnum)
@@ -402,7 +402,7 @@ void UMT2SkillPageWidget::HandleSlotClicked(int32 SkillVnum)
 		return;
 	}
 	UTexture2D* Atlas = Definition->IconAtlas.LoadSynchronous();
-	const FMT2AtlasRect Region = Definition->GetIconRegion(0);
+	const FMT2AtlasRect Region = Definition->GetIconRegion(EMT2SkillMastery::Normal);
 	if (Atlas && Region.IsValid())
 	{
 		Carry->BeginCarry(EMT2CarryKind::Skill, SkillVnum, INDEX_NONE, FMT2UIStyle::AtlasBrush(

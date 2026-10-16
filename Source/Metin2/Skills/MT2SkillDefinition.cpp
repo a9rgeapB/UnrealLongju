@@ -20,24 +20,24 @@ float UMT2SkillDefinition::GetPowerFactor(int32 SkillLevel) const
 	return PowerPercent * PowerScale / 100.0f;
 }
 
-TSoftObjectPtr<UAnimSequence> UMT2SkillDefinition::GetCastAnimation(int32 MasteryGrade, bool bFemale) const
+TSoftObjectPtr<UAnimSequence> UMT2SkillDefinition::GetCastAnimation(EMT2SkillMastery MasteryGrade, bool bFemale) const
 {
 	if (CastAnimationsByGrade.IsEmpty())
 	{
 		return nullptr;
 	}
 	const FMT2SkillGradeAnimation& Grade =
-		CastAnimationsByGrade[FMath::Clamp(MasteryGrade, 0, CastAnimationsByGrade.Num() - 1)];
+		CastAnimationsByGrade[FMath::Clamp(static_cast<int32>(MasteryGrade), 0, CastAnimationsByGrade.Num() - 1)];
 	return bFemale ? Grade.FemaleAnimation : Grade.MaleAnimation;
 }
 
-FText UMT2SkillDefinition::GetGradeDisplayName(int32 MasteryGrade) const
+FText UMT2SkillDefinition::GetGradeDisplayName(EMT2SkillMastery MasteryGrade) const
 {
 	if (GradeNames.IsEmpty())
 	{
 		return FText::FromString(InternalName);
 	}
-	return GradeNames[FMath::Clamp(MasteryGrade, 0, GradeNames.Num() - 1)];
+	return GradeNames[FMath::Clamp(static_cast<int32>(MasteryGrade), 0, GradeNames.Num() - 1)];
 }
 
 bool UMT2SkillDefinition::HasClientAttribute(const FString& AttributeName) const

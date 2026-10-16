@@ -140,7 +140,7 @@ public:
 
 	// Sum of every currently equipped item apply, including the seven random bonus slots.
 	UFUNCTION(BlueprintPure, Category = "Stats|Item Bonuses")
-	int32 GetItemApplyBonus(int32 ApplyType) const;
+	int32 GetItemApplyBonus(EMT2ItemBonusType ApplyType) const;
 
 	// Parses and executes chat slash commands (e.g. "/m vnum count" to spawn a mob, "/i vnum count"
 	// to receive an item), called from UMT2ChatWidget via the player controller. Server-authoritative

@@ -4,18 +4,18 @@ bool MT2AccessorySockets::IsAccessory(const UMT2ItemTemplate* Item)
 {
 	const auto* Armor = Cast<UMT2ItemArmorTemplate>(Item);
 	return Cast<UMT2ItemBeltTemplate>(Item) || (Armor &&
-		(Armor->ArmorSubType == 3 || Armor->ArmorSubType == 5 || Armor->ArmorSubType == 6));
+		(Armor->ArmorSubType == EMT2ArmorSubType::Wrist || Armor->ArmorSubType == EMT2ArmorSubType::Neck || Armor->ArmorSubType == EMT2ArmorSubType::Ear));
 }
 
 bool MT2AccessorySockets::IsMaterial(const UMT2ItemTemplate* Item)
 {
 	const auto* Use = Cast<UMT2ItemUseTemplate>(Item);
-	return Use && (Use->UseSubType == 20 || Use->UseSubType == 21 || Use->UseSubType == 29);
+	return Use && (Use->UseSubType == EMT2UseSubType::AddAccessorySocket || Use->UseSubType == EMT2UseSubType::PutIntoAccessorySocket || Use->UseSubType == EMT2UseSubType::PutIntoBeltSocket);
 }
 
-int32 MT2AccessorySockets::RequiredMineral(int32 Vnum, int32 ArmorSubType)
+int32 MT2AccessorySockets::RequiredMineral(int32 Vnum, EMT2ArmorSubType ArmorSubType)
 {
-	const int32 Column = ArmorSubType == 3 ? 0 : ArmorSubType == 5 ? 1 : ArmorSubType == 6 ? 2 : INDEX_NONE;
+	const int32 Column = ArmorSubType == EMT2ArmorSubType::Wrist ? 0 : ArmorSubType == EMT2ArmorSubType::Neck ? 1 : ArmorSubType == EMT2ArmorSubType::Ear ? 2 : INDEX_NONE;
 	if (Column == INDEX_NONE) { return 0; }
 	static constexpr int32 Special[][3] = {{14420,16220,17220},{14500,16500,17500},
 		{14520,16520,17520},{14540,16540,17540},{14560,16560,17560}};
@@ -37,10 +37,10 @@ bool MT2AccessorySockets::Compatible(const UMT2ItemTemplate* Material, const UMT
 {
 	const auto* Use = Cast<UMT2ItemUseTemplate>(Material);
 	if (!Use || !IsAccessory(Target)) { return false; }
-	if (Use->UseSubType == 20) { return true; }
-	if (Cast<UMT2ItemBeltTemplate>(Target)) { return Use->UseSubType == 29; }
+	if (Use->UseSubType == EMT2UseSubType::AddAccessorySocket) { return true; }
+	if (Cast<UMT2ItemBeltTemplate>(Target)) { return Use->UseSubType == EMT2UseSubType::PutIntoBeltSocket; }
 	const auto* Armor = Cast<UMT2ItemArmorTemplate>(Target);
-	return Use->UseSubType == 21 && Material->Vnum == RequiredMineral(Target->Vnum, Armor->ArmorSubType);
+	return Use->UseSubType == EMT2UseSubType::PutIntoAccessorySocket && Material->Vnum == RequiredMineral(Target->Vnum, Armor->ArmorSubType);
 }
 
 int32 MT2AccessorySockets::Bonus(int32 BaseValue, int32 Grade)

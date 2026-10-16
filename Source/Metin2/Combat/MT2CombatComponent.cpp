@@ -37,10 +37,10 @@ DEFINE_LOG_CATEGORY_STATIC(LogMT2Combat, Log, All);
 
 namespace
 {
-	constexpr int32 ApplyCriticalChance = 15;
-	constexpr int32 ApplyPenetratingChance = 16;
-	constexpr int32 ApplyCriticalResistance = 90;
-	constexpr int32 ApplyPenetratingResistance = 91;
+	constexpr EMT2ItemBonusType ApplyCriticalChance = EMT2ItemBonusType::CriticalChance;
+	constexpr EMT2ItemBonusType ApplyPenetratingChance = EMT2ItemBonusType::PenetratingChance;
+	constexpr EMT2ItemBonusType ApplyCriticalResistance = EMT2ItemBonusType::AntiCriticalChance;
+	constexpr EMT2ItemBonusType ApplyPenetratingResistance = EMT2ItemBonusType::AntiPenetratingChance;
 
 	struct FResolvedSpecialDamage
 	{
@@ -160,7 +160,7 @@ AActor* UMT2CombatComponent::PerformBasicAttack()
 	const TArray<AActor*> TargetActors = FindBasicAttackTargets();
 	const float SwingKnockback = PendingKnockbackDistance;
 	const float SwingDuration = PendingKnockbackDuration;
-	const int32 SwingHittingType = PendingHittingType;
+	const EMT2MotionHittingType SwingHittingType = PendingHittingType;
 	AActor* PrimaryTarget = nullptr;
 	for (AActor* TargetActor : TargetActors)
 	{
@@ -180,7 +180,7 @@ AActor* UMT2CombatComponent::PerformBasicAttack()
 	return PrimaryTarget;
 }
 
-bool UMT2CombatComponent::PerformBasicAttackOnTarget(AActor* TargetActor, float ExternalForce, int32 HittingType)
+bool UMT2CombatComponent::PerformBasicAttackOnTarget(AActor* TargetActor, float ExternalForce, EMT2MotionHittingType HittingType)
 {
 	AActor* OwnerActor = GetOwner();
 	if (!OwnerActor || !OwnerActor->HasAuthority() || !TargetActor)
@@ -240,7 +240,7 @@ bool UMT2CombatComponent::ScheduleBasicAttackHits(AActor* TargetActor, bool bSin
 	// A new motion intercepts the previous one; releasing attack input alone does not cancel a swing.
 	for (const FMT2MotionAttackEvent& Event : Data->AttackEvents)
 	{
-		if (!FMath::IsFinite(Event.TimeSeconds) || Event.TimeSeconds < 0.f || Event.HittingType == 0) { continue; }
+		if (!FMath::IsFinite(Event.TimeSeconds) || Event.TimeSeconds < 0.f || Event.HittingType == EMT2MotionHittingType::None) { continue; }
 		const TWeakObjectPtr<AActor> WeakTarget(TargetActor);
 		if (Event.TimeSeconds == 0.f)
 		{
@@ -513,7 +513,7 @@ bool UMT2CombatComponent::ApplySkillDamage(
 	}
 	if (const AMT2PlayerCharacter* Player = Cast<AMT2PlayerCharacter>(OwnerActor))
 	{
-		RawDamage *= 1.0f + Player->GetItemApplyBonus(71) / 100.0f;
+		RawDamage *= 1.0f + Player->GetItemApplyBonus(EMT2ItemBonusType::SkillDamage) / 100.0f;
 	}
 
 	UAbilitySystemComponent* SourceAbilitySystem =

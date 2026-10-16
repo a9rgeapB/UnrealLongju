@@ -12,6 +12,7 @@
 #include "AbilitySystemInterface.h"
 #include "Characters/MT2CharacterBase.h"
 #include "CoreMinimal.h"
+#include "Animation/MT2MotionTypes.h"
 #include "Mobs/MT2LootTypes.h"
 #include "Mobs/MT2MobTypes.h"
 #include "MT2Mob.generated.h"
@@ -68,7 +69,7 @@ public:
 	int32 GetMobLevel() const { return MobLevel; }
 
 	UFUNCTION(BlueprintPure, Category = "Mob")
-	int32 GetEmpire() const { return Empire; }
+	EMT2Empire GetEmpire() const { return Empire; }
 
 	UFUNCTION(BlueprintPure, Category = "Mob")
 	EMT2MobType GetMobType() const { return MobType; }
@@ -124,7 +125,7 @@ public:
 	bool IsCombatMotionLocked() const { return bCombatMotionLocked || bKnockdownMotionLocked; }
 	bool IsKnockdownMotionLocked() const { return bKnockdownMotionLocked; }
 	float GetCombatDecisionDelay() const;
-	void PlayHitReaction(const AActor* Attacker, int32 HittingType, bool bSyncPush = false);
+	void PlayHitReaction(const AActor* Attacker, EMT2MotionHittingType HittingType, bool bSyncPush = false);
 
 	void SetLastDamageInstigator(AActor* DamageInstigator);
 	// Who last hit this mob; metin stones hand this to the mobs they summon (old SelectStone).
@@ -188,15 +189,15 @@ protected:
 	int32 MobLevel = 1;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Replicated, Category = "Mob|Identity")
-	int32 Empire = 0;
+	EMT2Empire Empire = EMT2Empire::None;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Mob|Visuals", meta = (ClampMin = "1"))
 	int32 ScalePercent = 100;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Mob|Flags")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Mob|Flags", meta=(Bitmask, BitmaskEnum="/Script/Metin2.EMT2MobRaceFlag"))
 	int32 RaceFlags = 0;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Mob|Flags")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Mob|Flags", meta=(Bitmask, BitmaskEnum="/Script/Metin2.EMT2MobImmuneFlag"))
 	int32 ImmuneFlags = 0;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Mob|Combat")
@@ -240,7 +241,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Mob|Animation")
 	FMT2MobMotionSet MotionSet;
 	float AttackExternalForce = 0.f;
-	int32 AttackHittingType = 2;
+	EMT2MotionHittingType AttackHittingType = EMT2MotionHittingType::Normal;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Mob|Death", meta = (ClampMin = "0.0", Units = "s"))
 	float CorpseLifetime = 5.0f;

@@ -43,20 +43,20 @@ bool FMT2AccessoryRulesTest::RunTest(const FString&)
 	TestEqual(TEXT("Initial fill chance"),InsertionChance(0),90);
 	TestEqual(TEXT("Second fill chance"),InsertionChance(1),80);
 	TestEqual(TEXT("Third fill chance"),InsertionChance(2),70);
-	TestEqual(TEXT("Basic bracelet material"),RequiredMineral(14009,3),50623);
-	TestEqual(TEXT("Necklace silver exception"),RequiredMineral(16219,5),50625);
-	TestEqual(TEXT("Necklace gold exception"),RequiredMineral(16239,5),50626);
-	TestEqual(TEXT("Late wrist mapping"),RequiredMineral(14509,3),50635);
-	TestEqual(TEXT("Late ear mapping"),RequiredMineral(17569,6),50638);
-	TestEqual(TEXT("Body armor not compatible"),RequiredMineral(11209,0),0);
+	TestEqual(TEXT("Basic bracelet material"),RequiredMineral(14009,EMT2ArmorSubType::Wrist),50623);
+	TestEqual(TEXT("Necklace silver exception"),RequiredMineral(16219,EMT2ArmorSubType::Neck),50625);
+	TestEqual(TEXT("Necklace gold exception"),RequiredMineral(16239,EMT2ArmorSubType::Neck),50626);
+	TestEqual(TEXT("Late wrist mapping"),RequiredMineral(14509,EMT2ArmorSubType::Wrist),50635);
+	TestEqual(TEXT("Late ear mapping"),RequiredMineral(17569,EMT2ArmorSubType::Ear),50638);
+	TestEqual(TEXT("Body armor not compatible"),RequiredMineral(11209,EMT2ArmorSubType::Body),0);
 	FMT2AccessorySocketState Invalid; Invalid.MaximumGrade=3; Invalid.CurrentGrade=999; Invalid.RemainingSeconds=100;
 	TestEqual(TEXT("Malformed grade cannot generate filled sockets"),Normalize(Invalid).CurrentGrade,0);
 	Invalid.CurrentGrade=2; Invalid.RemainingSeconds=-10;
 	TestEqual(TEXT("Negative duration cannot grant a fresh lower-grade lifetime"),Advance(Invalid,0).CurrentGrade,0);
 	auto* Belt=NewObject<UMT2ItemBeltTemplate>();
-	auto* Filler=NewObject<UMT2ItemUseTemplate>(); Filler->UseSubType=29;
-	auto* Ore=NewObject<UMT2ItemUseTemplate>(); Ore->UseSubType=21; Ore->Vnum=50623;
-	auto* Wrist=NewObject<UMT2ItemArmorTemplate>(); Wrist->ArmorSubType=3; Wrist->Vnum=14000;
+	auto* Filler=NewObject<UMT2ItemUseTemplate>(); Filler->UseSubType=EMT2UseSubType::PutIntoBeltSocket;
+	auto* Ore=NewObject<UMT2ItemUseTemplate>(); Ore->UseSubType=EMT2UseSubType::PutIntoAccessorySocket; Ore->Vnum=50623;
+	auto* Wrist=NewObject<UMT2ItemArmorTemplate>(); Wrist->ArmorSubType=EMT2ArmorSubType::Wrist; Wrist->Vnum=14000;
 	TestTrue(TEXT("Belt filler accepts belts"),Compatible(Filler,Belt));
 	TestFalse(TEXT("Belt filler rejects jewelry"),Compatible(Filler,Wrist));
 	TestFalse(TEXT("Ordinary ore rejects belts"),Compatible(Ore,Belt));
@@ -67,8 +67,8 @@ bool FMT2AccessoryRulesTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2AccessoryTooltipTest,"Metin2.Items.AccessorySockets.Tooltips",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FMT2AccessoryTooltipTest::RunTest(const FString&)
 {
-	auto* Diamond=NewObject<UMT2ItemUseTemplate>(); Diamond->Vnum=50621; Diamond->UseSubType=20;
-	auto* Ore=NewObject<UMT2ItemUseTemplate>(); Ore->Vnum=50623; Ore->UseSubType=21;
+	auto* Diamond=NewObject<UMT2ItemUseTemplate>(); Diamond->Vnum=50621; Diamond->UseSubType=EMT2UseSubType::AddAccessorySocket;
+	auto* Ore=NewObject<UMT2ItemUseTemplate>(); Ore->Vnum=50623; Ore->UseSubType=EMT2UseSubType::PutIntoAccessorySocket;
 	auto* Amber=NewObject<UMT2ItemMaterialTemplate>(); Amber->Vnum=50622;
 	TestTrue(TEXT("Diamond explains opening"),UMT2ItemTooltipWidget::DescribeAccessoryMaterial(Diamond).Contains(TEXT("50%")));
 	TestFalse(TEXT("Diamond does not promise amplification"),UMT2ItemTooltipWidget::DescribeAccessoryMaterial(Diamond).Contains(TEXT("40%")));
@@ -77,7 +77,7 @@ bool FMT2AccessoryTooltipTest::RunTest(const FString&)
 	TestFalse(TEXT("Mineral description has no developer VNUM table"),OreDescription.Contains(TEXT("VNUM")));
 	TestTrue(TEXT("Mineral description explains socket use"),OreDescription.Contains(TEXT("socket")));
 	TestTrue(TEXT("Unsupported mineral promises no bonus"),UMT2ItemTooltipWidget::DescribeAccessoryMaterial(Amber).Contains(TEXT("no compatible")));
-	auto* Bracelet=NewObject<UMT2ItemArmorTemplate>(); Bracelet->ArmorSubType=3;
+	auto* Bracelet=NewObject<UMT2ItemArmorTemplate>(); Bracelet->ArmorSubType=EMT2ArmorSubType::Wrist;
 	TestEqual(TEXT("Intrinsic stamina has a readable flat bonus label"),GetDefault<UMT2ItemBonusSettings>()->FormatBonus(58,10),FString(TEXT("Maximum Stamina +10")));
 	TestEqual(TEXT("Stamina penalties keep their sign"),GetDefault<UMT2ItemBonusSettings>()->FormatBonus(58,-10),FString(TEXT("Maximum Stamina -10")));
 	auto& Stamina=Bracelet->Applies.AddDefaulted_GetRef(); Stamina.Type=EMT2ItemBonusType::MaxStamina; Stamina.Value=10;
@@ -208,7 +208,7 @@ bool FMT2ItemBonusNamesTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("Legacy apply %d has its proper name and units"),Case.Type),Defaults->FormatBonus(Case.Type,10),FString(Case.Expected));
 	}
 	TestEqual(TEXT("Unknown IDs remain diagnosable"),Defaults->FormatBonus(999,10),FString(TEXT("Bonus 999 +10")));
-	auto& Override=Defaults->NormalBonuses.AddDefaulted_GetRef(); Override.ApplyType=58; Override.DisplayName=TEXT("Custom stamina");
+	auto& Override=Defaults->NormalBonuses.AddDefaulted_GetRef(); Override.ApplyType=EMT2ItemBonusType::MaxStamina; Override.DisplayName=TEXT("Custom stamina");
 	TestEqual(TEXT("Project display overrides remain supported"),Defaults->FormatBonus(58,10),FString(TEXT("Custom stamina +10")));
 	Override.DisplayName.Empty();
 	TestEqual(TEXT("Empty configured label falls back to the catalog"),Defaults->FormatBonus(58,10),FString(TEXT("Maximum Stamina +10")));
@@ -234,7 +234,7 @@ bool FMT2AccessoryAuthorityTest::RunTest(const FString&)
 			TestNotNull(TEXT("Unsupported catalog mineral still imported"),Registry->ResolveItemTemplateClass(Vnum).GetDefaultObject());
 			TestFalse(TEXT("Unsupported mineral cannot fill jewelry"),MT2AccessorySockets::IsMaterial(Registry->ResolveItemTemplateClass(Vnum).GetDefaultObject()));
 		}
-		else if (TestNotNull(*FString::Printf(TEXT("Imported refined ore %d"),Vnum),Material)) TestEqual(TEXT("Imported socket use subtype"),Material->UseSubType,Vnum==50621?20:21);
+		else if (TestNotNull(*FString::Printf(TEXT("Imported refined ore %d"),Vnum),Material)) TestEqual(TEXT("Imported socket use subtype"),Material->UseSubType,Vnum==50621?EMT2UseSubType::AddAccessorySocket:EMT2UseSubType::PutIntoAccessorySocket);
 	}
 	TArray<FMT2ItemSlot> Slots,Equipment; Slots.SetNum(180); Equipment.SetNum(32);
 	Slots[0].Vnum=50621; Slots[0].Count=2; Slots[1].Vnum=14000; Slots[1].Count=1;
@@ -300,8 +300,8 @@ bool FMT2AccessoryWearTest::RunTest(const FString&)
 	TestTrue(TEXT("Accessory save restores"),State->ApplyPersistentStateJson_Implementation(Saved));
 	TestEqual(TEXT("Accessory grade survives persistence"),Inv->GetEquipment()[3].AccessorySockets.CurrentGrade,3);
 	Player->RecalculateEquipmentStats();
-	TestEqual(TEXT("Low intrinsic attack speed gets grade minimum"),Player->GetItemApplyBonus(7),4);
-	TestEqual(TEXT("Stamina receives only total forty percent"),Player->GetItemApplyBonus(58),14);
+	TestEqual(TEXT("Low intrinsic attack speed gets grade minimum"),Player->GetItemApplyBonus(EMT2ItemBonusType::AttackSpeed),4);
+	TestEqual(TEXT("Stamina receives only total forty percent"),Player->GetItemApplyBonus(EMT2ItemBonusType::MaxStamina),14);
 	Inv->AccessoryWearUpdatedAt=World->GetTimeSeconds()-4.25;
 	TestEqual(TEXT("Const projection deducts partial equipped wear"),Inv->GetEffectiveAccessoryState(3).RemainingSeconds,6);
 	TestTrue(TEXT("Unequip succeeds"),Inv->UnequipItem(3));
@@ -336,7 +336,7 @@ bool FMT2AccessoryWearTest::RunTest(const FString&)
 	Inv->ProcessAccessoryWear(); Player->RecalculateEquipmentStats();
 	TestEqual(TEXT("Expiry removes only filled grade"),Inv->GetEquipment()[3].AccessorySockets.CurrentGrade,0);
 	TestEqual(TEXT("Expiry keeps open sockets"),Inv->GetEquipment()[3].AccessorySockets.MaximumGrade,3);
-	TestEqual(TEXT("Expiry removes intrinsic amplification"),Player->GetItemApplyBonus(7),1);
+	TestEqual(TEXT("Expiry removes intrinsic amplification"),Player->GetItemApplyBonus(EMT2ItemBonusType::AttackSpeed),1);
 	TestFalse(TEXT("Expired accessory has no active wear timer"),World->GetTimerManager().IsTimerActive(Inv->AccessoryWearTimer));
 	return true;
 }
