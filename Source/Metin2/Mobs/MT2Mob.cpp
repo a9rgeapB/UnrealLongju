@@ -966,13 +966,13 @@ void AMT2Mob::HandleDeath()
 				LootComponent->AddBonusExperience(-StoneShare);
 				Stone->GetLootComponent()->AddBonusExperience(StoneShare);
 			}
-			LootComponent->GenerateRewards(DamageShares, !bResurrected);
-
-			// Quest kill credit goes to everyone who damaged it, matching how rewards are shared.
-			for (const FMT2DamageShare& Share : DamageShares)
+			AActor* Killer = LootComponent->GenerateRewards(DamageShares, !bResurrected);
+			// Legacy CHARACTER::Reward dispatches kill credit only to pkAttacker, the
+			// highest-damage individual selected by DistributeExp.
+			if (Killer)
 			{
 				UMT2QuestManagerComponent::DispatchEventForActor(
-					Share.Attacker.Get(), EMT2QuestEvent::Kill, GetMobVnum(), this);
+					Killer, EMT2QuestEvent::Kill, GetMobVnum(), this);
 			}
 		}
 		DamageShares.Reset();

@@ -60,7 +60,8 @@ public:
 	const TArray<FMT2PartyMemberData>& GetMembers() const { return Members; }
 
 	const TArray<TObjectPtr<AMT2PlayerState>>& GetMemberStates() const { return MemberStates; }
-	AMT2PlayerState* ClaimNextLootRecipient();
+	AMT2PlayerState* ClaimNextLootRecipient(
+		AMT2PlayerState* OriginalOwner, const FVector& DropLocation);
 	int32 GetQuestFlag(FName FlagName) const { return GetScriptFlag(FlagName.ToString()); }
 	void SetQuestFlag(FName FlagName, int32 Value);
 	int32 GetScriptFlag(const FString& FlagName) const { return QuestFlags.FindRef(FlagName); }

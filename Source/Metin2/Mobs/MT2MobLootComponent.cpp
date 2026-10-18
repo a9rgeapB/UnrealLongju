@@ -84,6 +84,17 @@ namespace
 		return Minimum + static_cast<int64>(RandomValue % Range);
 	}
 
+	int64 LegacyApproximateDistance2D(const FVector& A, const FVector& B)
+	{
+		const int64 DX = FMath::Abs(FMath::RoundToInt64(A.X) - FMath::RoundToInt64(B.X));
+		const int64 DY = FMath::Abs(FMath::RoundToInt64(A.Y) - FMath::RoundToInt64(B.Y));
+		const int64 Minimum = FMath::Min(DX, DY);
+		const int64 Maximum = FMath::Max(DX, DY);
+		// Exact integer approximation used by legacy DISTANCE_APPROX (utils.h).
+		return (((Maximum << 8) + (Maximum << 3) - (Maximum << 4) - (Maximum << 1) +
+			(Minimum << 7) - (Minimum << 5) + (Minimum << 3) - (Minimum << 1)) >> 8);
+	}
+
 	struct FRewardEntry
 	{
 		AActor* Attacker = nullptr;
@@ -104,8 +115,7 @@ namespace
 		const TArray<FMT2DamageShare>& DamageShares, const AActor* Victim, float& OutTotalDamage)
 	{
 		OutTotalDamage = 0.0f;
-		const float RewardRangeSquared =
-			FMath::Square(GetDefault<UMT2MobRuntimeSettings>()->RewardRange);
+		const float RewardRange = GetDefault<UMT2MobRuntimeSettings>()->RewardRange;
 		TArray<FRewardEntry> Entries;
 		for (const FMT2DamageShare& Share : DamageShares)
 		{
@@ -116,8 +126,8 @@ namespace
 			{
 				continue;
 			}
-			if (FVector::DistSquared(Victim->GetActorLocation(), Attacker->GetActorLocation())
-				> RewardRangeSquared)
+			if (LegacyApproximateDistance2D(Victim->GetActorLocation(), Attacker->GetActorLocation())
+				> RewardRange)
 			{
 				continue;
 			}
@@ -265,13 +275,13 @@ namespace
 		}
 	}
 
-	AMT2PlayerState* ClaimDropRecipient(FRewardGroup& Group)
+	AMT2PlayerState* ClaimDropRecipient(const FRewardEntry& Entry, const FVector& DropLocation)
 	{
-		if (Group.Party)
+		if (AMT2Party* Party = Entry.State ? Entry.State->GetParty() : nullptr)
 		{
-			return Group.Party->ClaimNextLootRecipient();
+			return Party->ClaimNextLootRecipient(Entry.State, DropLocation);
 		}
-		return Group.Recipients.IsEmpty() ? nullptr : Group.Recipients[0];
+		return Entry.State;
 	}
 }
 
@@ -346,31 +356,53 @@ int64 UMT2MobLootComponent::GetGoldMax() const
 	return ImportedGoldMax;
 }
 
-void UMT2MobLootComponent::GenerateRewards(
+AActor* UMT2MobLootComponent::GenerateRewards(
 	const TArray<FMT2DamageShare>& DamageShares, bool bIncludeDrops)
 {
 	if (bRewardsGenerated || !GetOwner() || !GetOwner()->HasAuthority())
 	{
-		return;
+		return nullptr;
 	}
 
 	bRewardsGenerated = true;
 	float TotalDamage = 0.0f;
 	const TArray<FRewardEntry> Entries = BuildRewardEntries(DamageShares, GetOwner(), TotalDamage);
+	float TotalRecordedDamage = 0.0f;
+	TArray<FRewardEntry> DropOwnershipEntries;
+	for (const FMT2DamageShare& Share : DamageShares)
+	{
+		AActor* Attacker = Share.Attacker.Get();
+		if (!IsValid(Attacker) || Share.TotalDamage <= 0.0f)
+		{
+			continue;
+		}
+		TotalRecordedDamage += Share.TotalDamage;
+		if (AMT2PlayerState* State = MT2ActorUtils::ResolvePlayerState(Attacker))
+		{
+			FRewardEntry& Entry = DropOwnershipEntries.AddDefaulted_GetRef();
+			Entry.Attacker = Attacker;
+			Entry.State = State;
+			Entry.Damage = Share.TotalDamage;
+		}
+	}
+	DropOwnershipEntries.Sort(
+		[](const FRewardEntry& A, const FRewardEntry& B) { return A.Damage > B.Damage; });
 	// Old DistributeExp: with nothing in the damage map nobody is rewarded and nothing drops.
 	if (Entries.IsEmpty() || TotalDamage <= 0.0f)
 	{
-		return;
+		return nullptr;
 	}
 	// Entries are damage-sorted, so the top damager is the old pkChrMostAttacked - the one Reward()
 	// treats as "the killer" for gold, quests and alignment, regardless of who landed the last hit.
 	TArray<FRewardGroup> RewardGroups = BuildRewardGroups(Entries);
 	if (RewardGroups.IsEmpty())
 	{
-		return;
+		return nullptr;
 	}
-	AActor* Killer = RewardGroups[0].PrimaryAttacker;
-	AMT2PlayerState* KillerState = MT2ActorUtils::ResolvePlayerState(Killer);
+	// The legacy return value is the highest-damage individual, even when their party's
+	// combined damage is not the highest reward group.
+	AActor* Killer = Entries[0].Attacker;
+	AMT2PlayerState* KillerState = Entries[0].State;
 	const UMT2GameplaySettings& GameplaySettings = UMT2GameplaySettings::Get();
 	const int32 ItemDropBonus = GetRewardApplyBonus(
 		KillerState, EMT2ItemBonusType::MallItemDropBonus);
@@ -433,11 +465,18 @@ void UMT2MobLootComponent::GenerateRewards(
 
 	if (bIncludeDrops && (Rewards.Items.Num() > 0 || Rewards.Gold > 0))
 	{
-		// The highest-damage party owns the rolled loot. Item ownership rotates through that party
-		// across kills, while solo rewards retain the killer as owner.
-		FRewardGroup& WinningGroup = RewardGroups[0];
-
 		const FVector DropOrigin = GetOwner()->GetActorLocation();
+		TArray<const FRewardEntry*> EligibleDropOwners;
+		if (Rewards.Items.Num() > 1)
+		{
+			for (const FRewardEntry& Entry : DropOwnershipEntries)
+			{
+				if (Entry.Damage * 10.0f >= TotalRecordedDamage)
+				{
+					EligibleDropOwners.Add(&Entry);
+				}
+			}
+		}
 		int32 DropIndex = 0;
 		auto NextDropLocation = [&DropOrigin, &DropIndex]()
 		{
@@ -451,7 +490,21 @@ void UMT2MobLootComponent::GenerateRewards(
 
 		for (int32 ItemIndex = 0; ItemIndex < Rewards.Items.Num(); ++ItemIndex)
 		{
-			AMT2PlayerState* Owner = ClaimDropRecipient(WinningGroup);
+			const FRewardEntry* DropOwner = nullptr;
+			if (Rewards.Items.Num() == 1)
+			{
+				// Legacy assigns a lone item directly to pkAttacker (party ownership may
+				// redirect it to the next party member).
+				DropOwner = &Entries[0];
+			}
+			else
+			{
+				if (!EligibleDropOwners.IsEmpty())
+				{
+					DropOwner = EligibleDropOwners[ItemIndex % EligibleDropOwners.Num()];
+				}
+			}
+			AMT2PlayerState* Owner = DropOwner ? ClaimDropRecipient(*DropOwner, DropOrigin) : nullptr;
 			const FMT2GeneratedLootItem& Drop = Rewards.Items[ItemIndex];
 			FMT2ItemSlot Item(Drop.ItemVnum, Drop.ItemData);
 			Item.Count = Drop.Count;
@@ -461,29 +514,13 @@ void UMT2MobLootComponent::GenerateRewards(
 				Owner ? Owner->GetCharacterName() : FString(), 120.0f);
 		}
 
-		// Keep the existing ownership and equal party shares, but credit Yang without world actors.
+		// Keep direct Yang credit (no pickup actor), but retain legacy pkAttacker ownership.
 		if (Rewards.Gold > 0)
 		{
-			const int32 RecipientCount = WinningGroup.Recipients.Num();
-			const int64 BaseShare = Rewards.Gold / RecipientCount;
-			int64 Remainder = Rewards.Gold % RecipientCount;
-			for (int32 Index = 0; Index < RecipientCount; ++Index)
+			if (!KillerState->AddYang(Rewards.Gold) && KillerState->GetYang() != MAX_int64)
 			{
-				AMT2PlayerState* Owner = ClaimDropRecipient(WinningGroup);
-				const int64 Share = BaseShare + (Remainder-- > 0 ? 1 : 0);
-				if (Share <= 0) continue;
-				if (IsValid(Owner))
-				{
-					if (!Owner->AddYang(Share) && Owner->GetYang() != MAX_int64)
-					{
-						UE_LOG(LogTemp, Warning, TEXT("Unable to credit %lld Yang to %s from %s."),
-							Share, *GetNameSafe(Owner), *GetNameSafe(GetOwner()));
-					}
-				}
-				else
-				{
-					UE_LOG(LogTemp, Warning, TEXT("Yang reward has no valid recipient for %s."), *GetNameSafe(GetOwner()));
-				}
+				UE_LOG(LogTemp, Warning, TEXT("Unable to credit %lld Yang to %s from %s."),
+					Rewards.Gold, *GetNameSafe(KillerState), *GetNameSafe(GetOwner()));
 			}
 		}
 	}
@@ -504,4 +541,5 @@ void UMT2MobLootComponent::GenerateRewards(
 			RewardGroups, TotalDamage, Rewards.Experience, RewardOrigin);
 	}
 	OnRewardsReady.Broadcast(Rewards);
+	return Killer;
 }

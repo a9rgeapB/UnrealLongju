@@ -254,16 +254,38 @@ bool AMT2Party::ContainsCharacter(const FString& CharacterId) const
 		[&](const FMT2PartyMemberData& Data) { return Data.CharacterId == CharacterId; });
 }
 
-AMT2PlayerState* AMT2Party::ClaimNextLootRecipient()
+AMT2PlayerState* AMT2Party::ClaimNextLootRecipient(
+	AMT2PlayerState* OriginalOwner, const FVector& DropLocation)
 {
 	if (!HasAuthority() || MemberStates.IsEmpty())
 	{
-		return nullptr;
+		return OriginalOwner;
 	}
 	NextLootRecipientIndex %= MemberStates.Num();
-	AMT2PlayerState* Recipient = MemberStates[NextLootRecipientIndex];
-	NextLootRecipientIndex = (NextLootRecipientIndex + 1) % MemberStates.Num();
-	return Recipient;
+	for (int32 Attempt = 0; Attempt < MemberStates.Num(); ++Attempt)
+	{
+		const int32 CurrentIndex = NextLootRecipientIndex;
+		NextLootRecipientIndex = (NextLootRecipientIndex + 1) % MemberStates.Num();
+		AMT2PlayerState* Candidate = MemberStates[CurrentIndex];
+		const APawn* Pawn = IsValid(Candidate) ? Candidate->GetPawn() : nullptr;
+		if (!Pawn)
+		{
+			continue;
+		}
+
+		const FVector CandidateLocation = Pawn->GetActorLocation();
+		const int64 DX = FMath::Abs(FMath::RoundToInt64(CandidateLocation.X) - FMath::RoundToInt64(DropLocation.X));
+		const int64 DY = FMath::Abs(FMath::RoundToInt64(CandidateLocation.Y) - FMath::RoundToInt64(DropLocation.Y));
+		const int64 Minimum = FMath::Min(DX, DY);
+		const int64 Maximum = FMath::Max(DX, DY);
+		const int64 LegacyDistance = (((Maximum << 8) + (Maximum << 3) - (Maximum << 4) - (Maximum << 1) +
+			(Minimum << 7) - (Minimum << 5) + (Minimum << 3) - (Minimum << 1)) >> 8);
+		if (LegacyDistance < 3000)
+		{
+			return Candidate;
+		}
+	}
+	return OriginalOwner;
 }
 
 void AMT2Party::RefreshMemberData(bool bForce)

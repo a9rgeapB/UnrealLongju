@@ -127,7 +127,7 @@ else f(this);
 | --- | --- |
 | `m_map_kDamage` | `AMT2Mob::RecordDamage` / `GetDamageShares()` |
 | `DistributeExp` | Local `DistributeExperience` helper in `MT2MobLootComponent.cpp` |
-| ownership round-robin over >=10% damagers | Reward-group/ownership logic in `UMT2MobLootComponent::GenerateRewards` |
+| ownership round-robin over >=10% damage-map contributors | `UMT2MobLootComponent::GenerateRewards`; one item goes to the top individual damager, multiple items rotate over eligible contributors, with nearby party-member ownership redirection |
 | `battle_is_attackable` | `AMT2CharacterBase::IsHostileTo` |
 | `AttackProcess` per-instance loop | `UMT2CombatComponent::FindBasicAttackTargets` (all hits, not nearest) |
 | `iSplashRange` / `lMaxHit` | `UMT2SkillDefinition::SplashRange` / `MaxHits` |
@@ -135,4 +135,4 @@ else f(this);
 Old units are treated as centimetres 1:1 in UE, so the 5000 (50 m) exp range check and the
 legacy attack ranges inform the port. Current attack/skill range values are data/configuration-driven; do not assume every ability uses those fixed values.
 
-This maps selected mechanisms, not complete reward/party/splash parity. Safezone policy additionally checks BANPK on player combat at actual hit time.
+Party EXP intentionally remains an equal split among eligible party members in Unreal; legacy also supports level-weighted distribution. The legacy top-damager identity is otherwise used for killer-specific rewards and quest kill credit, while EXP's 20% bonus remains assigned to the highest-damage reward group (party damage is aggregated). The reward range uses the legacy 2D approximate-distance rule. Safezone policy additionally checks BANPK on player combat at actual hit time.

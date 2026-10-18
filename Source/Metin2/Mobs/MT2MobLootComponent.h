@@ -35,7 +35,8 @@ public:
 
 	// Rolls the drops and pays out this mob's death rewards across everyone who damaged it, the way
 	// the old CHARACTER::Reward + DistributeExp do. See Docs/OldGameResearch/DamageDistributionAndAoE.md.
-	void GenerateRewards(const TArray<FMT2DamageShare>& DamageShares, bool bIncludeDrops = true);
+	// Returns the highest-damage individual used for legacy killer-specific credit.
+	AActor* GenerateRewards(const TArray<FMT2DamageShare>& DamageShares, bool bIncludeDrops = true);
 
 	// Exp banked on top of the proto's value (old SetExp): a metin stone collects half the exp of
 	// every mob it summoned and pays it out when broken.

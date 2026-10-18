@@ -22,9 +22,10 @@ bool FMT2DirectYangRewardsTest::RunTest(const FString&)
 	auto* First = World->SpawnActor<AMT2PlayerState>(); First->SetPlayerId(1);
 	auto* Second = World->SpawnActor<AMT2PlayerState>(); Second->SetPlayerId(2);
 	FMT2MobDefinition Definition; Definition.GoldMin = 101; Definition.GoldMax = 101;
-	auto MakeLoot = [&]()
+	auto MakeLoot = [&](const FVector& Location = FVector::ZeroVector)
 	{
 		auto* Victim = World->SpawnActor<AMT2Mob>();
+		Victim->SetActorLocation(Location);
 		auto* Loot = Victim->GetLootComponent(); Loot->Configure(Definition);
 		return Loot;
 	};
@@ -39,8 +40,18 @@ bool FMT2DirectYangRewardsTest::RunTest(const FString&)
 	auto* Party = World->SpawnActor<AMT2Party>();
 	if (!TestTrue(TEXT("Party initialized"), Party->InitializeParty(First, Second))) return false;
 	MakeLoot()->GenerateRewards(Shares);
-	TestEqual(TEXT("Party share with remainder"), First->GetYang(), int64(152));
-	TestEqual(TEXT("Other party share"), Second->GetYang(), int64(50));
+	TestEqual(TEXT("Yang is credited to the individual top damager"), First->GetYang(), int64(202));
+	TestEqual(TEXT("Yang is not split across the top damager's party"), Second->GetYang(), int64(0));
+	auto* Third = World->SpawnActor<AMT2PlayerState>(); Third->SetPlayerId(3);
+	FMT2DamageShare FirstPartyDamage; FirstPartyDamage.Attacker = First; FirstPartyDamage.TotalDamage = 40.f;
+	FMT2DamageShare SecondPartyDamage; SecondPartyDamage.Attacker = Second; SecondPartyDamage.TotalDamage = 40.f;
+	FMT2DamageShare ThirdDamage; ThirdDamage.Attacker = Third; ThirdDamage.TotalDamage = 60.f;
+	TArray<FMT2DamageShare> CompetingShares = { FirstPartyDamage, SecondPartyDamage, ThirdDamage };
+	MakeLoot(FVector(0.0f, 5200.0f, 9000.0f))->GenerateRewards(CompetingShares);
+	TestEqual(TEXT("Legacy XY approximate range includes the individual top damager despite height and diagonal distance"),
+		Third->GetYang(), int64(101));
+	TestEqual(TEXT("Higher-damage party does not take the individual killer's Yang"),
+		First->GetYang() + Second->GetYang(), int64(202));
 	MakeLoot()->GenerateRewards(Shares, false);
 	TestEqual(TEXT("Disabled drops cannot grant Yang"), First->GetYang() + Second->GetYang(), int64(202));
 	int32 Drops = 0; for (TActorIterator<AMT2WorldItem> It(World); It; ++It) ++Drops;
