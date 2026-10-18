@@ -31,6 +31,7 @@
 #include "Mobs/MT2Mob.h"
 #include "Mounts/MT2MountComponent.h"
 #include "Mounts/MT2MountDefinition.h"
+#include "Mounts/MT2HorseProgressionComponent.h"
 #include "Npcs/MT2Npc.h"
 #include "Npcs/MT2NpcShopComponent.h"
 #include "Party/MT2Party.h"
@@ -557,17 +558,16 @@ EMT2QuestNodeResult UMT2QuestNode_ModifySkills::Execute(const FMT2QuestContext& 
 EMT2QuestNodeResult UMT2QuestNode_CallHorse::Execute(const FMT2QuestContext& Context)
 {
 	UMT2MountComponent* Mounts = Context.Player ? Context.Player->GetMountComponent() : nullptr;
-	UMT2SkillComponent* Skills =
-		Context.PlayerState ? Context.PlayerState->GetSkillComponent() : nullptr;
+	UMT2HorseProgressionComponent* Horse = Context.PlayerState ? Context.PlayerState->GetHorseProgressionComponent() : nullptr;
 	UGameInstance* GameInstance = Context.Player ? Context.Player->GetGameInstance() : nullptr;
 	UMT2VnumRegistrySubsystem* Registry =
 		GameInstance ? GameInstance->GetSubsystem<UMT2VnumRegistrySubsystem>() : nullptr;
-	if (!Mounts || !Skills || !Registry)
+	if (!Mounts || !Horse || !Registry || !Context.PlayerState->HasAuthority())
 	{
 		return EMT2QuestNodeResult::Continue;
 	}
 
-	const int32 HorseLevel = Skills->GetSkillLevel(HorseSkillVnum);
+	const int32 HorseLevel = Horse->GetLevel();
 	if (HorseLevel <= 0)
 	{
 		return EMT2QuestNodeResult::Continue;
@@ -587,9 +587,8 @@ EMT2QuestNodeResult UMT2QuestNode_CallHorse::Execute(const FMT2QuestContext& Con
 EMT2QuestNodeResult UMT2QuestNode_ModifyHorse::Execute(const FMT2QuestContext& Context)
 {
 	UMT2MountComponent* Mounts = Context.Player ? Context.Player->GetMountComponent() : nullptr;
-	UMT2SkillComponent* Skills =
-		Context.PlayerState ? Context.PlayerState->GetSkillComponent() : nullptr;
-	if (!Mounts || !Skills)
+	UMT2HorseProgressionComponent* Horse = Context.PlayerState ? Context.PlayerState->GetHorseProgressionComponent() : nullptr;
+	if (!Mounts || !Horse || !Context.PlayerState->HasAuthority())
 	{
 		return EMT2QuestNodeResult::Continue;
 	}
@@ -613,8 +612,7 @@ EMT2QuestNodeResult UMT2QuestNode_ModifyHorse::Execute(const FMT2QuestContext& C
 		Mounts->SetCalledHorse(nullptr);
 		break;
 	case EMT2QuestHorseOperation::Advance:
-		Skills->SetSkillLevel(HorseSkillVnum, FMath::Min(
-			Skills->GetSkillLevel(HorseSkillVnum) + 1, FMath::Max(MaximumHorseLevel, 1)));
+		if (Horse->GetLevel() < FMath::Min(FMath::Max(MaximumHorseLevel, 1), 30)) Horse->AdvanceLevel();
 		break;
 	default:
 		break;

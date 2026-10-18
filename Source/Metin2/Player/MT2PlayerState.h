@@ -33,6 +33,7 @@ class UMT2QuestManagerComponent;
 class UMT2SkillComponent;
 class UMT2PersistenceComponent;
 class UMT2PrimaryStatsComponent;
+class UMT2HorseProgressionComponent;
 class UMT2TradeComponent;
 class UMT2DuelComponent;
 class AMT2PlayerCharacter;
@@ -267,6 +268,7 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Stats|Primary")
 	UMT2PrimaryStatsComponent* GetPrimaryStatsComponent() const { return PrimaryStatsComponent; }
+	UFUNCTION(BlueprintPure, Category = "Horse") UMT2HorseProgressionComponent* GetHorseProgressionComponent() const { return HorseProgressionComponent; }
 
 	UFUNCTION(BlueprintPure, Category = "Skills")
 	UMT2SkillComponent* GetSkillComponent() const { return SkillComponent; }
@@ -436,6 +438,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats|Primary", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UMT2PrimaryStatsComponent> PrimaryStatsComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Horse", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UMT2HorseProgressionComponent> HorseProgressionComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Persistence", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UMT2PersistenceComponent> PersistenceComponent;

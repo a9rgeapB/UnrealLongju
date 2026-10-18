@@ -59,6 +59,7 @@
 #include "Items/Use/MT2SkillTrainingItemTemplates.h"
 #include "Items/MT2WorldItem.h"
 #include "Mounts/MT2MountComponent.h"
+#include "Mounts/MT2HorseProgressionComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Persistence/MT2PersistenceComponent.h"
 #include "Quests/MT2QuestComponent.h"
@@ -215,6 +216,19 @@ FMT2PrimaryStats AMT2PlayerCharacter::GetCalculatedPrimaryStats() const
 		Result.Dexterity += PawnStats.Dexterity;
 		Result.Constitution += PawnStats.Constitution;
 		Result.Intelligence += PawnStats.Intelligence;
+	}
+	if (MountComponent && MountComponent->IsMounted() && MountComponent->GetMountedKind() == EMT2MountKind::Horse)
+	{
+		const AMT2PlayerState* State = GetPlayerState<AMT2PlayerState>();
+		const UMT2HorseProgressionComponent* Horse = State ? State->GetHorseProgressionComponent() : nullptr;
+		if (Horse)
+		{
+			const FMT2PrimaryStats Minimums = Horse->GetMountedMinimumStats();
+			Result.Strength = FMath::Max(Result.Strength, Minimums.Strength);
+			Result.Dexterity = FMath::Max(Result.Dexterity, Minimums.Dexterity);
+			Result.Constitution = FMath::Max(Result.Constitution, Minimums.Constitution);
+			Result.Intelligence = FMath::Max(Result.Intelligence, Minimums.Intelligence);
+		}
 	}
 	return Result;
 }

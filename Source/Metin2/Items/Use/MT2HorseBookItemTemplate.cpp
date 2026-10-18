@@ -13,6 +13,7 @@
 #include "Components/MT2ManaComponent.h"
 #include "Mounts/MT2MountComponent.h"
 #include "Mounts/MT2MountDefinition.h"
+#include "Mounts/MT2HorseProgressionComponent.h"
 #include "Player/MT2PlayerController.h"
 #include "Player/MT2PlayerState.h"
 #include "Skills/MT2SkillComponent.h"
@@ -36,8 +37,9 @@ EMT2ItemUseExecution UMT2HorseBookItemTemplate::ExecuteUse(
 	UMT2ManaComponent* Mana = Character.GetManaComponent();
 	AMT2PlayerState* PlayerState = Character.GetPlayerState<AMT2PlayerState>();
 	UMT2SkillComponent* Skills = PlayerState ? PlayerState->GetSkillComponent() : nullptr;
+	UMT2HorseProgressionComponent* Horse = PlayerState ? PlayerState->GetHorseProgressionComponent() : nullptr;
 	AMT2PlayerController* Controller = Cast<AMT2PlayerController>(Character.GetController());
-	if (!Mounts || !Definition || Definition->MountKind != EMT2MountKind::Horse || !Mana || !Skills)
+	if (!Mounts || !Definition || Definition->MountKind != EMT2MountKind::Horse || !Mana || !Skills || !Horse)
 	{
 		if (Controller)
 		{
@@ -51,6 +53,11 @@ EMT2ItemUseExecution UMT2HorseBookItemTemplate::ExecuteUse(
 		{
 			Controller->SendSystemChatMessage(TEXT("You are already mounted."));
 		}
+		return EMT2ItemUseExecution::Rejected;
+	}
+	if (Horse->GetLevel() <= 0 || Horse->IsDead() || Horse->GetStamina() <= 0)
+	{
+		if (Controller) Controller->SendSystemChatMessage(TEXT("Your horse is too weak to answer the call."));
 		return EMT2ItemUseExecution::Rejected;
 	}
 	if (Mana->GetMana() < ManaCost)

@@ -27,6 +27,7 @@
 #include "Items/MT2ItemTemplate.h"
 #include "Mobs/MT2Mob.h"
 #include "Mounts/MT2MountComponent.h"
+#include "Mounts/MT2HorseProgressionComponent.h"
 #include "Npcs/MT2Npc.h"
 #include "Party/MT2Party.h"
 #include "Player/MT2PlayerState.h"
@@ -374,7 +375,10 @@ namespace
 			TEXT("math.min"), TEXT("math.max"), TEXT("number"),
 			TEXT("time_min_to_sec"), TEXT("time_hour_to_sec"), TEXT("time_day_to_sec"),
 			// horse
-			TEXT("horse.get_level"), TEXT("horse.get_grade"), TEXT("horse.is_summon"),
+			TEXT("horse.get_level"), TEXT("horse.get_grade"), TEXT("horse.get_health"),
+			TEXT("horse.get_health_pct"), TEXT("horse.get_stamina"), TEXT("horse.get_stamina_pct"),
+			TEXT("horse.is_summon"), TEXT("horse.feed"), TEXT("horse.revive"),
+			TEXT("horse.advance"), TEXT("horse.set_level"),
 			// string
 			TEXT("string.format"), TEXT("string.len"), TEXT("string.lower"), TEXT("string.upper"), TEXT("string.gsub"), TEXT("string.find"), TEXT("tostring"),
 			TEXT("get_quest_state"), TEXT("type"),
@@ -1085,10 +1089,46 @@ namespace
 
 		// ---- horse ----
 		if (Name == TEXT("horse.get_level") || Name == TEXT("horse.get_grade") ||
+			Name == TEXT("horse.get_health") || Name == TEXT("horse.get_health_pct") ||
+			Name == TEXT("horse.get_stamina") || Name == TEXT("horse.get_stamina_pct") ||
 			Name == TEXT("horse.is_summon") || Name == TEXT("horse.is_dead") ||
-			Name == TEXT("horse.is_ride"))
+			Name == TEXT("horse.is_ride") || Name == TEXT("horse.feed") ||
+			Name == TEXT("horse.revive") || Name == TEXT("horse.advance") || Name == TEXT("horse.set_level"))
 		{
-			return FMT2QuestValue(0.0);
+			UMT2HorseProgressionComponent* Horse = State ? State->GetHorseProgressionComponent() : nullptr;
+			const UMT2MountComponent* Mounts = Player ? Player->GetMountComponent() : nullptr;
+			if (Name == TEXT("horse.feed") || Name == TEXT("horse.revive") || Name == TEXT("horse.advance") || Name == TEXT("horse.set_level"))
+			{
+				if (!State || !State->HasAuthority() || !Horse) { bOutOk = false; return FMT2QuestValue(); }
+				if (Name == TEXT("horse.feed")) Horse->Feed();
+				else if (Name == TEXT("horse.revive")) Horse->Revive();
+				else if (Name == TEXT("horse.advance")) Horse->AdvanceLevel();
+				else
+				{
+					double RequestedLevel = 0.0;
+					if (Arguments.Num() != 1 || !TryNumericValue(Argument(0), RequestedLevel) ||
+						!FMath::IsFinite(RequestedLevel) || FMath::FloorToDouble(RequestedLevel) != RequestedLevel ||
+						RequestedLevel < 0.0 || RequestedLevel > 30.0)
+					{
+						bOutOk = false;
+						return FMT2QuestValue();
+					}
+					Horse->SetLevel(static_cast<int32>(RequestedLevel));
+				}
+				return FMT2QuestValue();
+			}
+			if (Name == TEXT("horse.get_level")) return FMT2QuestValue(Horse ? Horse->GetLevel() : 0);
+			if (Name == TEXT("horse.get_grade")) return FMT2QuestValue(Horse ? Horse->GetGrade() : 0);
+			if (Name == TEXT("horse.get_health")) return FMT2QuestValue(Horse ? Horse->GetHealth() : 0);
+			if (Name == TEXT("horse.get_health_pct")) return FMT2QuestValue(Horse && Horse->GetMaxHealth() > 0 ? Horse->GetHealth() * 100 / Horse->GetMaxHealth() : 0);
+			if (Name == TEXT("horse.get_stamina")) return FMT2QuestValue(Horse ? Horse->GetStamina() : 0);
+			if (Name == TEXT("horse.get_stamina_pct")) return FMT2QuestValue(Horse && Horse->GetMaxStamina() > 0 ? Horse->GetStamina() * 100 / Horse->GetMaxStamina() : 0);
+			if (Name == TEXT("horse.is_dead")) return FMT2QuestValue::Boolean(Horse && Horse->IsDead());
+			if (Name == TEXT("horse.is_ride"))
+			{
+				return FMT2QuestValue::Boolean(Mounts && Mounts->IsMounted() && Mounts->GetMountedKind() == EMT2MountKind::Horse);
+			}
+			return FMT2QuestValue::Boolean(Mounts && Mounts->HasCalledHorse());
 		}
 
 		if (Name == TEXT("math.mod"))
@@ -1604,7 +1644,8 @@ namespace
 	{
 		FMT2QuestValue Value = CallFunctionValue(Name, Arguments, Context, bOutOk);
 		if (bOutOk && (Name == TEXT("pc.change_alignment") || Name == TEXT("pc.changealignment") ||
-			Name == TEXT("pc.remove_skill_book_no_delay"))) { return FMT2QuestValue::Results({}); }
+			Name == TEXT("pc.remove_skill_book_no_delay") || Name == TEXT("horse.feed") ||
+			Name == TEXT("horse.revive") || Name == TEXT("horse.advance") || Name == TEXT("horse.set_level"))) { return FMT2QuestValue::Results({}); }
 		// Verified lua_pushboolean bindings and boolean-returning questlib helpers. Numeric
 		// getters (including GM level and guild id) must remain numbers even when they return zero.
 		static const TSet<FString> BooleanFunctions = {
@@ -1615,7 +1656,7 @@ namespace
 			TEXT("pc.is_riding"), TEXT("pc.is_mount"), TEXT("party.is_party"), TEXT("party.is_leader"),
 			TEXT("pc.is_polymorphed"), TEXT("pc.is_engaged"), TEXT("pc.is_married"),
 			TEXT("npc.lock"), TEXT("npc.is_pc"), TEXT("npc.is_near"), TEXT("guild.is_guild_master"),
-			TEXT("horse.is_summon"), TEXT("horse.is_dead")
+			TEXT("horse.is_summon"), TEXT("horse.is_dead"), TEXT("horse.is_ride")
 		};
 		return bOutOk && BooleanFunctions.Contains(Name) ? FMT2QuestValue::Boolean(Value.Number != 0.0) : Value;
 	}

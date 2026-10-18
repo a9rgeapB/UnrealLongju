@@ -51,6 +51,7 @@
 #include "Quests/MT2QuestManagerComponent.h"
 #include "Skills/MT2SkillComponent.h"
 #include "Stats/MT2PrimaryStatsComponent.h"
+#include "Mounts/MT2HorseProgressionComponent.h"
 #include "Stats/MT2PlayerStatFormula.h"
 
 namespace
@@ -78,6 +79,7 @@ AMT2PlayerState::AMT2PlayerState()
 	QuestComponent = CreateDefaultSubobject<UMT2QuestComponent>(TEXT("QuestComponent"));
 	QuestManagerComponent = CreateDefaultSubobject<UMT2QuestManagerComponent>(TEXT("QuestManagerComponent"));
 	PrimaryStatsComponent = CreateDefaultSubobject<UMT2PrimaryStatsComponent>(TEXT("PrimaryStatsComponent"));
+	HorseProgressionComponent = CreateDefaultSubobject<UMT2HorseProgressionComponent>(TEXT("HorseProgressionComponent"));
 	PersistenceComponent = CreateDefaultSubobject<UMT2PersistenceComponent>(TEXT("PersistenceComponent"));
 	MessengerComponent = CreateDefaultSubobject<UMT2MessengerComponent>(TEXT("MessengerComponent"));
 	GuildComponent = CreateDefaultSubobject<UMT2GuildComponent>(TEXT("GuildComponent"));
@@ -940,6 +942,18 @@ FString AMT2PlayerState::CapturePersistentStateJson_Implementation() const
 	Root->SetNumberField(TEXT("karma"), GetRawAlignment() / 10.0);
 	Root->SetStringField(TEXT("yang"), LexToString(Yang));
 	Root->SetBoolField(TEXT("startup_items_granted"), bStartingItemsGranted);
+	if (HorseProgressionComponent)
+	{
+		TSharedRef<FJsonObject> Horse = MakeShared<FJsonObject>();
+		Horse->SetNumberField(TEXT("version"), 1);
+		Horse->SetNumberField(TEXT("level"), HorseProgressionComponent->GetLevel());
+		Horse->SetNumberField(TEXT("grade"), HorseProgressionComponent->GetGrade());
+		Horse->SetNumberField(TEXT("health"), HorseProgressionComponent->GetHealth());
+		Horse->SetNumberField(TEXT("stamina"), HorseProgressionComponent->GetStamina());
+		Horse->SetNumberField(TEXT("health_drop_at"), static_cast<double>(HorseProgressionComponent->GetHealthDropAtUnix()));
+		Horse->SetNumberField(TEXT("stamina_updated_at"), static_cast<double>(HorseProgressionComponent->GetStaminaUpdatedAtUnix()));
+		Root->SetObjectField(TEXT("horse"), Horse);
+	}
 
 	TSharedRef<FJsonObject> Appearance = MakeShared<FJsonObject>();
 	Appearance->SetNumberField(TEXT("race"), static_cast<uint8>(CharacterAppearance.Race));
@@ -1170,6 +1184,40 @@ bool AMT2PlayerState::ApplyPersistentStateJson_Implementation(const FString& Pay
 	if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
 	{
 		return false;
+	}
+
+	const TSharedPtr<FJsonObject>* HorseObject = nullptr;
+	if (HorseProgressionComponent && Root->TryGetObjectField(TEXT("horse"), HorseObject) && HorseObject && HorseObject->IsValid())
+	{
+		double HorseLevel = 0.0;
+		double HorseHealth = 0.0;
+		double HorseStamina = 0.0;
+		double HealthDropAt = 0.0;
+		double StaminaUpdatedAt = 0.0;
+		const bool bHasHorseVitals = (*HorseObject)->TryGetNumberField(TEXT("level"), HorseLevel) &&
+			(*HorseObject)->TryGetNumberField(TEXT("health"), HorseHealth) &&
+			(*HorseObject)->TryGetNumberField(TEXT("stamina"), HorseStamina) &&
+			FMath::IsFinite(HorseLevel) && FMath::IsFinite(HorseHealth) && FMath::IsFinite(HorseStamina) &&
+			HorseLevel >= 0.0 && HorseLevel <= 30.0 && FMath::FloorToDouble(HorseLevel) == HorseLevel &&
+			HorseHealth >= 0.0 && HorseHealth <= MAX_int32 && FMath::FloorToDouble(HorseHealth) == HorseHealth &&
+			HorseStamina >= 0.0 && HorseStamina <= MAX_int32 && FMath::FloorToDouble(HorseStamina) == HorseStamina;
+		if (bHasHorseVitals)
+		{
+			(*HorseObject)->TryGetNumberField(TEXT("health_drop_at"), HealthDropAt);
+			(*HorseObject)->TryGetNumberField(TEXT("stamina_updated_at"), StaminaUpdatedAt);
+			const double MaxExactTimestamp = 9007199254740991.0;
+			if (!FMath::IsFinite(HealthDropAt) || HealthDropAt < 0.0 || HealthDropAt > MaxExactTimestamp)
+			{
+				HealthDropAt = 0.0;
+			}
+			if (!FMath::IsFinite(StaminaUpdatedAt) || StaminaUpdatedAt < 0.0 || StaminaUpdatedAt > MaxExactTimestamp)
+			{
+				StaminaUpdatedAt = 0.0;
+			}
+			HorseProgressionComponent->RestoreProgression(
+				FMath::RoundToInt(HorseLevel), FMath::RoundToInt(HorseHealth),
+				FMath::RoundToInt(HorseStamina), FMath::RoundToInt64(HealthDropAt), FMath::RoundToInt64(StaminaUpdatedAt));
+		}
 	}
 
 	FString Name;

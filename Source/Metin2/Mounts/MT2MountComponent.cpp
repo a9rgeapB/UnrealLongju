@@ -17,6 +17,8 @@
 #include "Equipment/MT2EquipmentComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Mounts/MT2MountDefinition.h"
+#include "Mounts/MT2HorseProgressionComponent.h"
+#include "Player/MT2PlayerState.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
 
@@ -65,12 +67,26 @@ void UMT2MountComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 bool UMT2MountComponent::CanAttackWhileMounted() const
 {
 	const UMT2MountDefinition* Definition = MountDefinition.Get();
+	if (bMounted && MountedKind == EMT2MountKind::Horse)
+	{
+		const AMT2PlayerCharacter* Character = GetPlayerCharacter();
+		const AMT2PlayerState* State = Character ? Character->GetPlayerState<AMT2PlayerState>() : nullptr;
+		const UMT2HorseProgressionComponent* Horse = State ? State->GetHorseProgressionComponent() : nullptr;
+		return Horse && Horse->GetGrade() >= 2;
+	}
 	return !bMounted || (Definition && Definition->bCanAttack);
 }
 
 bool UMT2MountComponent::CanUseHorseSkills() const
 {
 	const UMT2MountDefinition* Definition = MountDefinition.Get();
+	if (bMounted && MountedKind == EMT2MountKind::Horse)
+	{
+		const AMT2PlayerCharacter* Character = GetPlayerCharacter();
+		const AMT2PlayerState* State = Character ? Character->GetPlayerState<AMT2PlayerState>() : nullptr;
+		const UMT2HorseProgressionComponent* Horse = State ? State->GetHorseProgressionComponent() : nullptr;
+		return Horse && Horse->GetGrade() >= 3;
+	}
 	return bMounted && Definition && Definition->bCanUseHorseSkills;
 }
 
@@ -100,6 +116,14 @@ bool UMT2MountComponent::Mount(UMT2MountDefinition* Definition, int32 DurationSe
 	AMT2PlayerCharacter* Character = GetPlayerCharacter();
 	if (!Character || !Character->HasAuthority() || !Definition || Definition->Mesh.IsNull() ||
 		(Character->GetHealthComponent() && Character->GetHealthComponent()->IsDead()))
+	{
+		return false;
+	}
+	AMT2PlayerState* PlayerState = Character->GetPlayerState<AMT2PlayerState>();
+	UMT2HorseProgressionComponent* Horse = PlayerState ? PlayerState->GetHorseProgressionComponent() : nullptr;
+	if (Definition->MountKind == EMT2MountKind::Horse &&
+		(!Horse || Horse->GetLevel() <= 0 || Horse->IsDead() || Horse->GetStamina() <= 0 ||
+		 PlayerState->GetCharacterLevel() < Horse->GetMinimumRiderLevel() || !Horse->SetRiding(true)))
 	{
 		return false;
 	}
@@ -174,6 +198,15 @@ void UMT2MountComponent::ForceDismount()
 	if (!GetOwner() || !GetOwner()->HasAuthority() || !bMounted)
 	{
 		return;
+	}
+	if (MountedKind == EMT2MountKind::Horse)
+	{
+		AMT2PlayerCharacter* Character = GetPlayerCharacter();
+		AMT2PlayerState* State = Character ? Character->GetPlayerState<AMT2PlayerState>() : nullptr;
+		if (UMT2HorseProgressionComponent* Horse = State ? State->GetHorseProgressionComponent() : nullptr)
+		{
+			Horse->SetRiding(false);
+		}
 	}
 	bMounted = false;
 	MountDefinition.Reset();
@@ -302,6 +335,7 @@ void UMT2MountComponent::ApplyMountedState()
 	const UMT2EquipmentComponent* Equipment = Character->GetEquipmentComponent();
 	Character->SetWeaponAnimationSet(
 		Equipment ? Equipment->GetEquippedWeaponSubType() : EMT2WeaponSubType::None, bMounted);
+	Character->RefreshDerivedStatsForMount();
 	if (Character->HasAuthority())
 	{
 		Character->ForceNetUpdate();

@@ -2,10 +2,8 @@
 
 ## Scope
 
-Code presence below does not establish horse quest/progression parity or live mounted-animation validation.
-
-This records the original client/server behaviour and the UE architecture selected for mounts. It
-separates the first playable foundation from horse progression, mount items, and content import.
+This records the original client/server behaviour and the current Unreal implementation, including
+which presentation details and multiplayer cases still need validation.
 
 ## Original game behaviour
 
@@ -56,7 +54,7 @@ The movement multiplier belongs to `UMT2MovementSpeedComponent`, so equipment/st
 not erase it. Equipping a weapon while mounted selects the existing `horse_*` rider animation set.
 Mounting, dismounting, and death are server-authoritative and replicated to all clients.
 
-## Implemented foundation
+## Current implementation
 
 - Replicated mount/dismount state and authority-only Blueprint entry points. A client cannot submit
   an arbitrary definition; the mount item handler resolves it through server-owned item/template data.
@@ -67,24 +65,34 @@ Mounting, dismounting, and death are server-authoritative and replicated to all 
 - Attack and horse-skill capability queries.
 - Forced dismount on death; dedicated servers skip visual creation.
 - Mount item base class with consumable/permanent policy and optional timed expiry.
+- PlayerState-owned horse progression persists level, health, stamina, health-decay deadline and
+  stamina recovery timestamp in the existing character JSON snapshot. Riding remains transient.
+- Horse progression uses the legacy 30-level health/stamina/stat table, grade boundaries, rider
+  minimum level, six-minute riding drain, twelve-minute dismounted/offline recovery and three-day
+  health decay. Empty stamina or death forces a dismount.
+- Legacy horse level/grade/health/stamina/dead/riding/summoned quest reads use the authoritative
+  progression and mount state. `horse.advance`, `horse.set_level`, `horse.feed` and `horse.revive`
+  are available as server-side quest actions.
+- Vnums 50054-50056 import as feed items and 50057-50059 as revive items; invalid use does not
+  consume the item. The action and mount are resolved on the server.
+- Ordinary horse grade controls combat: basic cannot attack, armed can attack, and military can
+  use horse skills. Horse-level primary-stat minimums apply only while mounted and are recalculated
+  on mount state changes.
 - Item importer parses `ride.quest` and `ride_upgradable.quest`, reparents matching item Blueprints,
   and imports ride duration, minimum level, consume policy, and mount VNUM.
 - Item import creates reusable `/Game/Logic/Mounts/DA_Mount_<VNUM>` assets from the matching mob
   Blueprint registered in `/Game/Logic/DA_MT2VnumRegistry`.
 
-## Next stages
+## Remaining work
 
 1. Import/generate dedicated mount animation Blueprints where mob animation graphs do not expose
    the complete wait/walk/run/attack/death set.
-2. Apply the ride quest's temporary stat bonus while mounted and remove it on dismount/expiry.
-3. Extend mount UI and full summon/dismiss behavior. `ServerToggleHorse`, `ServerToggleSpecialMount`, and called-mount definition state already exist; these are not a complete horse progression/summoned-actor system.
-4. Synchronize one-shot mount actions with rider attack, damage, skill, and death actions.
-5. Add dust, summon, mount, and dismount effects/sounds.
-6. Add a separate persistent horse progression component: level, grade, health, stamina, feeding,
-   revival, and training quests. Temporary `bMounted` state must not persist across travel.
-7. Extend coordinator persistence with explicit horse columns when progression lands.
-8. Add capsule/camera/nameplate adjustments and restricted-map policies.
-9. Add multiplayer tests for replication, death, travel, and equipment changes.
+2. Add the horse status UI and a complete summon/dismiss presentation loop (called-horse data is
+   currently represented by a validated mount definition, not a separate authoritative actor).
+3. Synchronize one-shot mount actions with rider attack, damage, skill, and death actions.
+4. Add dust, summon, mount, and dismount effects/sounds.
+5. Add capsule/camera/nameplate adjustments and restricted-map policies.
+6. Expand multiplayer regression coverage for replication, death, travel, and equipment changes.
 
 ## Original source references
 

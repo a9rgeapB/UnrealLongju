@@ -23,6 +23,7 @@
 #include "Items/MT2ItemTemplate.h"
 #include "Loot/MT2LootTable.h"
 #include "Items/Use/MT2HorseBookItemTemplate.h"
+#include "Items/Use/MT2HorseCareItemTemplate.h"
 #include "Items/Use/MT2MobLureItemTemplate.h"
 #include "Items/Use/MT2MountItemTemplate.h"
 #include "Items/Use/MT2SkillTrainingItemTemplates.h"
@@ -1037,6 +1038,8 @@ namespace
 		const FString ObjectPath = PackageName + TEXT(".") + Name;
 		UClass* ParentClass = Definition.Vnum >= 50051 && Definition.Vnum <= 50053
 			? UMT2HorseBookItemTemplate::StaticClass()
+			: Definition.Vnum >= 50054 && Definition.Vnum <= 50059
+			? UMT2HorseCareItemTemplate::StaticClass()
 			: Record.MountVnum > 0
 			? UMT2MountItemTemplate::StaticClass()
 			: IsMobLureItem(Definition.Vnum)
@@ -1144,6 +1147,11 @@ namespace
 			{
 				HorseBook->ManaCost = (Definition.Vnum - 50050) * 100;
 				HorseBook->SummonSkillVnum = 131;
+			}
+			if (UMT2HorseCareItemTemplate* HorseCare = Cast<UMT2HorseCareItemTemplate>(Defaults))
+			{
+				HorseCare->Action = Definition.Vnum >= 50057
+					? EMT2HorseCareAction::Revive : EMT2HorseCareAction::Feed;
 			}
 
 			if (UMT2ItemEquipmentTemplate* Equipment = Cast<UMT2ItemEquipmentTemplate>(Defaults))

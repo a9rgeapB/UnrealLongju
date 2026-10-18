@@ -137,6 +137,7 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Stats|Primary")
 	FMT2PrimaryStats GetCalculatedPrimaryStats() const;
+	void RefreshDerivedStatsForMount() { RefreshDerivedStats(); }
 
 	// Sum of every currently equipped item apply, including the seven random bonus slots.
 	UFUNCTION(BlueprintPure, Category = "Stats|Item Bonuses")

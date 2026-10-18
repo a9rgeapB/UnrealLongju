@@ -51,6 +51,7 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Mount")
 	int32 GetCalledSpecialMountRemainingSeconds() const;
+	UFUNCTION(BlueprintPure, Category = "Mount|Horse") bool HasCalledHorse() const { return !CalledHorseDefinition.IsNull(); }
 
 	UFUNCTION(BlueprintPure, Category = "Mount|Combat")
 	bool CanAttackWhileMounted() const;

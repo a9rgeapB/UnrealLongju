@@ -29,7 +29,7 @@ See the [setup guide](../README.md) for supported workflows.
 - Coordinator SQLite persistence for characters, items, quests, guilds and messenger state. Skills, quickslots and affects use compact player TEXT fields. Schema creation exists; automatic versioned migration does not.
 - Coordinator guild core with editable ranks, invitations, membership, guild chat and owner-client UI state. Local JSON guild code is a distinct fallback, not cluster authority.
 - Messenger friend requests, presence, stored cluster messages and separate whisper UI. Coordinator-free fallback is session-local.
-- Mount definition/component/item foundation; progression and complete presentation fidelity remain incomplete.
+- Mounts include persistent legacy horse progression, feed/revive items, training quest APIs, grade-gated combat, mounted stat minimums, and timer-based health/stamina lifecycle. Horse status UI, full summoned-horse presentation, one-shot rider/mount action sync, movement effects, and remaining camera/nameplate/map-policy parity remain incomplete.
 - [Gameplay map attributes](OldGameResearch/SafeZones.md): authoritative BANPK safezones and BLOCK/OBJECT movement checks. Transition messages use the info log. AI routing around blocked cells requires separate implementation.
 - [Area painter](AreaPainting.md): native-resolution bit editing, viewport-wide translucent terrain overlays, independent visibility, paint/erase and sparse undo/redo.
 - [Visual water](Water.md): independent coverage/heights stored in map-presentation data, client-generated non-colliding chunks and configurable material. Visual-water painting is separate from gameplay water flags.
@@ -44,7 +44,7 @@ Use `Saved/MT2QuestConversionReport.txt` from an import of the intended dataset 
 ## Remaining priorities
 
 1. Complete quest scoping, resumable expression/result-list propagation, function values, table-field assignment and unresolved triggers/gates.
-2. Implement authoritative dungeon/instance, cube, safebox/mall, pet, marriage, guild-war/building and remaining horse backends.
+2. Implement authoritative dungeon/instance, cube, safebox/mall, pet, marriage, guild-war/building, and remaining non-horse backends.
 3. Audit accepted quest bindings and complete end-to-end quest playthroughs.
 4. Validate AI routes, authored spawn/warp destinations, water materials, animation and editor streaming with the intended content.
 5. Measure multiplayer CPU/bandwidth and test latency, packet loss, travel, reconnect and cooked client/server builds. A 200-player map is a capacity target, not an established result.
