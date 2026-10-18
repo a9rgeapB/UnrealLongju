@@ -9,9 +9,15 @@
 
 #include "Items/MT2ItemTemplate.h"
 
+#include "Config/MT2GameplaySettings.h"
 #include "UI/MT2ItemTooltipWidget.h"
 #include "UI/MT2ItemTooltipWidgets.h"
 #include "Skills/MT2SkillSet.h"
+
+int32 UMT2ItemTemplate::GetMaxStackSize() const
+{
+	return IsStackable() ? FMath::Max(UMT2GameplaySettings::Get().MaximumItemStackSize, 1) : 1;
+}
 
 void UMT2ItemTemplate::PostLoad()
 {

@@ -10,6 +10,7 @@
 #include "Quests/MT2QuestManagerComponent.h"
 
 #include "Characters/MT2PlayerCharacter.h"
+#include "Config/MT2GameplaySettings.h"
 #include "Dungeons/MT2DungeonSubsystem.h"
 #include "Dungeons/MT2DungeonRoom.h"
 #include "Dungeons/MT2DevilTowerRoom.h"
@@ -216,7 +217,7 @@ void UMT2QuestManagerComponent::CheckTargetArrivals()
 		return;
 	}
 	// Roughly the old game's arrival radius - close enough to be standing with the NPC.
-	constexpr double ArrivalRadius = 500.0;
+	const double ArrivalRadius = UMT2GameplaySettings::Get().QuestArrivalRadius;
 	const FVector PlayerLocation = Pawn->GetActorLocation();
 
 	// Copied: dispatching runs quest script that can add or remove markers mid-iteration.

@@ -121,7 +121,7 @@ bool UMT2SkillComponent::SelectSkillGroup(EMT2SkillGroup NewSkillGroup)
 	}
 	// Old SetSkillGroup: only groups 1/2, only once, only from character level 5.
 	if ((NewSkillGroup != EMT2SkillGroup::First && NewSkillGroup != EMT2SkillGroup::Second) || SkillGroup != EMT2SkillGroup::None ||
-		GetOwnerCharacterLevel() < MT2SkillLimits::SkillGroupSelectLevel)
+		GetOwnerCharacterLevel() < UMT2GameplaySettings::Get().SkillGroupSelectLevel)
 	{
 		return false;
 	}

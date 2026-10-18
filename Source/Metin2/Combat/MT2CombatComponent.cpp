@@ -189,7 +189,8 @@ bool UMT2CombatComponent::PerformBasicAttackOnTarget(AActor* TargetActor, float 
 	}
 
 	const double CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
-	SetPendingKnockback(MotionKnockbackDistance(ExternalForce), MotionKnockbackDuration, false, HittingType);
+	SetPendingKnockback(MotionKnockbackDistance(ExternalForce),
+		UMT2GameplaySettings::Get().CombatKnockbackDurationSeconds, false, HittingType);
 	if (CurrentTime - LastAttackTime > ComboResetDelay)
 	{
 		CurrentComboIndex = INDEX_NONE;
@@ -272,7 +273,8 @@ void UMT2CombatComponent::ExecuteBasicAttackHit(FMT2MotionAttackEvent Event, TWe
 	}
 	for (AActor* Target : Targets)
 	{
-		SetPendingKnockback(MotionKnockbackDistance(Event.ExternalForce), MotionKnockbackDuration, false, Event.HittingType);
+		SetPendingKnockback(MotionKnockbackDistance(Event.ExternalForce),
+			UMT2GameplaySettings::Get().CombatKnockbackDurationSeconds, false, Event.HittingType);
 		ApplyBasicAttackDamage(Target);
 	}
 	SetPendingKnockback(0);
@@ -792,10 +794,15 @@ AActor* UMT2CombatComponent::FindFrontTarget(float MaxDistance) const
 		return nullptr;
 	}
 	// Old NEW_GetFrontInstance constants.
-	constexpr float HalfFanRotMin = 10.0f;
-	constexpr float HalfFanRotMax = 50.0f;
-	constexpr float HalfFanRotMinDistance = 1000.0f;
-	constexpr float RotPerUnit = (HalfFanRotMax - HalfFanRotMin) / HalfFanRotMinDistance;
+	const UMT2GameplaySettings& Settings = UMT2GameplaySettings::Get();
+	const float HalfFanMinAngle = FMath::Min(
+		Settings.CombatFanMinimumAngleDegrees, Settings.CombatFanMaximumAngleDegrees);
+	const float HalfFanMaxAngle = FMath::Max(
+		Settings.CombatFanMinimumAngleDegrees, Settings.CombatFanMaximumAngleDegrees);
+	const float FanMaximumDistance = FMath::Max(Settings.CombatFanMaximumAngleDistance, 0.0f);
+	const float RotPerUnit = FanMaximumDistance > UE_SMALL_NUMBER
+		? (HalfFanMaxAngle - HalfFanMinAngle) / FanMaximumDistance
+		: 0.0f;
 
 	// Every hostile in range is a candidate; the fan then rejects the ones off to the side.
 	const TArray<AActor*> Candidates = FindSplashTargets(
@@ -805,8 +812,9 @@ AActor* UMT2CombatComponent::FindFrontTarget(float MaxDistance) const
 	for (AActor* Candidate : Candidates)
 	{
 		const FVector ToCandidate = Candidate->GetActorLocation() - OwnerCharacter->GetActorLocation();
-		const float Distance = FMath::Min(ToCandidate.Size2D(), HalfFanRotMinDistance);
-		const float HalfFanRot = (HalfFanRotMax - HalfFanRotMin) - RotPerUnit * Distance + HalfFanRotMin;
+		const float Distance = FMath::Min(ToCandidate.Size2D(), FanMaximumDistance);
+		const float HalfFanRot = (HalfFanMaxAngle - HalfFanMinAngle)
+			- RotPerUnit * Distance + HalfFanMinAngle;
 		const float DeltaYaw = FMath::Abs(
 			FMath::FindDeltaAngleDegrees(OwnerYaw, ToCandidate.Rotation().Yaw));
 		if (DeltaYaw <= HalfFanRot)

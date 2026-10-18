@@ -129,6 +129,9 @@ public:
 		meta = (ClampMin = "0", ToolTip = "Zero uses the last XP-curve key; a positive value overrides the maximum character level."))
 	int32 MaximumCharacterLevel = 0;
 
+	UPROPERTY(EditAnywhere, config, Category = "Progression", meta = (ClampMin = "1"))
+	int32 MaximumPrimaryStatValue = 90;
+
 	// ---- Horse progression ----
 
 	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1"))
@@ -222,6 +225,71 @@ public:
 
 	UPROPERTY(EditAnywhere, config, Category = "Mobs|Rewards", meta = (ClampMin = "0.0"))
 	float MobItemDropChanceMultiplier = 1.0f;
+
+	// ---- Gameplay rules ----
+
+	UPROPERTY(EditAnywhere, config, Category = "Items", meta = (ClampMin = "0.0", Units = "cm"))
+	float WorldItemPickupRadius = 1000.0f;
+
+	UPROPERTY(EditAnywhere, config, Category = "Items", meta = (ClampMin = "1"))
+	int32 MaximumItemStackSize = 999;
+
+	UPROPERTY(EditAnywhere, config, Category = "Interaction", meta = (ClampMin = "0.0", Units = "cm"))
+	float WorldItemInteractionRange = 250.0f;
+
+	UPROPERTY(EditAnywhere, config, Category = "Quests", meta = (ClampMin = "0.0", Units = "cm"))
+	float QuestArrivalRadius = 500.0f;
+
+	UPROPERTY(EditAnywhere, config, Category = "Status Effects", meta = (ClampMin = "1", ClampMax = "100"))
+	int32 HealthRecoveryPercentPerSecond = 3;
+
+	UPROPERTY(EditAnywhere, config, Category = "Status Effects", meta = (ClampMin = "1", ClampMax = "100"))
+	int32 ManaRecoveryPercentPerSecond = 3;
+
+	UPROPERTY(EditAnywhere, config, Category = "Guild", meta = (ClampMin = "1"))
+	int32 GuildMaximumMembers = 20;
+
+	UPROPERTY(EditAnywhere, config, Category = "Guild", meta = (ClampMin = "1"))
+	int32 GuildMaximumNameLength = 12;
+
+	UPROPERTY(EditAnywhere, config, Category = "Guild", meta = (ClampMin = "0"))
+	int64 GuildCreationCostYang = 200000;
+
+	UPROPERTY(EditAnywhere, config, Category = "Guild", meta = (ClampMin = "0.0", Units = "s"))
+	float GuildInviteLifetimeSeconds = 30.0f;
+
+	UPROPERTY(EditAnywhere, config, Category = "Guild", meta = (ClampMin = "1"))
+	int32 GuildMinimumCreateLevel = 40;
+
+	UPROPERTY(EditAnywhere, config, Category = "Guild", meta = (ClampMin = "1"))
+	int32 GuildMaximumLevel = 20;
+
+	UPROPERTY(EditAnywhere, config, Category = "Skills", meta = (ClampMin = "1"))
+	int32 SkillGroupSelectLevel = 5;
+
+	UPROPERTY(EditAnywhere, config, Category = "Skills", meta = (ClampMin = "0.0", Units = "s"))
+	float SkillMinimumCastLockSeconds = 0.3f;
+
+	UPROPERTY(EditAnywhere, config, Category = "Combat", meta = (ClampMin = "0.0", Units = "s"))
+	float CombatKnockbackDurationSeconds = 2.0f;
+
+	UPROPERTY(EditAnywhere, config, Category = "Combat", meta = (ClampMin = "0.0", ClampMax = "180.0", Units = "deg"))
+	float CombatFanMinimumAngleDegrees = 10.0f;
+
+	UPROPERTY(EditAnywhere, config, Category = "Combat", meta = (ClampMin = "0.0", ClampMax = "180.0", Units = "deg"))
+	float CombatFanMaximumAngleDegrees = 50.0f;
+
+	UPROPERTY(EditAnywhere, config, Category = "Combat", meta = (ClampMin = "0.0", Units = "cm"))
+	float CombatFanMaximumAngleDistance = 1000.0f;
+
+	UPROPERTY(EditAnywhere, config, Category = "Server", meta = (ClampMin = "0.0", Units = "s"))
+	float LoginAttemptCooldownSeconds = 5.0f;
+
+	UPROPERTY(EditAnywhere, config, Category = "Networking|Voice", meta = (ClampMin = "1"))
+	int32 VoiceEncoderBitRate = 48000;
+
+	UPROPERTY(EditAnywhere, config, Category = "Networking|Voice", meta = (ClampMin = "0", ClampMax = "10"))
+	int32 VoiceEncoderComplexity = 5;
 
 	// Old IntroEmpire.dds atlas used for compact empire flags beside player names.
 	UPROPERTY(EditAnywhere, config, Category = "UI|Empire")

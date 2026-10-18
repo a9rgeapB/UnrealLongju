@@ -567,7 +567,7 @@ void AMT2PlayerController::ServerLogin_Implementation(
 	{
 		RemoteIp = Connection->LowLevelGetRemoteAddress(false);
 	}
-	if (Now - LastServerLoginAttemptTime < UMT2ServerRuntimeSubsystem::LoginAttemptCooldownSeconds ||
+	if (Now - LastServerLoginAttemptTime < UMT2GameplaySettings::Get().LoginAttemptCooldownSeconds ||
 		Runtime->ShouldThrottleLoginAttempt(RemoteIp, Username))
 	{
 		ClientLoginResult(false, TEXT("Too many login attempts. Wait a few seconds and try again."), {});

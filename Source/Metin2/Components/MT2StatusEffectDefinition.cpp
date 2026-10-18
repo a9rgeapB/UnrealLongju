@@ -10,6 +10,7 @@
 #include "Components/MT2StatusEffectDefinition.h"
 
 #include "Characters/MT2CharacterBase.h"
+#include "Config/MT2GameplaySettings.h"
 #include "Components/MT2HealthComponent.h"
 #include "Components/MT2ManaComponent.h"
 #include "Items/MT2ItemBonusSettings.h"
@@ -19,9 +20,6 @@ namespace
 	// Per-second drain of the recovery pool, as a % of the resource maximum. The old game drained the
 	// pool every 3s (HP 9%, SP 7%); this component ticks every 1s, so a third of those keeps the same
 	// overall rate. A minimum of 1 guarantees the pool always empties, so the effect can never get stuck.
-	constexpr int32 HealthRecoverPercentPerSecond = 3;
-	constexpr int32 ManaRecoverPercentPerSecond = 3;
-
 	// Heals from a pool held in Effect.ApplyValue; returns true when the effect is finished. Shared by
 	// the HP and SP recovery classes since only the resource getters/setters differ.
 	template <typename FGetCurrent, typename FGetMax, typename FSetCurrent>
@@ -201,7 +199,7 @@ bool UMT2StatusEffect_HealthRecovery::Tick(AMT2CharacterBase* Target, FMT2Status
 	{
 		return true;
 	}
-	return DrainRecoveryPool(Effect, HealthRecoverPercentPerSecond,
+	return DrainRecoveryPool(Effect, UMT2GameplaySettings::Get().HealthRecoveryPercentPerSecond,
 		[Health] { return Health->GetHealth(); },
 		[Health] { return Health->GetMaxHealth(); },
 		[Health](float V) { Health->SetCurrentValue(V); });
@@ -220,7 +218,7 @@ bool UMT2StatusEffect_ManaRecovery::Tick(AMT2CharacterBase* Target, FMT2StatusEf
 	{
 		return true;
 	}
-	return DrainRecoveryPool(Effect, ManaRecoverPercentPerSecond,
+	return DrainRecoveryPool(Effect, UMT2GameplaySettings::Get().ManaRecoveryPercentPerSecond,
 		[Mana] { return Mana->GetMana(); },
 		[Mana] { return Mana->GetMaxMana(); },
 		[Mana](float V) { Mana->SetCurrentValue(V); });

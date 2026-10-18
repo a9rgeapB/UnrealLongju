@@ -9,6 +9,7 @@
 
 #include "Guild/MT2GuildComponent.h"
 #include "Core/MT2ActorUtils.h"
+#include "Config/MT2GameplaySettings.h"
 
 #include "Characters/MT2PlayerCharacter.h"
 #include "Guild/MT2GuildSubsystem.h"
@@ -90,7 +91,7 @@ bool UMT2GuildComponent::HasPermission(EMT2GuildPermission Permission) const
 
 void UMT2GuildComponent::CreateGuild(const FString& GuildName)
 {
-	ServerCreateGuild(GuildName.TrimStartAndEnd().Left(MT2Guild::MaximumNameLength));
+	ServerCreateGuild(GuildName.TrimStartAndEnd().Left(UMT2GameplaySettings::Get().GuildMaximumNameLength));
 }
 
 void UMT2GuildComponent::InvitePlayer(AActor* TargetPlayer)
@@ -217,7 +218,7 @@ void UMT2GuildComponent::ServerCreateGuild_Implementation(const FString& GuildNa
 {
 	AMT2PlayerState* State = Cast<AMT2PlayerState>(GetOwner());
 	if (!State || Snapshot.IsValid()) { ApplyResult(TEXT("create"), EMT2GuildResult::AlreadyInGuild); return; }
-	if (State->GetYang() < MT2Guild::CreationCost) { ApplyResult(TEXT("create"), EMT2GuildResult::InsufficientYang); return; }
+	if (State->GetYang() < UMT2GameplaySettings::Get().GuildCreationCostYang) { ApplyResult(TEXT("create"), EMT2GuildResult::InsufficientYang); return; }
 	if (UMT2ServerRuntimeSubsystem* Runtime = GetRuntime(); Runtime && Runtime->IsCoordinatorConnected())
 	{
 		Runtime->PublishGuildCreate(GetCharacterId(), GuildName);
@@ -328,7 +329,7 @@ void UMT2GuildComponent::ApplyResult(FName Action, EMT2GuildResult Result)
 		{
 			// SQLite already charged the authoritative persisted row. Mirror that transaction into the
 			// live state so the HUD updates immediately; persistence later writes the same final value.
-			State->SetYang(FMath::Max<int64>(0, State->GetYang() - MT2Guild::CreationCost));
+		State->SetYang(FMath::Max<int64>(0, State->GetYang() - UMT2GameplaySettings::Get().GuildCreationCostYang));
 		}
 	}
 	if (GetOwner() && GetOwner()->HasAuthority()) ClientReceiveResult(Action, Result);

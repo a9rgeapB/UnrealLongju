@@ -315,15 +315,16 @@ void UMT2VoiceChatClientSubsystem::StartTalking()
 			VoiceEncoder.Reset();
 			return;
 		}
-		if (!VoiceEncoder->SetBitrate(MT2Voice::EncoderBitRate))
+		const UMT2GameplaySettings& Settings = UMT2GameplaySettings::Get();
+		if (!VoiceEncoder->SetBitrate(Settings.VoiceEncoderBitRate))
 		{
 			UE_LOG(LogMT2VoiceClient, Warning, TEXT("[Voice] Could not set Opus bitrate to %d."),
-				MT2Voice::EncoderBitRate);
+				Settings.VoiceEncoderBitRate);
 		}
-		if (!VoiceEncoder->SetComplexity(MT2Voice::EncoderComplexity))
+		if (!VoiceEncoder->SetComplexity(Settings.VoiceEncoderComplexity))
 		{
 			UE_LOG(LogMT2VoiceClient, Warning, TEXT("[Voice] Could not set Opus complexity to %d."),
-				MT2Voice::EncoderComplexity);
+				Settings.VoiceEncoderComplexity);
 		}
 		UE_LOG(LogMT2VoiceClient, Display, TEXT("[Voice] Microphone capture initialized (%d Hz)."),
 			MT2Voice::SampleRate);

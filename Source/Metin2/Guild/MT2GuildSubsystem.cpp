@@ -8,6 +8,7 @@
 */
 
 #include "Guild/MT2GuildSubsystem.h"
+#include "Config/MT2GameplaySettings.h"
 #include "Config/MT2PathSettings.h"
 
 #include "Dom/JsonObject.h"
@@ -18,6 +19,11 @@
 #include "Serialization/JsonWriter.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMT2Guild, Log, All);
+
+int32 FMT2Guild::GetMemberLimit() const
+{
+	return UMT2GameplaySettings::Get().GuildMaximumMembers;
+}
 
 namespace
 {
@@ -121,7 +127,7 @@ bool UMT2GuildSubsystem::IsNameTaken(const FString& GuildName) const
 int64 UMT2GuildSubsystem::GetExperienceForLevel(int32 Level) const
 {
 	// Old game's curve shape: each level costs progressively more. Level 1 -> 2 costs 5,000.
-	const int32 Clamped = FMath::Clamp(Level, 1, MT2GuildLimits::MaxGuildLevel);
+	const int32 Clamped = FMath::Clamp(Level, 1, UMT2GameplaySettings::Get().GuildMaximumLevel);
 	return static_cast<int64>(5000) * Clamped * Clamped;
 }
 
@@ -139,7 +145,7 @@ EMT2GuildResult UMT2GuildSubsystem::CreateGuild(
 	{
 		return EMT2GuildResult::UnknownCharacter;
 	}
-	if (CharacterLevel < MT2GuildLimits::MinCreateLevel)
+	if (CharacterLevel < UMT2GameplaySettings::Get().GuildMinimumCreateLevel)
 	{
 		return EMT2GuildResult::LevelTooLow;
 	}
@@ -341,7 +347,7 @@ int32 UMT2GuildSubsystem::AddGuildExperience(
 	}
 
 	// Consume thresholds one level at a time so a single large contribution can cross several.
-	while (Guild->Level < MT2GuildLimits::MaxGuildLevel)
+	while (Guild->Level < UMT2GameplaySettings::Get().GuildMaximumLevel)
 	{
 		const int64 Needed = GetExperienceForLevel(Guild->Level);
 		if (Guild->Experience < Needed)
@@ -351,7 +357,7 @@ int32 UMT2GuildSubsystem::AddGuildExperience(
 		Guild->Experience -= Needed;
 		++Guild->Level;
 	}
-	if (Guild->Level >= MT2GuildLimits::MaxGuildLevel)
+	if (Guild->Level >= UMT2GameplaySettings::Get().GuildMaximumLevel)
 	{
 		Guild->Experience = 0;
 	}

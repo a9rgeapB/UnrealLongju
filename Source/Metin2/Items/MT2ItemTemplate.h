@@ -84,7 +84,7 @@ public:
 	bool IsStackable() const { return (Flags & StackableFlag) != 0; }
 
 	UFUNCTION(BlueprintPure, Category = "Item")
-	int32 GetMaxStackSize() const { return IsStackable() ? MaximumStackSize : 1; }
+	int32 GetMaxStackSize() const;
 
 	UFUNCTION(BlueprintPure, Category = "Item")
 	FMT2ItemInstanceData MakeInstanceData(int32 Count = 1) const;
@@ -108,7 +108,6 @@ public:
 	virtual TSubclassOf<UMT2ItemTooltipWidget> GetDefaultTooltipClass() const;
 
 	static constexpr int32 StackableFlag = 1 << 2;
-	static constexpr int32 MaximumStackSize = 999;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Identity", meta = (ClampMin = "1"))
 	int32 Vnum = 0;
@@ -135,8 +134,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory", meta = (ClampMin = "1"))
 	int32 InventorySize = 1;
 
-	// Imported display value. Runtime stackability is authoritatively derived from ITEM_FLAG_STACKABLE.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory", meta = (ClampMin = "1", ClampMax = "999"))
+	// Imported default display value. Runtime stackability is derived from ITEM_FLAG_STACKABLE and the project-wide cap.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory", meta = (ClampMin = "1"))
 	int32 MaxStackSize = 1;
 
 	// item_proto WEIGHT; carried but unused (the old game never enforced weight either).

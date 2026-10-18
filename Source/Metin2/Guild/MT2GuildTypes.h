@@ -124,20 +124,10 @@ struct METIN2_API FMT2Guild
 			return Member.CharacterId == CharacterId;
 		});
 	}
-	int32 GetMemberLimit() const { return 20; }
+	int32 GetMemberLimit() const;
 };
 
 namespace MT2Guild
 {
 	constexpr int32 RankCount = 15;
-	constexpr int32 MaximumMembers = 20;
-	constexpr int32 MaximumNameLength = 12;
-	constexpr int64 CreationCost = 200000;
-	constexpr double InviteLifetimeSeconds = 30.0;
-}
-
-namespace MT2GuildLimits
-{
-	constexpr int32 MinCreateLevel = 40;
-	constexpr int32 MaxGuildLevel = 20;
 }

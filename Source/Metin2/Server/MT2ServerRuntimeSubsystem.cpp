@@ -2284,7 +2284,7 @@ bool UMT2ServerRuntimeSubsystem::ShouldThrottleLoginAttempt(
 	const double Now = FPlatformTime::Seconds();
 	for (auto It = LoginAttemptStamps.CreateIterator(); It; ++It)
 	{
-		if (Now - It.Value() > LoginAttemptCooldownSeconds * 4.0)
+		if (Now - It.Value() > UMT2GameplaySettings::Get().LoginAttemptCooldownSeconds * 4.0)
 		{
 			It.RemoveCurrent();
 		}
@@ -2317,7 +2317,7 @@ bool UMT2ServerRuntimeSubsystem::ShouldThrottleLoginAttempt(
 	{
 		if (const double* LastAttempt = LoginAttemptStamps.Find(Key))
 		{
-			if (Now - *LastAttempt < LoginAttemptCooldownSeconds)
+			if (Now - *LastAttempt < UMT2GameplaySettings::Get().LoginAttemptCooldownSeconds)
 			{
 				return true;
 			}
@@ -3769,14 +3769,15 @@ void UMT2ServerRuntimeSubsystem::HandleGuildInvite(
 	FMT2GuildSnapshot Existing;
 	if (GetMessengerStore()->LoadGuildForCharacter(TargetId, Existing))
 		{ SendGuildResult(CharacterId, TEXT("invite"), EMT2GuildResult::AlreadyInGuild); return; }
-	if (Guild.Members.Num() >= MT2Guild::MaximumMembers)
+	if (Guild.Members.Num() >= UMT2GameplaySettings::Get().GuildMaximumMembers)
 		{ SendGuildResult(CharacterId, TEXT("invite"), EMT2GuildResult::GuildFull); return; }
 	if (!MessengerPresences.Contains(TargetId))
 		{ SendGuildResult(CharacterId, TEXT("invite"), EMT2GuildResult::UnknownCharacter); return; }
 	if (const FPendingGuildInvite* ExistingInvite = PendingGuildInvites.Find(TargetId);
 		ExistingInvite && ExistingInvite->ExpiresAtSeconds > NowSeconds)
 		{ SendGuildResult(CharacterId, TEXT("invite"), EMT2GuildResult::InvitePending); return; }
-	PendingGuildInvites.Add(TargetId, {CharacterId, Guild.GuildId, NowSeconds + MT2Guild::InviteLifetimeSeconds});
+	PendingGuildInvites.Add(TargetId, {CharacterId, Guild.GuildId,
+		NowSeconds + UMT2GameplaySettings::Get().GuildInviteLifetimeSeconds});
 	TSharedRef<FJsonObject> Invite = MakeMessage(TEXT("guild_invite_push"));
 	Invite->SetStringField(TEXT("inviter_id"), CharacterId);
 	Invite->SetStringField(TEXT("inviter_name"), Sender ? Sender->CharacterName : FString());

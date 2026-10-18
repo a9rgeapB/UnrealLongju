@@ -569,7 +569,7 @@ void AMT2PlayerState::ServerSpendStatPoint_Implementation(EMT2PrimaryStat Stat)
 		return;
 	}
 
-	constexpr int32 MaximumBaseStat = 90;
+	const int32 MaximumBaseStat = UMT2GameplaySettings::Get().MaximumPrimaryStatValue;
 	FMT2PrimaryStats Stats = PrimaryStatsComponent->GetBaseStats();
 	int32* SelectedStat = nullptr;
 	switch (Stat)

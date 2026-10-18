@@ -8,6 +8,7 @@
 */
 
 #include "UI/MT2GuildWidget.h"
+#include "Config/MT2GameplaySettings.h"
 
 #include "Components/Button.h"
 #include "Components/EditableTextBox.h"
@@ -129,7 +130,7 @@ void UMT2GuildWidget::RefreshGuild()
 	GuildLevelText->SetText(FText::Format(NSLOCTEXT("MT2Guild", "Level", "Level {0}"), Snapshot.Level));
 	MemberCountText->SetText(FText::Format(
 		NSLOCTEXT("MT2Guild", "MemberCount", "{0}/{1}"),
-		Snapshot.Members.Num(), MT2Guild::MaximumMembers));
+		Snapshot.Members.Num(), UMT2GameplaySettings::Get().GuildMaximumMembers));
 	const FMT2GuildMember* Leader = Snapshot.Members.FindByPredicate([&Snapshot](const FMT2GuildMember& Member)
 	{
 		return Member.CharacterId == Snapshot.LeaderCharacterId;

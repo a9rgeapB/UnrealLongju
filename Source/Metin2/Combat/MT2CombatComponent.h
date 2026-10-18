@@ -142,9 +142,6 @@ public:
 	void SetBasicAttackMotion(UAnimSequence* Sequence, float PlayRate);
 	void CancelPendingBasicAttackHits();
 	static float MotionKnockbackDistance(float ExternalForce);
-	// PhysicsObject.cpp: 100 integration steps at c_fFrameTime (0.02 seconds).
-	static constexpr float MotionKnockbackDuration = 2.f;
-
 private:
 	friend class FMT2MeleeRoomOcclusionTest;
 	friend class FMT2HeldAttackFallbackTest;

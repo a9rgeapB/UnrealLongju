@@ -343,7 +343,7 @@ void AMT2PlayerCharacter::Tick(float DeltaSeconds)
 
 	if (AActor* Target = PendingItemInteractionTarget.Get(); Target && IsLocallyControlled())
 	{
-		constexpr float ItemInteractionRange = 250.0f;
+		const float ItemInteractionRange = UMT2GameplaySettings::Get().WorldItemInteractionRange;
 		if (FVector::Dist2D(GetActorLocation(), Target->GetActorLocation()) <= ItemInteractionRange)
 		{
 			const int32 InventorySlot = PendingItemInteractionSlot;
@@ -1652,7 +1652,8 @@ void AMT2PlayerCharacter::HandleBasicAttackPerformed(int32 ComboIndex)
 		{
 			GetCombatComponent()->SetPendingKnockback(
 				MotionData && MotionData->HittingType != EMT2MotionHittingType::None ? UMT2CombatComponent::MotionKnockbackDistance(MotionData->ExternalForce) : 0.f,
-				UMT2CombatComponent::MotionKnockbackDuration, false, MotionData ? MotionData->HittingType : EMT2MotionHittingType::Normal);
+				UMT2GameplaySettings::Get().CombatKnockbackDurationSeconds, false,
+				MotionData ? MotionData->HittingType : EMT2MotionHittingType::Normal);
 		}
 		// Publish timing and displacement for combat/UI consumers. Actual movement is fed through
 		// AddMovementInput in Tick so it follows the same network prediction as normal locomotion.
@@ -1915,7 +1916,8 @@ void AMT2PlayerCharacter::ServerUseInventoryItemOnActor_Implementation(
 {
 	if (!IsValid(TargetActor) || TargetActor == this || IsDead() || TargetActor->GetWorld() != GetWorld() ||
 		(!Cast<AMT2Npc>(TargetActor) && !Cast<AMT2PlayerCharacter>(TargetActor)) ||
-		FVector::Dist2D(GetActorLocation(), TargetActor->GetActorLocation()) > 350.0f ||
+		FVector::Dist2D(GetActorLocation(), TargetActor->GetActorLocation()) >
+			UMT2GameplaySettings::Get().WorldItemInteractionRange ||
 		!InventoryComponent)
 	{
 		return;
@@ -2600,7 +2602,7 @@ void AMT2PlayerCharacter::ServerPickupWorldItem_Implementation(AMT2WorldItem* Wo
 
 void AMT2PlayerCharacter::TryPickupWorldItemOnServer(AMT2WorldItem* WorldItem)
 {
-	constexpr float PickupRadius = 1000.0f;
+	const float PickupRadius = UMT2GameplaySettings::Get().WorldItemPickupRadius;
 	if (!IsValid(WorldItem) || (GetHealthComponent() && GetHealthComponent()->IsDead()) ||
 		FVector::DistSquared2D(WorldItem->GetActorLocation(), GetActorLocation())
 			> FMath::Square(PickupRadius))
@@ -2623,7 +2625,7 @@ void AMT2PlayerCharacter::ServerPickupNearbyItems_Implementation()
 		return;
 	}
 
-	constexpr float PickupRadius = 1000.0f;
+	const float PickupRadius = UMT2GameplaySettings::Get().WorldItemPickupRadius;
 	const float PickupRadiusSquared = FMath::Square(PickupRadius);
 	TArray<AMT2WorldItem*> NearbyItems;
 	for (TActorIterator<AMT2WorldItem> It(GetWorld()); It; ++It)

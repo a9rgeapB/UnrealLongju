@@ -102,7 +102,6 @@ public:
 	// inside the cooldown window. Returns true when the attempt must be rejected; a permitted
 	// attempt stamps both keys. Throttled attempts do NOT refresh the stamps, so a spammer cannot
 	// lock a victim's account name out forever.
-	static constexpr double LoginAttemptCooldownSeconds = 5.0;
 	bool ShouldThrottleLoginAttempt(const FString& RemoteIp, const FString& Username);
 
 	void PublishChat(EMT2Empire Empire, const FString& SenderName, const FString& Message,

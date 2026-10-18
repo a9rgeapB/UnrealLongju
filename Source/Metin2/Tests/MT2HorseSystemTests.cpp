@@ -41,15 +41,50 @@ bool FMT2GameplayProgressionSettingsTest::RunTest(const FString&)
 		UMT2GameplaySettings::StaticClass(), TEXT("MaximumCharacterLevel"));
 	const FIntProperty* HorseMaximumProperty = FindFProperty<FIntProperty>(
 		UMT2GameplaySettings::StaticClass(), TEXT("MaximumHorseLevel"));
+	const FIntProperty* MaximumPrimaryStatProperty = FindFProperty<FIntProperty>(
+		UMT2GameplaySettings::StaticClass(), TEXT("MaximumPrimaryStatValue"));
+	const FFloatProperty* WorldItemPickupRadiusProperty = FindFProperty<FFloatProperty>(
+		UMT2GameplaySettings::StaticClass(), TEXT("WorldItemPickupRadius"));
+	const FFloatProperty* QuestArrivalRadiusProperty = FindFProperty<FFloatProperty>(
+		UMT2GameplaySettings::StaticClass(), TEXT("QuestArrivalRadius"));
+	const TArray<const TCHAR*> PlannedTunableProperties = {
+		TEXT("MaximumPrimaryStatValue"), TEXT("HealthRecoveryPercentPerSecond"),
+		TEXT("ManaRecoveryPercentPerSecond"), TEXT("GuildMaximumMembers"),
+		TEXT("GuildMaximumNameLength"), TEXT("GuildCreationCostYang"),
+		TEXT("GuildInviteLifetimeSeconds"), TEXT("GuildMinimumCreateLevel"),
+		TEXT("GuildMaximumLevel"), TEXT("SkillGroupSelectLevel"),
+		TEXT("SkillMinimumCastLockSeconds"), TEXT("CombatKnockbackDurationSeconds"),
+		TEXT("CombatFanMinimumAngleDegrees"), TEXT("CombatFanMaximumAngleDegrees"),
+		TEXT("CombatFanMaximumAngleDistance"), TEXT("LoginAttemptCooldownSeconds"),
+		TEXT("MaximumItemStackSize"), TEXT("WorldItemInteractionRange"),
+		TEXT("VoiceEncoderBitRate"), TEXT("VoiceEncoderComplexity")
+	};
 	TestNotNull(TEXT("Character maximum level is an exposed Project Settings property"), CharacterMaximumProperty);
 	TestNotNull(TEXT("Horse maximum level is an exposed Project Settings property"), HorseMaximumProperty);
-	if (!CharacterMaximumProperty || !HorseMaximumProperty)
+	TestNotNull(TEXT("Maximum primary stat is an exposed Project Settings property"), MaximumPrimaryStatProperty);
+	TestNotNull(TEXT("World item pickup radius is an exposed Project Settings property"), WorldItemPickupRadiusProperty);
+	TestNotNull(TEXT("Quest arrival radius is an exposed Project Settings property"), QuestArrivalRadiusProperty);
+	if (!CharacterMaximumProperty || !HorseMaximumProperty || !MaximumPrimaryStatProperty ||
+		!WorldItemPickupRadiusProperty || !QuestArrivalRadiusProperty)
 	{
 		return false;
 	}
 
 	TestTrue(TEXT("Character level cap is stored in config"), CharacterMaximumProperty->HasAnyPropertyFlags(CPF_Config));
 	TestTrue(TEXT("Horse level cap is stored in config"), HorseMaximumProperty->HasAnyPropertyFlags(CPF_Config));
+	TestTrue(TEXT("Maximum primary stat is stored in config"), MaximumPrimaryStatProperty->HasAnyPropertyFlags(CPF_Config));
+	TestTrue(TEXT("World item pickup radius is stored in config"), WorldItemPickupRadiusProperty->HasAnyPropertyFlags(CPF_Config));
+	TestTrue(TEXT("Quest arrival radius is stored in config"), QuestArrivalRadiusProperty->HasAnyPropertyFlags(CPF_Config));
+	for (const TCHAR* PropertyName : PlannedTunableProperties)
+	{
+		const FProperty* Property = FindFProperty<FProperty>(UMT2GameplaySettings::StaticClass(), PropertyName);
+		TestNotNull(FString::Printf(TEXT("%s is exposed in Project Settings"), PropertyName), Property);
+		if (Property)
+		{
+			TestTrue(FString::Printf(TEXT("%s is saved to project config"), PropertyName),
+				Property->HasAnyPropertyFlags(CPF_Config));
+		}
+	}
 
 	UMT2GameplaySettings* Settings = GetMutableDefault<UMT2GameplaySettings>();
 	TestEqual(TEXT("Legacy horse table is available from project config"), Settings->HorseLevelSettings.Num(), 30);

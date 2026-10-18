@@ -12,6 +12,7 @@
 #include "FramePro/FramePro.h"
 
 #include "Authentication/MT2AuthenticationUtils.h"
+#include "Config/MT2GameplaySettings.h"
 #include "Dom/JsonObject.h"
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
@@ -1231,7 +1232,7 @@ bool FMT2PersistenceBackend::LoadGuild(int32 GuildId, FMT2GuildSnapshot& OutGuil
 EMT2GuildResult FMT2PersistenceBackend::CreateGuild(
 	const FString& LeaderCharacterId, const FString& GuildName, FMT2GuildSnapshot& OutGuild)
 {
-	FString CleanName = GuildName.TrimStartAndEnd().Left(MT2Guild::MaximumNameLength);
+	FString CleanName = GuildName.TrimStartAndEnd().Left(UMT2GameplaySettings::Get().GuildMaximumNameLength);
 	if (CleanName.Len() < 2) return EMT2GuildResult::InvalidName;
 	int32 GuildId = 0;
 	{
@@ -1256,11 +1257,11 @@ EMT2GuildResult FMT2PersistenceBackend::CreateGuild(
 		{
 			Rollback(); return EMT2GuildResult::UnknownCharacter;
 		}
-		if (LeaderLevel < MT2GuildLimits::MinCreateLevel)
+		if (LeaderLevel < UMT2GameplaySettings::Get().GuildMinimumCreateLevel)
 			{ Rollback(); return EMT2GuildResult::LevelTooLow; }
 		if (ExistingGuildId > 0)
 			{ Rollback(); return EMT2GuildResult::AlreadyInGuild; }
-		if (LeaderYang < MT2Guild::CreationCost)
+		if (LeaderYang < UMT2GameplaySettings::Get().GuildCreationCostYang)
 			{ Rollback(); return EMT2GuildResult::InsufficientYang; }
 		FSQLitePreparedStatement Insert = Impl->Database.PrepareStatement(
 			TEXT("INSERT INTO guilds(name,leader_player_id) VALUES (?,?);"));
@@ -1307,9 +1308,9 @@ EMT2GuildResult FMT2PersistenceBackend::CreateGuild(
 			TEXT("UPDATE players SET guild_id=?,guild_name=?,yang=yang-? WHERE player_id=? AND yang>=?;"));
 		if (!Player.IsValid() || !Player.SetBindingValueByIndex(1, GuildId) ||
 			!Player.SetBindingValueByIndex(2, CleanName) ||
-			!Player.SetBindingValueByIndex(3, MT2Guild::CreationCost) ||
+			!Player.SetBindingValueByIndex(3, UMT2GameplaySettings::Get().GuildCreationCostYang) ||
 			!Player.SetBindingValueByIndex(4, LeaderCharacterId) ||
-			!Player.SetBindingValueByIndex(5, MT2Guild::CreationCost) || !Player.Execute() ||
+			!Player.SetBindingValueByIndex(5, UMT2GameplaySettings::Get().GuildCreationCostYang) || !Player.Execute() ||
 			!Impl->Execute(TEXT("COMMIT;"), Error))
 		{
 			Rollback(); return EMT2GuildResult::Unavailable;
@@ -1329,7 +1330,7 @@ EMT2GuildResult FMT2PersistenceBackend::AddGuildMember(
 		Count.Execute([&](const FSQLitePreparedStatement& Row)
 		{ Row.GetColumnValueByIndex(0, MemberCount); return ESQLitePreparedStatementExecuteRowResult::Stop; }) != 1)
 		return EMT2GuildResult::Unavailable;
-	if (MemberCount >= MT2Guild::MaximumMembers) return EMT2GuildResult::GuildFull;
+	if (MemberCount >= UMT2GameplaySettings::Get().GuildMaximumMembers) return EMT2GuildResult::GuildFull;
 	FSQLitePreparedStatement Insert = Impl->Database.PrepareStatement(
 		TEXT("INSERT INTO guild_members(guild_id,player_id,rank) VALUES (?,?,?);"));
 	if (!Insert.IsValid() || !Insert.SetBindingValueByIndex(1, GuildId) ||

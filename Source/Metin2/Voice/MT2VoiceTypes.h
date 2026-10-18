@@ -38,8 +38,6 @@ namespace MT2Voice
 	inline constexpr int32 SampleRate = 48000;
 	inline constexpr int32 NumChannels = 1;
 	inline constexpr int32 BytesPerSample = 2;
-	inline constexpr int32 EncoderBitRate = 48000;
-	inline constexpr int32 EncoderComplexity = 5;
 	inline constexpr int32 BytesPerSecond = SampleRate * NumChannels * BytesPerSample;   // 96000
 	// Cap one datagram at 100 ms of audio so a single lost packet never costs more than that.
 	inline constexpr int32 MaxRawBytesPerPacket = BytesPerSecond / 10;                    // 9600

@@ -397,7 +397,7 @@ float UMT2SkillCastComponent::GetSkillCastDuration(
 	const UMT2SkillDefinition* Definition, int32 MasteryGrade) const
 {
 	// A short floor so even a skill with no cast animation still spaces out presses.
-	constexpr float MinCastLock = 0.3f;
+	const float MinCastLock = UMT2GameplaySettings::Get().SkillMinimumCastLockSeconds;
 	const AMT2PlayerCharacter* Player = GetPlayer();
 	const AMT2PlayerState* State = Player ? Player->GetPlayerState<AMT2PlayerState>() : nullptr;
 	if (!Definition)
@@ -541,7 +541,7 @@ void UMT2SkillCastComponent::ApplySkillDamageToTargets(
 	else
 	{
 		SkillKnockback = HittingType != EMT2MotionHittingType::None ? UMT2CombatComponent::MotionKnockbackDistance(HitEvent.ExternalForce) : 0.f;
-		KnockbackDuration = UMT2CombatComponent::MotionKnockbackDuration;
+		KnockbackDuration = UMT2GameplaySettings::Get().CombatKnockbackDurationSeconds;
 	}
 
 	// Old ComputeSkill: a SPLASH skill runs FuncSplashDamage over everything around posTarget,

@@ -24,7 +24,6 @@ enum class EMT2SkillGroup : uint8
 namespace MT2SkillLimits
 {
 	inline constexpr int32 MaxSkillLevel = 40;
-	inline constexpr int32 SkillGroupSelectLevel = 5;
 }
 
 // Why a cast was refused. The old client raises these as OnCannotUseSkill(vid, "<name>") and prints

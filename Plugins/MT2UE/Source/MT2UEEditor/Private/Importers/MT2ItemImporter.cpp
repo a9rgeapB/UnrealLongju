@@ -9,6 +9,7 @@
 
 #include "Importers/MT2ItemImporter.h"
 #include "Characters/MT2CharacterAppearanceSettings.h"
+#include "Config/MT2GameplaySettings.h"
 #include "Config/MT2PathSettings.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -1115,7 +1116,7 @@ namespace
 				? nullptr : TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(Definition.WorldMeshObjectPath));
 			Defaults->InventorySize = FMath::Max(Definition.Size, 1);
 			Defaults->MaxStackSize = (Definition.Flags & UMT2ItemTemplate::StackableFlag) != 0
-				? UMT2ItemTemplate::MaximumStackSize : 1;
+				? UMT2GameplaySettings::Get().MaximumItemStackSize : 1;
 			Defaults->VnumRange = Definition.VnumRange;
 			Defaults->Weight = Definition.Weight;
 			Defaults->BuyPrice = Definition.BuyPrice;
