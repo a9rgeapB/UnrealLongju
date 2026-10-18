@@ -15,6 +15,7 @@ The documentation describes the current UnrealLongju codebase and the original M
 
 - [Area painting](AreaPainting.md) and [water](Water.md): gameplay attributes, visual water and editor authoring.
 - [Fishing](Fishing.md), [duels](Duels.md) and [PIE travel](PIETravel.md): gameplay rules, presentation and editor behavior.
+- [Legacy server/client system catalog](OldGameResearch/LegacySystemCatalog.md): source map and responsibility summary for the legacy process, world, gameplay, social, economy, and client systems.
 - [Quest system](OldGameResearch/QuestSystem.md) and [quest porting status](OldGameResearch/QuestPortingStatus.md): executor behavior, supported subsets and unresolved work.
 - [NPC movement and replication](OldGameResearch/NpcMovementReplication.md): legacy movement rules and their Unreal implementation.
 - Other documents under `OldGameResearch/` describe original-game data and behavior alongside the corresponding current port.
