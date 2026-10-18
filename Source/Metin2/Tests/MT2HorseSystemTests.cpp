@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 #include "Player/MT2PlayerState.h"
 #include "Mounts/MT2HorseProgressionComponent.h"
+#include "Config/MT2GameplaySettings.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
@@ -28,6 +29,54 @@ namespace MT2HorseTests
 		FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Result);
 		return Result;
 	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2GameplayProgressionSettingsTest,
+	"Metin2.GameplaySettings.ProgressionIsConfigurable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FMT2GameplayProgressionSettingsTest::RunTest(const FString&)
+{
+	const FIntProperty* CharacterMaximumProperty = FindFProperty<FIntProperty>(
+		UMT2GameplaySettings::StaticClass(), TEXT("MaximumCharacterLevel"));
+	const FIntProperty* HorseMaximumProperty = FindFProperty<FIntProperty>(
+		UMT2GameplaySettings::StaticClass(), TEXT("MaximumHorseLevel"));
+	TestNotNull(TEXT("Character maximum level is an exposed Project Settings property"), CharacterMaximumProperty);
+	TestNotNull(TEXT("Horse maximum level is an exposed Project Settings property"), HorseMaximumProperty);
+	if (!CharacterMaximumProperty || !HorseMaximumProperty)
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("Character level cap is stored in config"), CharacterMaximumProperty->HasAnyPropertyFlags(CPF_Config));
+	TestTrue(TEXT("Horse level cap is stored in config"), HorseMaximumProperty->HasAnyPropertyFlags(CPF_Config));
+
+	UMT2GameplaySettings* Settings = GetMutableDefault<UMT2GameplaySettings>();
+	TestEqual(TEXT("Legacy horse table is available from project config"), Settings->HorseLevelSettings.Num(), 30);
+	TestEqual(TEXT("Legacy horse riding drain interval is configurable"), Settings->HorseStaminaDrainIntervalSeconds, 360);
+	TestEqual(TEXT("Legacy horse offline recovery interval is configurable"), Settings->HorseStaminaRegenerationIntervalSeconds, 720);
+	TestEqual(TEXT("Legacy horse health decay interval is configurable"), Settings->HorseHealthDecayIntervalSeconds, 259200);
+	if (Settings->HorseLevelSettings.Num() == 30)
+	{
+		TestEqual(TEXT("Horse level 1 health comes from project config"), Settings->HorseLevelSettings[0].MaximumHealth, 3);
+		TestEqual(TEXT("Horse level 21 rider minimum comes from project config"), Settings->HorseLevelSettings[20].MinimumRiderLevel, 50);
+	}
+	const int32 OriginalCharacterMaximum = CharacterMaximumProperty->GetPropertyValue_InContainer(Settings);
+	const int32 OriginalHorseMaximum = HorseMaximumProperty->GetPropertyValue_InContainer(Settings);
+	CharacterMaximumProperty->SetPropertyValue_InContainer(Settings, 42);
+	HorseMaximumProperty->SetPropertyValue_InContainer(Settings, 12);
+
+	MT2HorseTests::FRig Rig;
+	AMT2PlayerState* State = Rig.Player();
+	TestEqual(TEXT("Configured character cap overrides the XP curve maximum"), State->GetMaximumCharacterLevel(), 42);
+	TestTrue(TEXT("Setting a level above the configured character cap is accepted as a capped level"), State->SetCharacterLevel(50));
+	TestEqual(TEXT("Character progression clamps to the configured cap"), State->GetCharacterLevel(), 42);
+	TestTrue(TEXT("Configured horse cap controls progression"), State->GetHorseProgressionComponent()->SetLevel(100));
+	TestEqual(TEXT("Horse progression clamps to configured maximum"), State->GetHorseProgressionComponent()->GetLevel(), 12);
+
+	CharacterMaximumProperty->SetPropertyValue_InContainer(Settings, OriginalCharacterMaximum);
+	HorseMaximumProperty->SetPropertyValue_InContainer(Settings, OriginalHorseMaximum);
+	return !HasAnyErrors();
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2HorseProgressionPersistenceTest,

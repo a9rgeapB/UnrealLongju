@@ -479,12 +479,6 @@ class METIN2_API UMT2QuestNode_CallHorse : public UMT2QuestNode
 
 public:
 	virtual EMT2QuestNodeResult Execute(const FMT2QuestContext& Context) override;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horse")
-	int32 HorseSkillVnum = 130;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horse")
-	int32 BasicHorseBookVnum = 50051;
 };
 
 UENUM(BlueprintType)
@@ -506,12 +500,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horse")
 	EMT2QuestHorseOperation Operation = EMT2QuestHorseOperation::Ride;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horse")
-	int32 HorseSkillVnum = 130;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horse", meta = (ClampMin = "1"))
-	int32 MaximumHorseLevel = 30;
 };
 
 // pc.setqf / pc.set_quest_flag.

@@ -14,6 +14,7 @@
 #include "Engine/DeveloperSettings.h"
 #include "Items/MT2ItemTypes.h"
 #include "Player/MT2PlayerTypes.h"
+#include "Stats/MT2StatTypes.h"
 #include "UI/MT2AtlasTypes.h"
 #include "MT2GameplaySettings.generated.h"
 
@@ -85,6 +86,25 @@ struct METIN2_API FMT2RefinementGlitterSet
 	}
 };
 
+// Per-level legacy horse rules. The array index is horse level minus one.
+USTRUCT(BlueprintType)
+struct METIN2_API FMT2HorseLevelSettings
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category = "Horse Progression", meta = (ClampMin = "0"))
+	int32 MinimumRiderLevel = 0;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category = "Horse Progression", meta = (ClampMin = "1"))
+	int32 MaximumHealth = 1;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category = "Horse Progression", meta = (ClampMin = "1"))
+	int32 MaximumStamina = 1;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category = "Horse Progression")
+	FMT2PrimaryStats MinimumPrimaryStats;
+};
+
 // Project-wide gameplay asset references, kept out of the code as soft pointers so they can be
 // reassigned from Project Settings -> Metin2, or by hand in DefaultGame.ini under
 // [/Script/Metin2.MT2GameplaySettings]. Anything the gameplay code used to hardcode as a "/Game/..."
@@ -102,6 +122,61 @@ public:
 	virtual FName GetCategoryName() const override { return TEXT("Metin2"); }
 
 	static const UMT2GameplaySettings& Get() { return *GetDefault<UMT2GameplaySettings>(); }
+
+	// Zero preserves the historical behavior of taking the maximum from the XP curve. A positive
+	// value overrides it at runtime and is editable in Project Settings without changing the curve.
+	UPROPERTY(EditAnywhere, config, Category = "Progression",
+		meta = (ClampMin = "0", ToolTip = "Zero uses the last XP-curve key; a positive value overrides the maximum character level."))
+	int32 MaximumCharacterLevel = 0;
+
+	// ---- Horse progression ----
+
+	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1"))
+	int32 MaximumHorseLevel = 30;
+
+	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1"))
+	int32 HorseLevelsPerGrade = 10;
+
+	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1"))
+	int32 MaximumHorseGrade = 3;
+
+	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1"))
+	int32 HorseCombatGrade = 2;
+
+	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1"))
+	int32 HorseSkillGrade = 3;
+
+	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1"))
+	int32 HorseSummonSkillVnum = 130;
+
+	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1"))
+	int32 BasicHorseBookVnum = 50051;
+
+	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1", Units = "s"))
+	int32 HorseStaminaDrainIntervalSeconds = 360;
+
+	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1", Units = "s"))
+	int32 HorseStaminaRegenerationIntervalSeconds = 720;
+
+	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1", Units = "s"))
+	int32 HorseHealthDecayIntervalSeconds = 259200;
+
+	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1"))
+	int32 HorseFeedHealthAmount = 1;
+
+	// Entry 0 is horse level 1; levels beyond this table are capped safely at the last configured row.
+	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse")
+	TArray<FMT2HorseLevelSettings> HorseLevelSettings;
+
+	int32 GetConfiguredMaximumHorseLevel() const
+	{
+		return HorseLevelSettings.IsEmpty() ? 0 : FMath::Clamp(MaximumHorseLevel, 1, HorseLevelSettings.Num());
+	}
+
+	const FMT2HorseLevelSettings* GetHorseLevelSettings(int32 HorseLevel) const
+	{
+		return HorseLevelSettings.IsValidIndex(HorseLevel - 1) ? &HorseLevelSettings[HorseLevel - 1] : nullptr;
+	}
 
 	UPROPERTY(EditAnywhere, config, Category = "Networking", meta = (ClampMin = "1", ClampMax = "30", Units = "Hz"))
 	float PlayerStateReplicationRate = 2.f;

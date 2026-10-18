@@ -17,7 +17,7 @@ public:
 	virtual void BeginPlay() override;
 
 	UFUNCTION(BlueprintPure, Category="Horse") int32 GetLevel() const { return Level; }
-	UFUNCTION(BlueprintPure, Category="Horse") int32 GetGrade() const { return Level > 0 ? ((Level - 1) / 10) + 1 : 0; }
+	UFUNCTION(BlueprintPure, Category="Horse") int32 GetGrade() const;
 	UFUNCTION(BlueprintPure, Category="Horse") int32 GetHealth() const { return Health; }
 	UFUNCTION(BlueprintPure, Category="Horse") int32 GetMaxHealth() const;
 	UFUNCTION(BlueprintPure, Category="Horse") int32 GetStamina() const { return Stamina; }

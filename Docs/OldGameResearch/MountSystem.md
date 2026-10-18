@@ -69,7 +69,11 @@ Mounting, dismounting, and death are server-authoritative and replicated to all 
   stamina recovery timestamp in the existing character JSON snapshot. Riding remains transient.
 - Horse progression uses the legacy 30-level health/stamina/stat table, grade boundaries, rider
   minimum level, six-minute riding drain, twelve-minute dismounted/offline recovery and three-day
-  health decay. Empty stamina or death forces a dismount.
+  health decay. These values and the per-level table are editable in Project Settings → Metin2 →
+  Progression → Horse; `MaximumHorseLevel` is safely capped by the number of configured table rows.
+  Empty stamina or death forces a dismount.
+- The global character progression cap is `MaximumCharacterLevel` in Project Settings → Metin2 →
+  Progression. Zero uses the XP curve's final level as before; a positive value overrides the cap.
 - Legacy horse level/grade/health/stamina/dead/riding/summoned quest reads use the authoritative
   progression and mount state. `horse.advance`, `horse.set_level`, `horse.feed` and `horse.revive`
   are available as server-side quest actions.

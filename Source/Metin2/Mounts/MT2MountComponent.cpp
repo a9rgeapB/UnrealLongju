@@ -9,6 +9,7 @@
 
 #include "Mounts/MT2MountComponent.h"
 
+#include "Config/MT2GameplaySettings.h"
 #include "Characters/MT2PlayerCharacter.h"
 #include "Components/MT2HealthComponent.h"
 #include "Components/MT2MovementSpeedComponent.h"
@@ -72,7 +73,7 @@ bool UMT2MountComponent::CanAttackWhileMounted() const
 		const AMT2PlayerCharacter* Character = GetPlayerCharacter();
 		const AMT2PlayerState* State = Character ? Character->GetPlayerState<AMT2PlayerState>() : nullptr;
 		const UMT2HorseProgressionComponent* Horse = State ? State->GetHorseProgressionComponent() : nullptr;
-		return Horse && Horse->GetGrade() >= 2;
+		return Horse && Horse->GetGrade() >= FMath::Max(UMT2GameplaySettings::Get().HorseCombatGrade, 1);
 	}
 	return !bMounted || (Definition && Definition->bCanAttack);
 }
@@ -85,7 +86,7 @@ bool UMT2MountComponent::CanUseHorseSkills() const
 		const AMT2PlayerCharacter* Character = GetPlayerCharacter();
 		const AMT2PlayerState* State = Character ? Character->GetPlayerState<AMT2PlayerState>() : nullptr;
 		const UMT2HorseProgressionComponent* Horse = State ? State->GetHorseProgressionComponent() : nullptr;
-		return Horse && Horse->GetGrade() >= 3;
+		return Horse && Horse->GetGrade() >= FMath::Max(UMT2GameplaySettings::Get().HorseSkillGrade, 1);
 	}
 	return bMounted && Definition && Definition->bCanUseHorseSkills;
 }

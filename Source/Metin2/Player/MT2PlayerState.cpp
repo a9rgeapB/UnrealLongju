@@ -608,7 +608,12 @@ int64 AMT2PlayerState::GetRequiredExperienceForLevel(int32 Level) const
 	}
 	if (const UCurveFloat* Curve = ExperienceCurve.LoadSynchronous())
 	{
-		return FMath::Max<int64>(FMath::RoundToInt64(Curve->GetFloatValue(Level)), 1);
+		const float LastCurveLevel = Curve->FloatCurve.IsEmpty()
+			? 0.0f : Curve->FloatCurve.GetLastKey().Time;
+		if (Level <= FMath::RoundToInt(LastCurveLevel))
+		{
+			return FMath::Max<int64>(FMath::RoundToInt64(Curve->GetFloatValue(Level)), 1);
+		}
 	}
 
 	// Keeps dedicated servers functional if an asset is accidentally omitted from a build. The
@@ -619,6 +624,11 @@ int64 AMT2PlayerState::GetRequiredExperienceForLevel(int32 Level) const
 
 int32 AMT2PlayerState::GetMaximumCharacterLevel() const
 {
+	const int32 ConfiguredMaximum = UMT2GameplaySettings::Get().MaximumCharacterLevel;
+	if (ConfiguredMaximum > 0)
+	{
+		return ConfiguredMaximum;
+	}
 	if (const UCurveFloat* Curve = ExperienceCurve.LoadSynchronous();
 		Curve && !Curve->FloatCurve.IsEmpty())
 	{

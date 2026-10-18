@@ -10,6 +10,7 @@
 #include "Quests/MT2QuestNode.h"
 #include "Dungeons/MT2DungeonSubsystem.h"
 #include "Dungeons/MT2DungeonRoom.h"
+#include "Config/MT2GameplaySettings.h"
 #include "Config/MT2PathSettings.h"
 
 #include "Characters/MT2PlayerCharacter.h"
@@ -572,9 +573,11 @@ EMT2QuestNodeResult UMT2QuestNode_CallHorse::Execute(const FMT2QuestContext& Con
 	{
 		return EMT2QuestNodeResult::Continue;
 	}
-	const int32 HorseGradeIndex = FMath::Clamp((HorseLevel - 1) / 10, 0, 2);
+	const UMT2GameplaySettings& Settings = UMT2GameplaySettings::Get();
+	const int32 HorseGradeIndex = FMath::Clamp(Horse->GetGrade() - 1, 0,
+		FMath::Max(Settings.MaximumHorseGrade - 1, 0));
 	const TSubclassOf<UMT2ItemTemplate> BookClass =
-		Registry->ResolveItemTemplateClass(BasicHorseBookVnum + HorseGradeIndex);
+		Registry->ResolveItemTemplateClass(Settings.BasicHorseBookVnum + HorseGradeIndex);
 	const UMT2MountItemTemplate* Book = BookClass
 		? Cast<UMT2MountItemTemplate>(BookClass->GetDefaultObject()) : nullptr;
 	if (UMT2MountDefinition* Definition = Book ? Book->MountDefinition.LoadSynchronous() : nullptr)
@@ -612,7 +615,7 @@ EMT2QuestNodeResult UMT2QuestNode_ModifyHorse::Execute(const FMT2QuestContext& C
 		Mounts->SetCalledHorse(nullptr);
 		break;
 	case EMT2QuestHorseOperation::Advance:
-		if (Horse->GetLevel() < FMath::Min(FMath::Max(MaximumHorseLevel, 1), 30)) Horse->AdvanceLevel();
+		Horse->AdvanceLevel();
 		break;
 	default:
 		break;
