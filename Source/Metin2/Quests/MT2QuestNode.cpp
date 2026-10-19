@@ -28,6 +28,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Items/MT2InventoryComponent.h"
 #include "Items/MT2WorldItem.h"
+#include "Items/Use/MT2HorseBookItemTemplate.h"
 #include "Items/Use/MT2MountItemTemplate.h"
 #include "Mobs/MT2Mob.h"
 #include "Mounts/MT2MountComponent.h"
@@ -560,10 +561,7 @@ EMT2QuestNodeResult UMT2QuestNode_CallHorse::Execute(const FMT2QuestContext& Con
 {
 	UMT2MountComponent* Mounts = Context.Player ? Context.Player->GetMountComponent() : nullptr;
 	UMT2HorseProgressionComponent* Horse = Context.PlayerState ? Context.PlayerState->GetHorseProgressionComponent() : nullptr;
-	UGameInstance* GameInstance = Context.Player ? Context.Player->GetGameInstance() : nullptr;
-	UMT2VnumRegistrySubsystem* Registry =
-		GameInstance ? GameInstance->GetSubsystem<UMT2VnumRegistrySubsystem>() : nullptr;
-	if (!Mounts || !Horse || !Registry || !Context.PlayerState->HasAuthority())
+	if (!Mounts || !Horse || !Context.PlayerState->HasAuthority())
 	{
 		return EMT2QuestNodeResult::Continue;
 	}
@@ -575,9 +573,9 @@ EMT2QuestNodeResult UMT2QuestNode_CallHorse::Execute(const FMT2QuestContext& Con
 	}
 	const UMT2GameplaySettings& Settings = UMT2GameplaySettings::Get();
 	const int32 HorseGradeIndex = FMath::Clamp(Horse->GetGrade() - 1, 0,
-		FMath::Max(Settings.MaximumHorseGrade - 1, 0));
-	const TSubclassOf<UMT2ItemTemplate> BookClass =
-		Registry->ResolveItemTemplateClass(Settings.BasicHorseBookVnum + HorseGradeIndex);
+		FMath::Max(Settings.HorseBookTemplatesByGrade.Num() - 1, 0));
+	const TSubclassOf<UMT2HorseBookItemTemplate> BookClass = Settings.HorseBookTemplatesByGrade.IsValidIndex(HorseGradeIndex)
+		? Settings.HorseBookTemplatesByGrade[HorseGradeIndex].LoadSynchronous() : nullptr;
 	const UMT2MountItemTemplate* Book = BookClass
 		? Cast<UMT2MountItemTemplate>(BookClass->GetDefaultObject()) : nullptr;
 	if (UMT2MountDefinition* Definition = Book ? Book->MountDefinition.LoadSynchronous() : nullptr)

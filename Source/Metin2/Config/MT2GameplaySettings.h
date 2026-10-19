@@ -19,6 +19,9 @@
 #include "MT2GameplaySettings.generated.h"
 
 class UMT2ItemTemplate;
+class UMT2HorseBookItemTemplate;
+class UMT2ItemSkillForgetTemplate;
+class UMT2ItemUseTemplate;
 class UStaticMesh;
 class UMaterialInterface;
 class UParticleSystem;
@@ -163,8 +166,9 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1"))
 	int32 HorseSummonSkillVnum = 130;
 
-	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1"))
-	int32 BasicHorseBookVnum = 50051;
+	// Ordered by horse grade (grade 1 first), so each entry directly references its item template.
+	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse")
+	TArray<TSoftClassPtr<UMT2HorseBookItemTemplate>> HorseBookTemplatesByGrade;
 
 	UPROPERTY(EditAnywhere, config, Category = "Progression|Horse", meta = (ClampMin = "1", Units = "s"))
 	int32 HorseStaminaDrainIntervalSeconds = 360;
@@ -278,14 +282,14 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "Skills", meta = (ClampMin = "1"))
 	int32 SkillGroupSelectLevel = 5;
 
-	UPROPERTY(EditAnywhere, config, Category = "Skills|Skill Forget Items", meta = (ClampMin = "1"))
-	int32 StandardSkillForgetItemVnum = 70037;
+	UPROPERTY(EditAnywhere, config, Category = "Skills|Skill Forget Items")
+	TSoftClassPtr<UMT2ItemSkillForgetTemplate> StandardSkillForgetItemTemplate;
 
-	UPROPERTY(EditAnywhere, config, Category = "Skills|Skill Forget Items", meta = (ClampMin = "1"))
-	int32 LegacyGeneralSkillForgetItemVnum = 50300;
+	UPROPERTY(EditAnywhere, config, Category = "Skills|Skill Forget Items")
+	TSoftClassPtr<UMT2ItemSkillForgetTemplate> LegacyGeneralSkillForgetItemTemplate;
 
-	UPROPERTY(EditAnywhere, config, Category = "Skills|Skill Forget Items", meta = (ClampMin = "1"))
-	int32 AntiSkillForgetItemVnum = 70055;
+	UPROPERTY(EditAnywhere, config, Category = "Skills|Skill Forget Items")
+	TSoftClassPtr<UMT2ItemSkillForgetTemplate> AntiSkillForgetItemTemplate;
 
 	UPROPERTY(EditAnywhere, config, Category = "Skills|Skill Forget Items", meta = (ClampMin = "1"))
 	int32 StandardSkillForgetMinimumSkillVnum = 1;
@@ -548,10 +552,10 @@ public:
 	float SkillBookSuccessChance = 0.35f;
 
 	UPROPERTY(EditAnywhere, config, Category = "Skills")
-	int32 SkillBookCooldownBypassItemVnum = 71001;
+	TSoftClassPtr<UMT2ItemUseTemplate> SkillBookCooldownBypassItemTemplate;
 
 	UPROPERTY(EditAnywhere, config, Category = "Skills")
-	int32 SkillBookGuaranteedSuccessItemVnum = 71094;
+	TSoftClassPtr<UMT2ItemUseTemplate> SkillBookGuaranteedSuccessItemTemplate;
 
 	// NPCs that accept ordinary item refinement. The normal village blacksmith is 20016.
 	// Add specialized/guild/tower smith VNUMs here when their item-category rules are implemented.

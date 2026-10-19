@@ -684,9 +684,9 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 	const int32 ItemVnum = Slots[InventorySlot].Vnum;
 	const UMT2GameplaySettings& GameplaySettings = UMT2GameplaySettings::Get();
 	const bool bCooldownBypassItem =
-		ItemVnum == GameplaySettings.SkillBookCooldownBypassItemVnum;
+		GameplaySettings.SkillBookCooldownBypassItemTemplate.Get() == ItemTemplate->GetClass();
 	const bool bGuaranteedReadItem =
-		ItemVnum == GameplaySettings.SkillBookGuaranteedSuccessItemVnum;
+		GameplaySettings.SkillBookGuaranteedSuccessItemTemplate.Get() == ItemTemplate->GetClass();
 	if (bCooldownBypassItem || bGuaranteedReadItem)
 	{
 		UMT2StatusEffectComponent* StatusEffects = Character->GetStatusEffectComponent();

@@ -42,11 +42,14 @@ void UMT2ItemSkillForgetTemplate::InitializeGeneratedInstance(FMT2ItemInstanceDa
 
 	// Legacy item_manager.cpp rolls 70037 from skills 1..111 and 70055 from 112..119.
 	const UMT2GameplaySettings& Settings = UMT2GameplaySettings::Get();
-	if (Vnum != Settings.StandardSkillForgetItemVnum && Vnum != Settings.LegacyGeneralSkillForgetItemVnum &&
-		Vnum != Settings.AntiSkillForgetItemVnum) return;
+	const UClass* ItemClass = GetClass();
+	const bool bIsStandardSkillForgetItem = Settings.StandardSkillForgetItemTemplate.Get() == ItemClass;
+	const bool bIsLegacyGeneralSkillForgetItem = Settings.LegacyGeneralSkillForgetItemTemplate.Get() == ItemClass;
+	const bool bIsAntiSkillForgetItem = Settings.AntiSkillForgetItemTemplate.Get() == ItemClass;
+	if (!bIsStandardSkillForgetItem && !bIsLegacyGeneralSkillForgetItem && !bIsAntiSkillForgetItem) return;
 	int32 FirstSkillVnum = Settings.StandardSkillForgetMinimumSkillVnum;
 	int32 LastSkillVnum = Settings.StandardSkillForgetMaximumSkillVnum;
-	if (Vnum == Settings.AntiSkillForgetItemVnum)
+	if (bIsAntiSkillForgetItem)
 	{
 		FirstSkillVnum = Settings.AntiSkillForgetMinimumSkillVnum;
 		LastSkillVnum = Settings.AntiSkillForgetMaximumSkillVnum;
