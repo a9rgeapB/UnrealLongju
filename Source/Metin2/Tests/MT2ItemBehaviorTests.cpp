@@ -1,5 +1,7 @@
 #include "Items/Templates/MT2ItemBlendTemplate.h"
 #include "Items/Templates/MT2ItemFishTemplate.h"
+#include "Items/Templates/MT2ItemSkillForgetTemplate.h"
+#include "Items/State/MT2SkillForgetItemState.h"
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
@@ -19,6 +21,8 @@
 #include "Items/MT2ItemTemplate.h"
 #include "Items/MT2ItemUtils.h"
 #include "Player/MT2PlayerState.h"
+#include "Skills/MT2SkillComponent.h"
+#include "Items/Legacy/MT2LegacyItemRecord.h"
 #include "Npcs/MT2Campfire.h"
 #include "Fishing/MT2FishingSettings.h"
 #include "World/MT2MapAttributes.h"
@@ -114,6 +118,81 @@ bool FMT2TypedItemRealtimeExpiryTest::RunTest(const FString&)
 	TestTrue(TEXT("Realtime expiry starts"), F.Inventory->StartItemRealtimeExpiry(0));
 	TestFalse(TEXT("Future-dated item is retained"), F.Inventory->GetSlots()[0].IsEmpty());
 	TestEqual(TEXT("Named quest timestamp is used"), F.Inventory->GetSlots()[0].RealtimeExpiresAt, int64(Future));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2SkillForgetItemTest, "Metin2.Items.SkillForget.LegacySkillDowngrade",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2SkillForgetItemTest::RunTest(const FString&)
+{
+	FItemBehaviorWorld F;
+	if (!F.Inventory || !F.Registry || !F.State || !F.State->GetSkillComponent()) return false;
+	const UMT2ItemSkillForgetTemplate* ForgetTemplate =
+		Cast<UMT2ItemSkillForgetTemplate>(F.Registry->ResolveItemTemplateClass(70037).GetDefaultObject());
+	UMT2SkillComponent* Skills = F.State->GetSkillComponent();
+	Skills->RestorePersistedSkillGroup(static_cast<int32>(EMT2SkillGroup::First));
+	const UMT2SkillDefinition* Skill = Skills->FindSkillDefinition(1);
+	if (!TestNotNull(TEXT("Legacy skill-forget item is imported"), ForgetTemplate) ||
+		!TestNotNull(TEXT("Legacy skill definition is available"), Skill)) return false;
+	const FMT2ItemInstanceData GeneratedForgetItem = ForgetTemplate->MakeInstanceData();
+	TestNotNull(TEXT("Generated item stores a typed skill-forget state"),
+		GeneratedForgetItem.FindState<FMT2SkillForgetItemState>());
+	TestTrue(TEXT("Generated legacy skill is in the general scroll pool"),
+		GeneratedForgetItem.GetSkillVnum() >= 1 && GeneratedForgetItem.GetSkillVnum() <= 111);
+
+	FMT2ItemSlot ForgetItem(70037, ForgetTemplate->MakeInstanceData());
+	FMT2LegacyItemRecord LegacyItemState;
+	LegacyItemState.SkillVnum = Skill->Vnum;
+	ForgetItem.FamilyState.InitializeAs< FMT2LegacyItemRecord >(LegacyItemState);
+	TArray<FMT2ItemSlot> Items;
+	Items.SetNum(UMT2InventoryComponent::SlotCount);
+	Items[0] = ForgetItem;
+	F.Inventory->RestoreItems(Items, {});
+
+	Skills->SetSkillLevel(Skill->Vnum, 1);
+	const int32 CombatPointsBefore = F.State->GetUnspentSkillPoints();
+	const int32 SubSkillPointsBefore = F.State->GetUnspentSubSkillPoints();
+	const int32 HorseSkillPointsBefore = F.State->GetUnspentHorseSkillPoints();
+	TestTrue(TEXT("An owned normal-mastery skill can be forgotten"), F.Inventory->UseItem(0));
+	TestEqual(TEXT("Legacy item lowers exactly one skill level"), Skills->GetSkillLevel(Skill->Vnum), 0);
+	switch (Skill->LegacySkillType.Type)
+	{
+	case EMT2LegacySkillClass::Support:
+		TestEqual(TEXT("Support skill refund uses the legacy sub-skill pool"), F.State->GetUnspentSubSkillPoints(), SubSkillPointsBefore + 1);
+		break;
+	case EMT2LegacySkillClass::Horse:
+		TestEqual(TEXT("Horse skill refund uses the legacy horse-skill pool"), F.State->GetUnspentHorseSkillPoints(), HorseSkillPointsBefore + 1);
+		break;
+	default:
+		TestEqual(TEXT("Combat skill refund uses the legacy skill pool"), F.State->GetUnspentSkillPoints(), CombatPointsBefore + 1);
+		break;
+	}
+	TestTrue(TEXT("Successful forget consumes the item"), F.Inventory->GetSlots()[0].IsEmpty());
+	const FString SavedState = F.State->CapturePersistentStateJson_Implementation();
+	EMT2SkillPointPool ExpectedPool = EMT2SkillPointPool::Combat;
+	if (Skill->LegacySkillType.Type == EMT2LegacySkillClass::Support) ExpectedPool = EMT2SkillPointPool::SubSkill;
+	else if (Skill->LegacySkillType.Type == EMT2LegacySkillClass::Horse) ExpectedPool = EMT2SkillPointPool::HorseSkill;
+	TestTrue(TEXT("Point pool can be changed for persistence round-trip"), F.State->AwardSkillPoint(ExpectedPool));
+	TestTrue(TEXT("Player state restores saved skill point pools"), F.State->ApplyPersistentStateJson_Implementation(SavedState));
+	if (ExpectedPool == EMT2SkillPointPool::SubSkill)
+		TestEqual(TEXT("Sub-skill refund persists"), F.State->GetUnspentSubSkillPoints(), SubSkillPointsBefore + 1);
+	else if (ExpectedPool == EMT2SkillPointPool::HorseSkill)
+		TestEqual(TEXT("Horse-skill refund persists"), F.State->GetUnspentHorseSkillPoints(), HorseSkillPointsBefore + 1);
+	else
+		TestEqual(TEXT("Combat-skill refund persists"), F.State->GetUnspentSkillPoints(), CombatPointsBefore + 1);
+
+	Items[0] = FMT2ItemSlot();
+	Items[1] = ForgetItem;
+	F.Inventory->RestoreItems(Items, {});
+	TestFalse(TEXT("An unlearned skill is not forgotten"), F.Inventory->UseItem(1));
+	TestFalse(TEXT("Failed forget keeps the item"), F.Inventory->GetSlots()[1].IsEmpty());
+
+	FMT2ItemSlot UnassignedItem(70037, FMT2ItemInstanceData());
+	Items[1] = FMT2ItemSlot();
+	Items[2] = UnassignedItem;
+	F.Inventory->RestoreItems(Items, {});
+	TestFalse(TEXT("An unassigned legacy item reports failure as in char_item.cpp"), F.Inventory->UseItem(2));
+	TestTrue(TEXT("Unassigned item is removed"), F.Inventory->GetSlots()[2].IsEmpty());
 	return true;
 }
 

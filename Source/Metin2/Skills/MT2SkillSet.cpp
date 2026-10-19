@@ -119,6 +119,23 @@ TArray<int32> UMT2SkillSet::GetSkillVnumsInRange(int32 MinimumVnum, int32 Maximu
 		Collect(SkillSet->ActiveSkills);
 		Collect(SkillSet->SupportSkills);
 	}
+	// CSkillManager::Get() includes every skill proto, including anti/guild skills which are
+	// intentionally not displayed in a character's active/support skill pages.
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	FARFilter Filter;
+	Filter.ClassPaths.Add(UMT2SkillDefinition::StaticClass()->GetClassPathName());
+	Filter.PackagePaths.Add(SkillSetSearchRoot());
+	Filter.bRecursivePaths = true;
+	TArray<FAssetData> Assets;
+	AssetRegistry.GetAssets(Filter, Assets);
+	for (const FAssetData& Asset : Assets)
+	{
+		if (const UMT2SkillDefinition* Skill = Cast<UMT2SkillDefinition>(Asset.GetAsset()); Skill &&
+			Skill->Vnum >= MinimumVnum && Skill->Vnum <= MaximumVnum)
+		{
+			UniqueVnums.Add(Skill->Vnum);
+		}
+	}
 	TArray<int32> Result = UniqueVnums.Array();
 	Result.Sort();
 	return Result;

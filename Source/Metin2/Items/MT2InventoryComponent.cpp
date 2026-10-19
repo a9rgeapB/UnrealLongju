@@ -616,6 +616,11 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 		{
 			return ConsumeItemAtSlot(InventorySlot);
 		}
+		if (Result == EMT2ItemUseExecution::ConsumeAndReject)
+		{
+			ConsumeItemAtSlot(InventorySlot);
+			return false;
+		}
 		return Result == EMT2ItemUseExecution::Accepted;
 	};
 	if (ActionTemplate && ActionTemplate->ExecuteBeforeQuestItemUse())
@@ -647,6 +652,11 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 	}
 	const EMT2ItemUseExecution NativeUse = ItemTemplate->ExecuteUse(*Character, *this, InventorySlot);
 	if (NativeUse == EMT2ItemUseExecution::Consume) return ConsumeItemAtSlot(InventorySlot);
+	if (NativeUse == EMT2ItemUseExecution::ConsumeAndReject)
+	{
+		ConsumeItemAtSlot(InventorySlot);
+		return false;
+	}
 	if (NativeUse == EMT2ItemUseExecution::Accepted) return true;
 	if (bHairLook)
 	{

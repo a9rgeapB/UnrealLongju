@@ -278,6 +278,27 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "Skills", meta = (ClampMin = "1"))
 	int32 SkillGroupSelectLevel = 5;
 
+	UPROPERTY(EditAnywhere, config, Category = "Skills|Skill Forget Items", meta = (ClampMin = "1"))
+	int32 StandardSkillForgetItemVnum = 70037;
+
+	UPROPERTY(EditAnywhere, config, Category = "Skills|Skill Forget Items", meta = (ClampMin = "1"))
+	int32 LegacyGeneralSkillForgetItemVnum = 50300;
+
+	UPROPERTY(EditAnywhere, config, Category = "Skills|Skill Forget Items", meta = (ClampMin = "1"))
+	int32 AntiSkillForgetItemVnum = 70055;
+
+	UPROPERTY(EditAnywhere, config, Category = "Skills|Skill Forget Items", meta = (ClampMin = "1"))
+	int32 StandardSkillForgetMinimumSkillVnum = 1;
+
+	UPROPERTY(EditAnywhere, config, Category = "Skills|Skill Forget Items", meta = (ClampMin = "1"))
+	int32 StandardSkillForgetMaximumSkillVnum = 111;
+
+	UPROPERTY(EditAnywhere, config, Category = "Skills|Skill Forget Items", meta = (ClampMin = "1"))
+	int32 AntiSkillForgetMinimumSkillVnum = 112;
+
+	UPROPERTY(EditAnywhere, config, Category = "Skills|Skill Forget Items", meta = (ClampMin = "1"))
+	int32 AntiSkillForgetMaximumSkillVnum = 119;
+
 	UPROPERTY(EditAnywhere, config, Category = "Skills", meta = (ClampMin = "0.0", Units = "s"))
 	float SkillMinimumCastLockSeconds = 0.3f;
 

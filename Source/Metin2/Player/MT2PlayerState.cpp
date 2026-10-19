@@ -228,6 +228,8 @@ void AMT2PlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME(AMT2PlayerState, CharacterLevel);
 	DOREPLIFETIME_CONDITION(AMT2PlayerState, Experience, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMT2PlayerState, UnspentSkillPoints, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(AMT2PlayerState, UnspentSubSkillPoints, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(AMT2PlayerState, UnspentHorseSkillPoints, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMT2PlayerState, UnspentStatPoints, COND_OwnerOnly);
 	DOREPLIFETIME(AMT2PlayerState, CharacterAppearance);
 	DOREPLIFETIME(AMT2PlayerState, HairShape);
@@ -548,6 +550,32 @@ bool AMT2PlayerState::SpendSkillPoint()
 	--UnspentSkillPoints;
 	OnRep_UnspentSkillPoints(OldPoints);
 	PersistenceComponent->MarkDirty();
+	ForceNetUpdate();
+	return true;
+}
+
+bool AMT2PlayerState::AwardSkillPoint(EMT2SkillPointPool Pool)
+{
+	if (!HasAuthority()) return false;
+	int32* Points = nullptr;
+	switch (Pool)
+	{
+	case EMT2SkillPointPool::Combat: Points = &UnspentSkillPoints; break;
+	case EMT2SkillPointPool::SubSkill: Points = &UnspentSubSkillPoints; break;
+	case EMT2SkillPointPool::HorseSkill: Points = &UnspentHorseSkillPoints; break;
+	default: return false;
+	}
+	if (*Points == MAX_int32) return false;
+	const int32 OldPoints = *Points;
+	++*Points;
+	switch (Pool)
+	{
+	case EMT2SkillPointPool::Combat: OnRep_UnspentSkillPoints(OldPoints); break;
+	case EMT2SkillPointPool::SubSkill: OnRep_UnspentSubSkillPoints(OldPoints); break;
+	case EMT2SkillPointPool::HorseSkill: OnRep_UnspentHorseSkillPoints(OldPoints); break;
+	default: return false;
+	}
+	if (PersistenceComponent) PersistenceComponent->MarkDirty();
 	ForceNetUpdate();
 	return true;
 }
@@ -946,12 +974,14 @@ void AMT2PlayerState::NotifyYangReceived(int64 Amount) const
 FString AMT2PlayerState::CapturePersistentStateJson_Implementation() const
 {
 	TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
-	Root->SetNumberField(TEXT("version"), 5);
+	Root->SetNumberField(TEXT("version"), 6);
 	Root->SetStringField(TEXT("character_name"), GetCharacterName());
 	Root->SetNumberField(TEXT("level"), CharacterLevel);
 	Root->SetStringField(TEXT("experience"), LexToString(Experience));
 	Root->SetNumberField(TEXT("experience_milestone_step"), ExperienceMilestoneStep);
 	Root->SetNumberField(TEXT("unspent_skill_points"), UnspentSkillPoints);
+	Root->SetNumberField(TEXT("unspent_sub_skill_points"), UnspentSubSkillPoints);
+	Root->SetNumberField(TEXT("unspent_horse_skill_points"), UnspentHorseSkillPoints);
 	Root->SetNumberField(TEXT("unspent_stat_points"), UnspentStatPoints);
 	Root->SetNumberField(TEXT("empire"), static_cast<uint8>(Empire));
 	Root->SetNumberField(TEXT("guild_id"), GuildId);
@@ -1258,10 +1288,20 @@ bool AMT2PlayerState::ApplyPersistentStateJson_Implementation(const FString& Pay
 		SetExperience(FCString::Atoi64(*ExperienceString));
 	}
 	const int32 OldSkillPoints = UnspentSkillPoints;
+	const int32 OldSubSkillPoints = UnspentSubSkillPoints;
+	const int32 OldHorseSkillPoints = UnspentHorseSkillPoints;
 	const int32 OldStatPoints = UnspentStatPoints;
 	if (Root->TryGetNumberField(TEXT("unspent_skill_points"), Number))
 	{
 		UnspentSkillPoints = FMath::Max(FMath::RoundToInt(Number), 0);
+	}
+	if (Root->TryGetNumberField(TEXT("unspent_sub_skill_points"), Number))
+	{
+		UnspentSubSkillPoints = FMath::Max(FMath::RoundToInt(Number), 0);
+	}
+	if (Root->TryGetNumberField(TEXT("unspent_horse_skill_points"), Number))
+	{
+		UnspentHorseSkillPoints = FMath::Max(FMath::RoundToInt(Number), 0);
 	}
 	if (Root->TryGetNumberField(TEXT("unspent_stat_points"), Number))
 	{
@@ -1288,6 +1328,8 @@ bool AMT2PlayerState::ApplyPersistentStateJson_Implementation(const FString& Pay
 		ExperienceMilestoneStep = 0;
 	}
 	if (UnspentSkillPoints != OldSkillPoints) OnRep_UnspentSkillPoints(OldSkillPoints);
+	if (UnspentSubSkillPoints != OldSubSkillPoints) OnRep_UnspentSubSkillPoints(OldSubSkillPoints);
+	if (UnspentHorseSkillPoints != OldHorseSkillPoints) OnRep_UnspentHorseSkillPoints(OldHorseSkillPoints);
 	if (UnspentStatPoints != OldStatPoints) OnRep_UnspentStatPoints(OldStatPoints);
 	if (Root->TryGetNumberField(TEXT("empire"), Number))
 	{
@@ -1801,6 +1843,16 @@ void AMT2PlayerState::OnRep_UnspentSkillPoints(int32 OldPoints)
 {
 	if (HasAuthority()) ForceNetUpdate();
 	OnSkillPointsChanged.Broadcast(OldPoints, UnspentSkillPoints);
+}
+
+void AMT2PlayerState::OnRep_UnspentSubSkillPoints(int32 OldPoints)
+{
+	OnSubSkillPointsChanged.Broadcast(OldPoints, UnspentSubSkillPoints);
+}
+
+void AMT2PlayerState::OnRep_UnspentHorseSkillPoints(int32 OldPoints)
+{
+	OnHorseSkillPointsChanged.Broadcast(OldPoints, UnspentHorseSkillPoints);
 }
 
 void AMT2PlayerState::OnRep_UnspentStatPoints(int32 OldPoints)

@@ -218,6 +218,7 @@ struct FMT2PersistenceBackend::FImpl
 			TEXT("CREATE TABLE IF NOT EXISTS item_realtime_expiry (item_instance_id TEXT PRIMARY KEY,expires_at INTEGER NOT NULL,FOREIGN KEY(item_instance_id) REFERENCES items(item_instance_id) ON DELETE CASCADE);"),
 			TEXT("CREATE TABLE IF NOT EXISTS accounts (account_id TEXT PRIMARY KEY,username_normalized TEXT NOT NULL UNIQUE COLLATE NOCASE,display_name TEXT NOT NULL,password_algorithm TEXT NOT NULL,password_salt TEXT NOT NULL,password_hash TEXT NOT NULL,status INTEGER NOT NULL DEFAULT 0,failed_attempts INTEGER NOT NULL DEFAULT 0,locked_until INTEGER NOT NULL DEFAULT 0);"),
 			TEXT("CREATE TABLE IF NOT EXISTS players (player_id TEXT PRIMARY KEY,account_id TEXT NOT NULL,character_name TEXT NOT NULL UNIQUE COLLATE NOCASE,character_index INTEGER NOT NULL,level INTEGER NOT NULL DEFAULT 1,experience INTEGER NOT NULL DEFAULT 0,experience_milestone_step INTEGER NOT NULL DEFAULT 0,unspent_stat_points INTEGER NOT NULL DEFAULT 0,unspent_skill_points INTEGER NOT NULL DEFAULT 0,race INTEGER NOT NULL DEFAULT 0,sex INTEGER NOT NULL DEFAULT 0,style INTEGER NOT NULL DEFAULT 0,empire INTEGER NOT NULL DEFAULT 0,guild_id INTEGER NOT NULL DEFAULT 0,guild_name TEXT NOT NULL DEFAULT '',karma INTEGER NOT NULL DEFAULT 0,yang INTEGER NOT NULL DEFAULT 0,st INTEGER NOT NULL DEFAULT 0,dx INTEGER NOT NULL DEFAULT 0,ht INTEGER NOT NULL DEFAULT 0,iq INTEGER NOT NULL DEFAULT 0,health REAL NOT NULL DEFAULT 100,max_health REAL NOT NULL DEFAULT 100,mana REAL NOT NULL DEFAULT 100,max_mana REAL NOT NULL DEFAULT 100,stamina REAL NOT NULL DEFAULT 100,max_stamina REAL NOT NULL DEFAULT 100,movement_speed REAL NOT NULL DEFAULT 100,skill_group INTEGER NOT NULL DEFAULT 0,map_id TEXT NOT NULL,channel INTEGER NOT NULL DEFAULT 1,position_valid INTEGER NOT NULL DEFAULT 0,pos_x REAL NOT NULL DEFAULT 0,pos_y REAL NOT NULL DEFAULT 0,pos_z REAL NOT NULL DEFAULT 0,rotation_pitch REAL NOT NULL DEFAULT 0,rotation_yaw REAL NOT NULL DEFAULT 0,rotation_roll REAL NOT NULL DEFAULT 0,skills TEXT NOT NULL DEFAULT '',quickslots TEXT NOT NULL DEFAULT '',affects TEXT NOT NULL DEFAULT '',startup_items_granted INTEGER NOT NULL DEFAULT 0,UNIQUE(account_id,character_index),FOREIGN KEY(account_id) REFERENCES accounts(account_id) ON DELETE CASCADE);"),
+			TEXT("CREATE TABLE IF NOT EXISTS player_skill_points (player_id TEXT PRIMARY KEY,sub_skill_points INTEGER NOT NULL DEFAULT 0,horse_skill_points INTEGER NOT NULL DEFAULT 0,FOREIGN KEY(player_id) REFERENCES players(player_id) ON DELETE CASCADE);"),
 			TEXT("CREATE TABLE IF NOT EXISTS items (item_instance_id TEXT PRIMARY KEY,owner_player_id TEXT NOT NULL,storage_type INTEGER NOT NULL,slot_index INTEGER NOT NULL,vnum INTEGER NOT NULL,item_count INTEGER NOT NULL DEFAULT 1,bonus_type_0 INTEGER NOT NULL DEFAULT 0,bonus_value_0 INTEGER NOT NULL DEFAULT 0,bonus_type_1 INTEGER NOT NULL DEFAULT 0,bonus_value_1 INTEGER NOT NULL DEFAULT 0,bonus_type_2 INTEGER NOT NULL DEFAULT 0,bonus_value_2 INTEGER NOT NULL DEFAULT 0,bonus_type_3 INTEGER NOT NULL DEFAULT 0,bonus_value_3 INTEGER NOT NULL DEFAULT 0,bonus_type_4 INTEGER NOT NULL DEFAULT 0,bonus_value_4 INTEGER NOT NULL DEFAULT 0,rare_bonus_type_0 INTEGER NOT NULL DEFAULT 0,rare_bonus_value_0 INTEGER NOT NULL DEFAULT 0,rare_bonus_type_1 INTEGER NOT NULL DEFAULT 0,rare_bonus_value_1 INTEGER NOT NULL DEFAULT 0,socket_0 INTEGER NOT NULL DEFAULT 0,socket_1 INTEGER NOT NULL DEFAULT 0,socket_2 INTEGER NOT NULL DEFAULT 0,UNIQUE(owner_player_id,storage_type,slot_index),FOREIGN KEY(owner_player_id) REFERENCES players(player_id) ON DELETE CASCADE);"),
 			TEXT("CREATE TABLE IF NOT EXISTS player_quests (player_id TEXT NOT NULL,quest_id TEXT NOT NULL,state TEXT NOT NULL DEFAULT '',title TEXT NOT NULL DEFAULT '',summary TEXT NOT NULL DEFAULT '',counter INTEGER NOT NULL DEFAULT -1,PRIMARY KEY(player_id,quest_id),FOREIGN KEY(player_id) REFERENCES players(player_id) ON DELETE CASCADE);"),
 			TEXT("CREATE TABLE IF NOT EXISTS player_quest_flags (player_id TEXT NOT NULL,flag_name TEXT NOT NULL,value INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(player_id,flag_name),FOREIGN KEY(player_id) REFERENCES players(player_id) ON DELETE CASCADE);"),
@@ -263,7 +264,7 @@ struct FMT2PersistenceBackend::FImpl
 		Result.Record.EntityId = PlayerId;
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		FSQLitePreparedStatement Statement = Database.PrepareStatement(
-			TEXT("SELECT account_id,character_name,level,experience,experience_milestone_step,unspent_skill_points,unspent_stat_points,race,sex,style,empire,guild_id,guild_name,karma,yang,st,dx,ht,iq,health,max_health,mana,max_mana,stamina,max_stamina,movement_speed,skill_group,map_id,position_valid,pos_x,pos_y,pos_z,rotation_pitch,rotation_yaw,rotation_roll,skills,quickslots,affects,startup_items_granted FROM players WHERE player_id=? LIMIT 1;"));
+			TEXT("SELECT P.account_id,P.character_name,P.level,P.experience,P.experience_milestone_step,P.unspent_skill_points,P.unspent_stat_points,P.race,P.sex,P.style,P.empire,P.guild_id,P.guild_name,P.karma,P.yang,P.st,P.dx,P.ht,P.iq,P.health,P.max_health,P.mana,P.max_mana,P.stamina,P.max_stamina,P.movement_speed,P.skill_group,P.map_id,P.position_valid,P.pos_x,P.pos_y,P.pos_z,P.rotation_pitch,P.rotation_yaw,P.rotation_roll,P.skills,P.quickslots,P.affects,P.startup_items_granted,COALESCE(S.sub_skill_points,0),COALESCE(S.horse_skill_points,0) FROM players P LEFT JOIN player_skill_points S ON S.player_id=P.player_id WHERE P.player_id=? LIMIT 1;"));
 		if (!Statement.IsValid() || !Statement.SetBindingValueByIndex(1, PlayerId))
 		{
 			Result.Error = DatabaseError(Database, TEXT("Could not prepare player load"));
@@ -274,6 +275,7 @@ struct FMT2PersistenceBackend::FImpl
 			FString Name, GuildName, MapId;
 			int32 Level=1, Milestone=0, SkillPoints=0, StatPoints=0, Race=0, Sex=0, Style=0, Empire=0;
 			int32 GuildId=0, ST=0, DX=0, HT=0, IQ=0, SkillGroup=0, PositionValid=0, StartupItemsGranted=0;
+			int32 SubSkillPoints=0, HorseSkillPoints=0;
 			double Karma=0;
 			int64 Experience=0, Yang=0;
 			double Health=100, MaxHealth=100, Mana=100, MaxMana=100, Stamina=100, MaxStamina=100, MoveSpeed=100;
@@ -298,7 +300,8 @@ struct FMT2PersistenceBackend::FImpl
 				!Row.GetColumnValueByIndex(32, Pitch) || !Row.GetColumnValueByIndex(33, Yaw) ||
 				!Row.GetColumnValueByIndex(34, Roll) || !Row.GetColumnValueByIndex(35, SkillsCsv) ||
 				!Row.GetColumnValueByIndex(36, QuickSlotsCsv) || !Row.GetColumnValueByIndex(37, AffectsCsv) ||
-				!Row.GetColumnValueByIndex(38, StartupItemsGranted))
+				!Row.GetColumnValueByIndex(38, StartupItemsGranted) || !Row.GetColumnValueByIndex(39, SubSkillPoints) ||
+				!Row.GetColumnValueByIndex(40, HorseSkillPoints))
 			{
 				return ESQLitePreparedStatementExecuteRowResult::Error;
 			}
@@ -308,6 +311,8 @@ struct FMT2PersistenceBackend::FImpl
 			Root->SetStringField(TEXT("experience"), LexToString(Experience));
 			Root->SetNumberField(TEXT("experience_milestone_step"), Milestone);
 			Root->SetNumberField(TEXT("unspent_skill_points"), SkillPoints);
+			Root->SetNumberField(TEXT("unspent_sub_skill_points"), SubSkillPoints);
+			Root->SetNumberField(TEXT("unspent_horse_skill_points"), HorseSkillPoints);
 			Root->SetNumberField(TEXT("unspent_stat_points"), StatPoints);
 			Root->SetNumberField(TEXT("empire"), Empire);
 			Root->SetNumberField(TEXT("guild_id"), GuildId);
@@ -487,6 +492,17 @@ struct FMT2PersistenceBackend::FImpl
 			Statement.SetBindingValueByIndex(17, Record.EntityId);
 		if (bBound && Statement.Execute())
 		{
+			FSQLitePreparedStatement SkillPoints = Database.PrepareStatement(
+				TEXT("INSERT INTO player_skill_points(player_id,sub_skill_points,horse_skill_points) VALUES(?,?,?) "
+					"ON CONFLICT(player_id) DO UPDATE SET sub_skill_points=excluded.sub_skill_points,horse_skill_points=excluded.horse_skill_points;"));
+			if (!SkillPoints.IsValid() || !SkillPoints.SetBindingValueByIndex(1, Record.EntityId) ||
+				!SkillPoints.SetBindingValueByIndex(2, IntegerField(Root, TEXT("unspent_sub_skill_points"))) ||
+				!SkillPoints.SetBindingValueByIndex(3, IntegerField(Root, TEXT("unspent_horse_skill_points"))) ||
+				!SkillPoints.Execute())
+			{
+				OutError = DatabaseError(Database, TEXT("Could not save separate skill point pools"));
+				return false;
+			}
 			FSQLitePreparedStatement Hair = Database.PrepareStatement(TEXT("INSERT INTO player_hair(player_id,hair_shape,expires_at) VALUES(?,?,?) ON CONFLICT(player_id) DO UPDATE SET hair_shape=excluded.hair_shape,expires_at=excluded.expires_at;"));
 			if (Hair.IsValid() && Hair.SetBindingValueByIndex(1, Record.EntityId) &&
 				Hair.SetBindingValueByIndex(2, IntegerField(Root, TEXT("hair_shape"))) &&

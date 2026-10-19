@@ -131,6 +131,7 @@ MT2_ITEM_STATE_ACCESSORS(PickaxeState, FMT2PickaxeItemState)
 MT2_ITEM_STATE_ACCESSORS(FishState, FMT2FishItemState)
 MT2_ITEM_STATE_ACCESSORS(BlendState, FMT2BlendItemState)
 MT2_ITEM_STATE_ACCESSORS(SkillBookState, FMT2SkillBookItemState)
+MT2_ITEM_STATE_ACCESSORS(SkillForgetState, FMT2SkillForgetItemState)
 MT2_ITEM_STATE_ACCESSORS(PolymorphState, FMT2PolymorphItemState)
 #undef MT2_ITEM_STATE_ACCESSORS
 
@@ -160,6 +161,10 @@ FMT2AutoRecoveryItemState& FMT2ItemInstanceData::EditAutoRecoveryState()
 int32 FMT2ItemInstanceData::GetSkillVnum() const
 {
 	if (const auto* Legacy = FindState<FMT2LegacyItemRecord>()) return Legacy->SkillVnum;
+	if (const auto* State = FindState<FMT2SkillForgetItemState>())
+	{
+		return State->Skill ? State->Skill->Vnum : State->UnresolvedLegacySkill;
+	}
 	const auto* Skill = GetSkillBookState().Skill.Get();
 	return Skill ? Skill->Vnum : GetSkillBookState().UnresolvedLegacySkill;
 }
@@ -167,6 +172,12 @@ int32 FMT2ItemInstanceData::GetSkillVnum() const
 void FMT2ItemInstanceData::SetSkillVnum(int32 Vnum)
 {
 	if (auto* Legacy = FindMutableState<FMT2LegacyItemRecord>()) { Legacy->SkillVnum = Vnum; return; }
+	if (auto* SkillForget = FindMutableState<FMT2SkillForgetItemState>())
+	{
+		SkillForget->Skill = UMT2SkillSet::FindSkillAcrossSets(Vnum);
+		SkillForget->UnresolvedLegacySkill = SkillForget->Skill ? 0 : Vnum;
+		return;
+	}
 	auto& State = EditSkillBookState();
 	State.Skill = UMT2SkillSet::FindSkillAcrossSets(Vnum);
 	State.UnresolvedLegacySkill = State.Skill ? 0 : Vnum;

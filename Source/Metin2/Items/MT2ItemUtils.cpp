@@ -16,6 +16,7 @@
 #include "Items/Templates/MT2ItemPickTemplate.h"
 #include "Items/Templates/MT2ItemRodTemplate.h"
 #include "Items/Templates/MT2ItemSkillBookTemplate.h"
+#include "Items/Templates/MT2ItemSkillForgetTemplate.h"
 
 
 #include "Core/MT2VnumRegistrySubsystem.h"
@@ -115,7 +116,8 @@ bool MT2ItemUtils::UsesNumericSockets(const UMT2ItemTemplate* Template)
 {
 	return Template && !Cast<UMT2ItemEquipmentTemplate>(Template) && !Cast<UMT2ItemRodTemplate>(Template) &&
 		!Cast<UMT2ItemPickTemplate>(Template) && !Cast<UMT2ItemFishTemplate>(Template) &&
-		!Cast<UMT2ItemSkillBookTemplate>(Template) && !Cast<UMT2ItemAutoRecoveryTemplate>(Template);
+		!Cast<UMT2ItemSkillBookTemplate>(Template) && !Cast<UMT2ItemSkillForgetTemplate>(Template) &&
+		!Cast<UMT2ItemAutoRecoveryTemplate>(Template);
 }
 
 int32 MT2ItemUtils::GetNumericSocket(const FMT2ItemInstanceData& Item, int32 Index)
@@ -127,6 +129,7 @@ int32 MT2ItemUtils::GetNumericSocket(const FMT2ItemInstanceData& Item, int32 Ind
 	if (const auto* State = Item.FindState<FMT2PickaxeItemState>()) return Index == 0 ? State->Proficiency : 0;
 	if (const auto* State = Item.FindState<FMT2FishItemState>()) return Index == 0 ? State->LengthTenths : 0;
 	if (Item.FindState<FMT2SkillBookItemState>()) return Index == 0 ? Item.GetSkillVnum() : 0;
+	if (Item.FindState<FMT2SkillForgetItemState>()) return Index == 0 ? Item.GetSkillVnum() : 0;
 	if (const auto* State = Item.FindState<FMT2AutoRecoveryItemState>()) return Index == 0 ? (State->bActive ? 1 : 0)
 		: Index == 1 ? State->MaximumAmount - State->RemainingAmount : State->MaximumAmount;
 	if (const auto* State = Item.FindState<FMT2AccessoryItemState>()) return Index == 0 ? State->Sockets.CurrentGrade
@@ -155,6 +158,7 @@ bool MT2ItemUtils::SetNumericSocket(FMT2ItemInstanceData& Item, int32 Index, int
 	if (auto* State = Item.FindMutableState<FMT2PickaxeItemState>()) { if (Index != 0) return false; State->Proficiency = Value; return true; }
 	if (auto* State = Item.FindMutableState<FMT2FishItemState>()) { if (Index != 0) return false; State->LengthTenths = Value; return true; }
 	if (Item.FindState<FMT2SkillBookItemState>()) { if (Index != 0) return false; Item.SetSkillVnum(Value); return true; }
+	if (Item.FindState<FMT2SkillForgetItemState>()) { if (Index != 0) return false; Item.SetSkillVnum(Value); return true; }
 	if (auto* State = Item.FindMutableState<FMT2AutoRecoveryItemState>())
 	{
 		if (Index == 0) State->bActive = Value != 0 && State->RemainingAmount > 0;
@@ -234,6 +238,11 @@ void MT2ItemUtils::NormalizeNumericSockets(FMT2ItemInstanceData& Item, const UMT
 	{
 		if (!Item.FindState<FMT2SkillBookItemState>())
 		{ const int32 Skill = Item.GetSkillVnum(); Item.FamilyState.InitializeAs<FMT2SkillBookItemState>(); Item.SetSkillVnum(Skill); }
+	}
+	else if (Cast<UMT2ItemSkillForgetTemplate>(Template))
+	{
+		if (!Item.FindState<FMT2SkillForgetItemState>())
+		{ const int32 Skill = Item.GetSkillVnum(); Item.FamilyState.InitializeAs<FMT2SkillForgetItemState>(); Item.SetSkillVnum(Skill); }
 	}
 	else if (Cast<UMT2ItemAutoRecoveryTemplate>(Template))
 	{

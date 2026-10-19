@@ -13,6 +13,7 @@
 #include "CoreMinimal.h"
 #include "Player/MT2PlayerTypes.h"
 #include "Skills/MT2SkillTypes.h"
+#include "Skills/MT2SkillSemanticTypes.h"
 #include "Components/MT2AffectTypes.h"
 #include "MT2SkillComponent.generated.h"
 
@@ -99,6 +100,9 @@ public:
 	// Raw authority setter for persistence restore and GM commands; no gates besides clamping.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Skills")
 	bool SetSkillLevel(int32 SkillVnum, int32 NewLevel);
+
+	// Legacy CHARACTER::SkillLevelDown used by skill-forget consumables.
+	bool ForgetSkillByItem(int32 SkillVnum);
 
 	// Clears the selected class and every learned skill. Used when changing character race.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Skills")

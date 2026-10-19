@@ -534,6 +534,87 @@ bool UMT2SkillComponent::SetSkillLevel(int32 SkillVnum, int32 NewLevel)
 	return true;
 }
 
+bool UMT2SkillComponent::ForgetSkillByItem(int32 SkillVnum)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || SkillVnum <= 0 || SkillVnum >= MT2SkillLimits::MaxSkillVnumExclusive ||
+		SkillGroup == EMT2SkillGroup::None || GetSkillLevel(SkillVnum) <= 0 ||
+		GetSkillMastery(SkillVnum) != EMT2SkillMastery::Normal ||
+		HasBookReadingEffect(FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Polymorph)))
+	{
+		return false;
+	}
+
+	const UMT2SkillDefinition* Skill = UMT2SkillSet::FindSkillAcrossSets(SkillVnum);
+	if (!Skill || GetSkillLevel(SkillVnum) >= MT2SkillLimits::MaxSkillLevel) return false;
+
+	const EMT2LegacySkillClass SkillClass = Skill->LegacySkillType.Type;
+	EMT2SkillPointPool PointPool;
+	switch (SkillClass)
+	{
+	case EMT2LegacySkillClass::Support:
+		if (GetSkillLevel(SkillVnum) >= Skill->MaxLevel) return false;
+		PointPool = EMT2SkillPointPool::SubSkill;
+		break;
+	case EMT2LegacySkillClass::Horse:
+		if (SkillVnum == 140 && GetOwnerRace() != EMT2CharacterRace::Assassin) return false;
+		PointPool = EMT2SkillPointPool::HorseSkill;
+		break;
+	case EMT2LegacySkillClass::Warrior:
+		if (GetOwnerRace() != EMT2CharacterRace::Warrior) return false;
+		PointPool = EMT2SkillPointPool::Combat;
+		break;
+	case EMT2LegacySkillClass::Assassin:
+		if (GetOwnerRace() != EMT2CharacterRace::Assassin) return false;
+		PointPool = EMT2SkillPointPool::Combat;
+		break;
+	case EMT2LegacySkillClass::Sura:
+		if (GetOwnerRace() != EMT2CharacterRace::Sura) return false;
+		PointPool = EMT2SkillPointPool::Combat;
+		break;
+	case EMT2LegacySkillClass::Shaman:
+		if (GetOwnerRace() != EMT2CharacterRace::Shaman) return false;
+		PointPool = EMT2SkillPointPool::Combat;
+		break;
+	case EMT2LegacySkillClass::AntiSkill:
+		{
+			const UMT2GameplaySettings& Settings = UMT2GameplaySettings::Get();
+			const int32 First = Settings.AntiSkillForgetMinimumSkillVnum;
+			const int32 Last = Settings.AntiSkillForgetMaximumSkillVnum;
+			const int32 FamilySize = (Last - First + 1) / 2;
+			if (FamilySize <= 0 || SkillVnum < First || SkillVnum > Last) return false;
+			const int32 FamilyFirst = SkillVnum < First + FamilySize ? First : First + FamilySize;
+			const int32 FamilyLast = SkillVnum < First + FamilySize ? First + FamilySize - 1 : Last;
+			for (int32 OtherSkill = FamilyFirst; OtherSkill <= FamilyLast; ++OtherSkill)
+				if (OtherSkill != SkillVnum && GetSkillLevel(OtherSkill) > 0) return false;
+		}
+		PointPool = EMT2SkillPointPool::Combat;
+		break;
+	default:
+		return false;
+	}
+
+	AMT2PlayerState* State = Cast<AMT2PlayerState>(GetOwner());
+	if (!State) return false;
+	int32 CurrentPoolPoints = 0;
+	switch (PointPool)
+	{
+	case EMT2SkillPointPool::Combat: CurrentPoolPoints = State->GetUnspentSkillPoints(); break;
+	case EMT2SkillPointPool::SubSkill: CurrentPoolPoints = State->GetUnspentSubSkillPoints(); break;
+	case EMT2SkillPointPool::HorseSkill: CurrentPoolPoints = State->GetUnspentHorseSkillPoints(); break;
+	}
+	if (CurrentPoolPoints == MAX_int32) return false;
+	const int32 OldLevel = GetSkillLevel(SkillVnum);
+	if (!SetSkillLevel(SkillVnum, OldLevel - 1)) return false;
+	if (!State->AwardSkillPoint(PointPool))
+	{
+		// Roll the level back if point storage unexpectedly refuses the validated refund.
+		SetSkillLevel(SkillVnum, OldLevel);
+		return false;
+	}
+	MarkPersistenceDirty();
+	return true;
+}
+
 void UMT2SkillComponent::ResetAllSkills()
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority())

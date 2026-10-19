@@ -15,6 +15,15 @@
 
 class UMT2SkillComponent;
 
+// Legacy SkillLevelDown returns points to separate pools depending on the skill prototype type.
+UENUM(BlueprintType)
+enum class EMT2SkillPointPool : uint8
+{
+	Combat,
+	SubSkill,
+	HorseSkill
+};
+
 UENUM(BlueprintType)
 enum class EMT2SkillGroup : uint8
 {
@@ -24,6 +33,7 @@ enum class EMT2SkillGroup : uint8
 namespace MT2SkillLimits
 {
 	inline constexpr int32 MaxSkillLevel = 40;
+	inline constexpr int32 MaxSkillVnumExclusive = 255;
 }
 
 // Why a cast was refused. The old client raises these as OnCannotUseSkill(vid, "<name>") and prints

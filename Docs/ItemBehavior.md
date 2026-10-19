@@ -26,7 +26,7 @@ generic consume action would break parity.
 | Gift boxes, treasure boxes/keys | Native reward/crate/key transactions exist. Audit special non-item crate rewards and content groups. |
 | Blend items | `blend.txt` supplies independent weighted magnitude/duration rolls. Instance sockets persist and appear in tooltips. Duplicate APPLY affects are rejected. Energy amplifies random equipment attributes, with separate eligible slots for energy and costume-attribute effects. |
 | Polymorph balls and practice books | Need a transformation system: authoritative race/state, mob motion and attack data, equipment/skill/riding restrictions, duration, restoration, and observer/late-join presentation. Balls and books have different consumption, level and success rules. |
-| Skill-forget items | Need legacy skill-level/point refund rules and item-selected skill state, integrated with the existing skill component. |
+| Skill-forget items | Legacy skill-level downgrade is implemented with per-item selected skills, eligibility rules and separate combat/sub-skill/horse refund pools. |
 | Talisman/recall items | Need persistent destination sockets, delayed/cancellable travel and existing map-server transfer validation. |
 | Binding/unbinding items | Need persistent binding state enforced by drop, trade, sell, refinement and equipment operations, including delayed unbinding. |
 | Dragon Soul and special Dragon Soul | Need qualified character state, dedicated inventory and two equipment decks, activation/wear timers, generated attributes, table-driven refinement and UI. |
@@ -37,7 +37,7 @@ generic consume action would break parity.
 
 ## Implementation order
 
-1. Complete small skill and targeted-item actions, including skill-forget and recipe transactions.
+1. Complete remaining recipe transactions and targeted-item edge cases.
 2. Implement transformation, item binding and recall systems, each with its dependent item actions.
 3. Implement Dragon Soul inventory/decks, attributes/timers, refinement, extraction and charging.
 4. Finish the equipment expiry/belt inventory audit and per-item quest/content checks. Keep
@@ -63,6 +63,26 @@ Restoring a valid blend with all three sockets zero initializes its first roll; 
 socket data never rerolls it.
 If a template or registry is unavailable, normalization preserves the existing socket representation
 instead of inferring that the item is numeric and discarding its equipment data.
+
+## Skill-forget items
+
+Skill-forget items retain the old selected skill in legacy socket 0, represented at runtime by a
+typed skill-definition reference. Newly generated standard items choose from the configured
+standard vnum range; the anti-skill item uses its separate configured range. The selected skill is
+stored on the item once and is never rerolled when loading an existing item. Both item vnums and
+skill ranges are editable in Project Settings → Gameplay → Skills → Skill Forget Items.
+
+Using the item is server-authoritative and follows the legacy `CHARACTER::SkillLevelDown` gates:
+the character must have selected a skill group, the skill definition must exist and be learnable
+for the character, the skill must have a nonzero level below normal mastery, and polymorph blocks
+the action. Anti-skill alternatives remain mutually exclusive within their legacy families. A
+successful use reduces exactly one level and awards one point to the matching combat, sub-skill or
+horse-skill pool. A failed downgrade leaves the item intact; a malformed unassigned item is
+destroyed and reports failure, as in `CHARACTER::UseItemEx`.
+
+Combat points use the existing player field. Sub-skill and horse-skill points are owner-replicated
+and saved in a separate `player_skill_points` table so existing databases migrate without altering
+the original `players` table. Old saves without this row load both pools as zero.
 
 Energy sums normal/rare runtime item attributes by APPLY across the eligible worn slots, then
 truncates `sum * percent / 100` once per APPLY. It does not amplify prototype applies, weapon base
@@ -100,7 +120,7 @@ from the existing registry during a partial import.
 
 ## Sources and verification
 
-Primary server sources: `game/src/char_item.cpp`, `item.cpp`, `char_affect.cpp`, `blend_item.cpp`,
+Primary server sources: `game/src/char_item.cpp`, `char_skill.cpp`, `item.cpp`, `char_affect.cpp`, `blend_item.cpp`,
 `polymorph.cpp`, `dragon_soul.cpp`, `char_dragonsoul.cpp`, `fishing.cpp` and `common/enums.h`.
 Tables: `share/locale/italy/blend.txt`, `dragon_soul_table.txt` and quest scripts.
 Primary client sources: `source/UserInterface/InstanceBase*`, `PythonPlayer*`, item protocol handling

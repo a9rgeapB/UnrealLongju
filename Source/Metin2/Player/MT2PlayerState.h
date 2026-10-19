@@ -20,6 +20,7 @@
 #include "Items/MT2ItemTypes.h"
 #include "Player/MT2PlayerTypes.h"
 #include "Stats/MT2StatTypes.h"
+#include "Skills/MT2SkillTypes.h"
 #include "MT2PlayerState.generated.h"
 
 class UAbilitySystemComponent;
@@ -136,6 +137,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Progression")
 	int32 GetUnspentSkillPoints() const { return UnspentSkillPoints; }
 
+	UFUNCTION(BlueprintPure, Category = "Progression|Skills")
+	int32 GetUnspentSubSkillPoints() const { return UnspentSubSkillPoints; }
+
+	UFUNCTION(BlueprintPure, Category = "Progression|Skills")
+	int32 GetUnspentHorseSkillPoints() const { return UnspentHorseSkillPoints; }
+
 	UFUNCTION(BlueprintPure, Category = "Progression")
 	int32 GetUnspentStatPoints() const { return UnspentStatPoints; }
 
@@ -145,6 +152,9 @@ public:
 	// Consumes one unspent skill point; the skill component calls this when a point-up succeeds.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Progression")
 	bool SpendSkillPoint();
+
+	// Awards one point to the exact legacy skill pool. Authority-only; persists and replicates it.
+	bool AwardSkillPoint(EMT2SkillPointPool Pool);
 
 	// Clears race-specific skills and restores the one point earned per completed level.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Progression")
@@ -334,6 +344,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Progression")
 	FMT2ProgressionPointsChangedSignature OnSkillPointsChanged;
 
+	UPROPERTY(BlueprintAssignable, Category = "Progression|Skills")
+	FMT2ProgressionPointsChangedSignature OnSubSkillPointsChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Progression|Skills")
+	FMT2ProgressionPointsChangedSignature OnHorseSkillPointsChanged;
+
 	UPROPERTY(BlueprintAssignable, Category = "Progression")
 	FMT2ProgressionPointsChangedSignature OnStatPointsChanged;
 
@@ -371,6 +387,12 @@ private:
 
 	UFUNCTION()
 	void OnRep_UnspentSkillPoints(int32 OldPoints);
+
+	UFUNCTION()
+	void OnRep_UnspentSubSkillPoints(int32 OldPoints);
+
+	UFUNCTION()
+	void OnRep_UnspentHorseSkillPoints(int32 OldPoints);
 
 	UFUNCTION()
 	void OnRep_UnspentStatPoints(int32 OldPoints);
@@ -459,6 +481,12 @@ private:
 
 	UPROPERTY(ReplicatedUsing = OnRep_UnspentSkillPoints)
 	int32 UnspentSkillPoints = 0;
+
+	UPROPERTY(ReplicatedUsing = OnRep_UnspentSubSkillPoints)
+	int32 UnspentSubSkillPoints = 0;
+
+	UPROPERTY(ReplicatedUsing = OnRep_UnspentHorseSkillPoints)
+	int32 UnspentHorseSkillPoints = 0;
 
 	UPROPERTY(ReplicatedUsing = OnRep_UnspentStatPoints)
 	int32 UnspentStatPoints = 0;

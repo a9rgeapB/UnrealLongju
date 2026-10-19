@@ -18,6 +18,7 @@
 #include "Items/State/MT2BlendItemState.h"
 #include "Items/State/MT2SkillBookItemState.h"
 #include "Items/State/MT2PolymorphItemState.h"
+#include "Items/State/MT2SkillForgetItemState.h"
 #include "Items/Types/MT2ItemBonusTypes.h"
 #include "Items/Types/MT2MetinSocketTypes.h"
 #include "Items/Types/MT2AccessorySocketState.h"
@@ -32,6 +33,7 @@ struct FMT2FishItemState;
 struct FMT2BlendItemState;
 struct FMT2SkillBookItemState;
 struct FMT2PolymorphItemState;
+struct FMT2SkillForgetItemState;
 
 USTRUCT(BlueprintType)
 struct METIN2_API FMT2ItemInstanceData
@@ -82,6 +84,8 @@ struct METIN2_API FMT2ItemInstanceData
 	FMT2BlendItemState& EditBlendState();
 	const FMT2SkillBookItemState& GetSkillBookState() const;
 	FMT2SkillBookItemState& EditSkillBookState();
+	const FMT2SkillForgetItemState& GetSkillForgetState() const;
+	FMT2SkillForgetItemState& EditSkillForgetState();
 	const FMT2PolymorphItemState& GetPolymorphState() const;
 	FMT2PolymorphItemState& EditPolymorphState();
 	int32 GetSkillVnum() const;

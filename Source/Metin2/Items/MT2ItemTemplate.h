@@ -30,7 +30,8 @@ enum class EMT2ItemUseExecution : uint8
 {
 	Rejected,
 	Accepted,
-	Consume
+	Consume,
+	ConsumeAndReject
 };
 
 UCLASS(Abstract, Blueprintable)
