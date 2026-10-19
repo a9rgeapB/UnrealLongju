@@ -1093,6 +1093,7 @@ bool UMT2InventoryComponent::CopyAndReplaceQuestItemWithTemplates(
 
 	FMT2ItemSlot Replacement;
 	Replacement.Vnum = ResultVnum;
+	Replacement.Template = ResultTemplate->GetClass();
 	Replacement.EditBonuses() = ExpectedSource.GetBonuses();
 	Replacement.bNewlyAcquired = true;
 	if (bAccessory)

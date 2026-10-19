@@ -8,6 +8,13 @@
 */
 
 #include "Items/Templates/MT2ItemSkillBookTemplate.h"
+#include "Items/MT2ItemTemplate.h"
+#include "Config/MT2GameplaySettings.h"
+#include "Items/MT2ItemUtils.h"
+#include "UI/MT2ItemTooltipWidget.h"
+#include "UI/MT2ItemTooltipWidgets.h"
+#include "Skills/MT2SkillSet.h"
+#include "Skills/MT2SkillDefinition.h"
 
 void UMT2ItemSkillBookTemplate::InitializeDefaultFamilyState(FMT2ItemInstanceData& Data) const
 {
@@ -17,13 +24,6 @@ void UMT2ItemSkillBookTemplate::CaptureDefaultFamilyState(const FMT2ItemInstance
 {
 	DefaultSkillBookState = Data.GetSkillBookState();
 }
-#include "Items/MT2ItemTemplate.h"
-#include "Config/MT2GameplaySettings.h"
-#include "Items/MT2ItemUtils.h"
-#include "UI/MT2ItemTooltipWidget.h"
-#include "UI/MT2ItemTooltipWidgets.h"
-#include "Skills/MT2SkillSet.h"
-#include "Skills/MT2SkillDefinition.h"
 
 int32 UMT2ItemSkillBookTemplate::GetSkillVnum() const
 {

@@ -53,3 +53,8 @@ See [water](../../../Docs/Water.md) for the retained map-bake and read-only veri
 Mob scheduling/movement fixtures are in `MT2LegacyMobSchedulingTests.cpp` and `MT2MobMoveSegmentTests.cpp`; knockback coverage is in `MT2KnockbackTests.cpp`. Run `Metin2.World` and `Metin2.Combat` for these groups.
 
 `MT2FakePlayersTests.cpp` covers the Development load-test harness under `Metin2.Server.FakePlayers`: authorization, quotas, staggered spawns, equipment, ephemeral identities, targeting, grid registration and cleanup. See [server load testing](../../../Docs/ServerLoadTesting.md) for command syntax and benchmark limitations.
+
+`Metin2.Items.Authoring` verifies dedicated template files, the reflected common-state schema,
+legacy/current archive round trips, legacy default-text import, family-owned defaults, Lua tool
+sockets, real-time quest expiry and reference refresh during partial item imports. The partial-import
+fixture is compiled in `MT2UEEditor`; the other fixtures live in the runtime test sources.

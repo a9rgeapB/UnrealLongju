@@ -2,7 +2,8 @@
 
 ## Runtime model
 
-Imported item Blueprints inherit from the native family classes in `MT2ItemTemplate.h`. A class
+Imported item Blueprints inherit from dedicated native family classes under `Items/Templates`
+and `Items/Use`; `MT2ItemTemplate.h` contains only the shared base. A class
 mapping alone does not establish working gameplay: right-click use, drag-to-apply, equipping,
 per-instance generation, persistence and tooltips must all implement the corresponding behavior.
 The server validates and performs inventory transactions. Clients request actions and display results.
@@ -44,10 +45,19 @@ generic consume action would break parity.
 
 ## Instance sockets and equipment amplification
 
-Generic numeric instance data uses `LegacySockets` (at most three values). It does not encode
-quest progress or blend parameters as installed Metin stones. Save JSON retains `socket_0` through
-`socket_2`; equipment, accessories, rods/pickaxes, fish, skill books and auto recovery retain their
-family-specific representations. Stack identity includes the numeric values; transferring or
+Common instance data contains count, expiry, presentation state and one typed family payload.
+Equipment bonuses, Metin sockets, accessory sockets, rod proficiency/bait, pickaxe proficiency,
+fish length, skill definitions, blend parameters and recovery reservoirs have separate named state
+structs under `Items/State`. Initial family state is authored on the corresponding template, not
+on the shared base. Item/skill references use class/object pickers. Refinement chains and fish
+reward links use soft class references to avoid circular Blueprint loads.
+
+Save JSON retains `socket_0` through `socket_2` for legacy compatibility. Native codecs translate
+those columns and Lua `item.get_socket/set_socket` into the appropriate named state. Arbitrary
+quest scratch values and unresolved legacy records stay in non-Blueprint compatibility structs;
+they are not designer-facing reference selectors. Binary archives carry a custom version, with
+readers for the previous flat record and its Blueprint default text. Missing definitions must not
+cause opaque records to be discarded. Stack identity includes socket values; transferring or
 restoring an item must not reroll an existing blend.
 Restoring a valid blend with all three sockets zero initializes its first roll; restoring nonzero
 socket data never rerolls it.
@@ -81,6 +91,12 @@ This deliberately avoids losing the input or partially delivering rewards when i
 `MT2ConfigureItemBehaviors` refreshes only blend, fish, campfire and affected consumable Blueprints;
 `-Preview` validates/displays the selection without saving assets. It uses configured legacy source
 paths; packaged runtime never reads those external tables.
+
+`MT2ItemAuthoringMigration` snapshots item assets and their complete defaults under
+`Saved/ItemAuthoringMigration`. Its `-Apply` phase validates family defaults against that snapshot,
+resolves typed references after all item classes exist, compiles the Blueprints and saves them.
+It retains the original backups. Normal imports refresh source-owned links and can resolve targets
+from the existing registry during a partial import.
 
 ## Sources and verification
 

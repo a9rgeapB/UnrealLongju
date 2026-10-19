@@ -170,8 +170,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stats")
 	TArray<FMT2ItemLimit> Limits;
 
-	// Mutable defaults copied into every newly-created item instance, including authored Metin
-	// sockets and intrinsic instance bonuses.
+	// Common creation defaults. Named family defaults belong to the corresponding subclass;
+	// the opaque payload here is retained only for generic quest/import compatibility.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stats")
 	FMT2ItemInstanceData DefaultInstanceData;
 	UPROPERTY() bool bTypedFamilyDefaults = false;

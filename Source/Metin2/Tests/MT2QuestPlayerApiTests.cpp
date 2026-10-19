@@ -1388,6 +1388,7 @@ bool FMT2QuestItemCopyTest::RunTest(const FString& Parameters)
 	Inventory->Slots[0].bNewlyAcquired = false; // Viewing a tooltip is not an item change.
 	TestTrue(TEXT("Copy and complete material batch commit"), Replace());
 	TestEqual(TEXT("Requested ranged VNUM retained"), Inventory->Slots[0].Vnum, 20009);
+	TestEqual(TEXT("Converted item exposes its result template"), Inventory->Slots[0].Template.Get(), ResultTemplate->GetClass());
 	TestEqual(TEXT("Bonus value retained"), Inventory->Slots[0].GetBonuses()[0].Value, 1000);
 	TestEqual(TEXT("Rare bonus kind retained"), Inventory->Slots[0].GetBonuses()[0].Kind, EMT2ItemBonusKind::Rare);
 	TestEqual(TEXT("Broken stone cleared"), Inventory->Slots[0].GetMetinSockets()[0].Value, 0);

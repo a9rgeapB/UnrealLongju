@@ -9,12 +9,6 @@
 
 #include "Items/Use/MT2HorseBookItemTemplate.h"
 #include "Skills/MT2SkillDefinition.h"
-
-int32 UMT2HorseBookItemTemplate::GetSummonSkillVnum() const
-{
-	return SummonSkill ? SummonSkill->Vnum : bTypedItemReferences ? 0 : SummonSkillVnum;
-}
-
 #include "Characters/MT2PlayerCharacter.h"
 #include "Components/MT2ManaComponent.h"
 #include "Mounts/MT2MountComponent.h"
@@ -23,6 +17,12 @@ int32 UMT2HorseBookItemTemplate::GetSummonSkillVnum() const
 #include "Player/MT2PlayerController.h"
 #include "Player/MT2PlayerState.h"
 #include "Skills/MT2SkillComponent.h"
+
+int32 UMT2HorseBookItemTemplate::GetSummonSkillVnum() const
+{
+	return SummonSkill ? SummonSkill->Vnum : bTypedItemReferences ? 0 : SummonSkillVnum;
+}
+
 
 UMT2HorseBookItemTemplate::UMT2HorseBookItemTemplate()
 	: SuccessPercentBySkillLevel({10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100})

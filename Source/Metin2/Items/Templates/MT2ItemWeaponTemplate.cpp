@@ -8,6 +8,12 @@
 */
 
 #include "Items/Templates/MT2ItemWeaponTemplate.h"
+#include "Items/MT2ItemTemplate.h"
+#include "Config/MT2GameplaySettings.h"
+#include "Items/MT2ItemUtils.h"
+#include "UI/MT2ItemTooltipWidget.h"
+#include "UI/MT2ItemTooltipWidgets.h"
+#include "Skills/MT2SkillSet.h"
 
 void UMT2ItemWeaponTemplate::InitializeDefaultFamilyState(FMT2ItemInstanceData& Data) const
 {
@@ -19,12 +25,6 @@ void UMT2ItemWeaponTemplate::CaptureDefaultFamilyState(const FMT2ItemInstanceDat
 	Super::CaptureDefaultFamilyState(Data);
 	DefaultSockets = Data.GetMetinSockets();
 }
-#include "Items/MT2ItemTemplate.h"
-#include "Config/MT2GameplaySettings.h"
-#include "Items/MT2ItemUtils.h"
-#include "UI/MT2ItemTooltipWidget.h"
-#include "UI/MT2ItemTooltipWidgets.h"
-#include "Skills/MT2SkillSet.h"
 
 TSubclassOf<UMT2ItemTooltipWidget> UMT2ItemWeaponTemplate::GetDefaultTooltipClass() const
 {
