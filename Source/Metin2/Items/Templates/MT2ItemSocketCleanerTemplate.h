@@ -9,11 +9,11 @@
 
 #pragma once
 
-#include "Items/Templates/MT2ItemUseTemplate.h"
+#include "Items/Templates/MT2ItemUseCleanSocketTemplate.h"
 #include "MT2ItemSocketCleanerTemplate.generated.h"
 
 UCLASS(Blueprintable)
-class METIN2_API UMT2ItemSocketCleanerTemplate : public UMT2ItemUseTemplate
+class METIN2_API UMT2ItemSocketCleanerTemplate : public UMT2ItemUseCleanSocketTemplate
 {
 	GENERATED_BODY()
 };

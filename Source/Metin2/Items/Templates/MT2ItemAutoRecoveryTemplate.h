@@ -8,13 +8,13 @@
 */
 
 #pragma once
-#include "Items/Templates/MT2ItemUseTemplate.h"
+#include "Items/Templates/MT2ItemUseSpecialTemplate.h"
 #include "Items/Types/MT2AutoRecoveryTypes.h"
 #include "Items/State/MT2AutoRecoveryItemState.h"
 #include "MT2ItemAutoRecoveryTemplate.generated.h"
 
 UCLASS(Blueprintable)
-class METIN2_API UMT2ItemAutoRecoveryTemplate : public UMT2ItemUseTemplate
+class METIN2_API UMT2ItemAutoRecoveryTemplate : public UMT2ItemUseSpecialTemplate
 {
 	GENERATED_BODY()
 

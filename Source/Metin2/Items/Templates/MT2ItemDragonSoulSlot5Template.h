@@ -1,0 +1,16 @@
+#pragma once
+
+#include "Items/Templates/MT2ItemDragonSoulTemplate.h"
+#include "MT2ItemDragonSoulSlot5Template.generated.h"
+
+/**
+ * Legacy item-proto variant DS_SLOT5 (ordinal 4).
+ * TODO: Implement and validate this variant's dedicated legacy behavior. Keep shared family
+ * rules in UMT2ItemDragonSoulTemplate; this class is the narrow subtype extension point.
+ */
+UCLASS(Blueprintable)
+class METIN2_API UMT2ItemDragonSoulSlot5Template : public UMT2ItemDragonSoulTemplate
+{
+	GENERATED_BODY()
+};
+

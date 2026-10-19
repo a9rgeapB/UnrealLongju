@@ -48,6 +48,7 @@
 #include "Items/Templates/MT2ItemUniqueTemplate.h"
 #include "Items/Templates/MT2ItemUseTemplate.h"
 #include "Items/Templates/MT2ItemWeaponTemplate.h"
+#include "Items/MT2ItemTemplateResolver.h"
 #include "Items/Use/MT2GrandMasterTrainingItemTemplate.h"
 #include "Items/Use/MT2KarmaRecoveryItemTemplate.h"
 
@@ -1009,47 +1010,9 @@ namespace
 		return true;
 	}
 
-	// EItemTypes ordinals from the old client's common/enums.h.
-	UClass* ResolveTemplateClass(EMT2ItemType ItemType)
+	UClass* ResolveTemplateClass(EMT2ItemType ItemType, int32 LegacySubtype)
 	{
-		switch (ItemType)
-		{
-		case EMT2ItemType::Weapon: return UMT2ItemWeaponTemplate::StaticClass();
-		case EMT2ItemType::Armor: return UMT2ItemArmorTemplate::StaticClass();
-		case EMT2ItemType::Use: return UMT2ItemUseTemplate::StaticClass();
-		case EMT2ItemType::AutoUse: return UMT2ItemAutoUseTemplate::StaticClass();
-		case EMT2ItemType::Material: return UMT2ItemMaterialTemplate::StaticClass();
-		case EMT2ItemType::Special: return UMT2ItemSpecialTemplate::StaticClass();
-		case EMT2ItemType::Tool: return UMT2ItemToolTemplate::StaticClass();
-		case EMT2ItemType::Lottery: return UMT2ItemLotteryTemplate::StaticClass();
-		case EMT2ItemType::Yang: return UMT2ItemGoldTemplate::StaticClass();
-		case EMT2ItemType::Metin: return UMT2ItemMetinStoneTemplate::StaticClass();
-		case EMT2ItemType::Container: return UMT2ItemContainerTemplate::StaticClass();
-		case EMT2ItemType::Fish: return UMT2ItemFishTemplate::StaticClass();
-		case EMT2ItemType::Rod: return UMT2ItemRodTemplate::StaticClass();
-		case EMT2ItemType::Resource: return UMT2ItemResourceTemplate::StaticClass();
-		case EMT2ItemType::Campfire: return UMT2ItemCampfireTemplate::StaticClass();
-		case EMT2ItemType::Unique: return UMT2ItemUniqueTemplate::StaticClass();
-		case EMT2ItemType::SkillBook: return UMT2ItemSkillBookTemplate::StaticClass();
-		case EMT2ItemType::Quest: return UMT2ItemQuestTemplate::StaticClass();
-		case EMT2ItemType::Polymorph: return UMT2ItemPolymorphTemplate::StaticClass();
-		case EMT2ItemType::TreasureBox: return UMT2ItemTreasureBoxTemplate::StaticClass();
-		case EMT2ItemType::TreasureKey: return UMT2ItemTreasureKeyTemplate::StaticClass();
-		case EMT2ItemType::SkillForget: return UMT2ItemSkillForgetTemplate::StaticClass();
-		case EMT2ItemType::GiftBox: return UMT2ItemGiftBoxTemplate::StaticClass();
-		case EMT2ItemType::Pick: return UMT2ItemPickTemplate::StaticClass();
-		case EMT2ItemType::Hair: return UMT2ItemHairTemplate::StaticClass();
-		case EMT2ItemType::Totem: return UMT2ItemTotemTemplate::StaticClass();
-		case EMT2ItemType::Blend: return UMT2ItemBlendTemplate::StaticClass();
-		case EMT2ItemType::Costume: return UMT2ItemCostumeTemplate::StaticClass();
-		case EMT2ItemType::DragonSoul: return UMT2ItemDragonSoulTemplate::StaticClass();
-		case EMT2ItemType::SpecialDragonSoul: return UMT2ItemSpecialDragonSoulTemplate::StaticClass();
-		case EMT2ItemType::Extract: return UMT2ItemExtractTemplate::StaticClass();
-		case EMT2ItemType::SecondaryCoin: return UMT2ItemSecondaryCoinTemplate::StaticClass();
-		case EMT2ItemType::Ring: return UMT2ItemRingTemplate::StaticClass();
-		case EMT2ItemType::Belt: return UMT2ItemBeltTemplate::StaticClass();
-		default: return UMT2ItemSpecialTemplate::StaticClass();
-		}
+		return ResolveMT2ItemTemplateClass(ItemType, LegacySubtype);
 	}
 
 	bool IsMobLureItem(int32 Vnum)
@@ -1090,6 +1053,14 @@ namespace
 			Definition.Vnum >= SingleRemovalDefaults->Vnum &&
 			static_cast<int64>(Definition.Vnum) <= static_cast<int64>(SingleRemovalDefaults->Vnum) +
 				FMath::Max(SingleRemovalDefaults->VnumRange, 0);
+		UClass* ResolvedTemplateClass = ResolveTemplateClass(Definition.ItemType, Definition.SubType.ToLegacy());
+		if (!ResolvedTemplateClass)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Item %d has unsupported subtype %d for type %d; raw import data is retained, template not modified."),
+				Definition.Vnum, Definition.SubType.ToLegacy(), static_cast<int32>(Definition.ItemType));
+			return nullptr;
+		}
+
 		UClass* ParentClass = Definition.Vnum >= 50051 && Definition.Vnum <= 50053
 			? UMT2HorseBookItemTemplate::StaticClass()
 			: Definition.Vnum >= 50054 && Definition.Vnum <= 50059
@@ -1114,7 +1085,7 @@ namespace
 			? UMT2GrandMasterTrainingItemTemplate::StaticClass()
 			: Definition.Vnum == 70102
 				? UMT2KarmaRecoveryItemTemplate::StaticClass()
-				: ResolveTemplateClass(Definition.ItemType);
+				: ResolvedTemplateClass;
 
 		UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *ObjectPath);
 		const int32 RawSubtype=Definition.SubType.ToLegacy();

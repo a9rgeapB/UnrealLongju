@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Items/Templates/MT2ItemUseTemplate.h"
+#include "Items/Templates/MT2ItemUseDetachmentTemplate.h"
 #include "MT2ItemMetinRemovalTemplate.generated.h"
 
 UENUM(BlueprintType)
@@ -20,7 +20,7 @@ enum class EMT2MetinRemovalMode : uint8
 };
 
 UCLASS(Blueprintable)
-class METIN2_API UMT2ItemMetinRemovalTemplate : public UMT2ItemUseTemplate
+class METIN2_API UMT2ItemMetinRemovalTemplate : public UMT2ItemUseDetachmentTemplate
 {
 	GENERATED_BODY()
 
