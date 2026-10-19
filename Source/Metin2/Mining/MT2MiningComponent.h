@@ -1,4 +1,5 @@
 #pragma once
+#include "Items/Templates/MT2ItemPickTemplate.h"
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "TimerManager.h"

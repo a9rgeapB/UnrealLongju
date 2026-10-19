@@ -1,3 +1,4 @@
+#include "Items/Templates/MT2ItemUseTemplate.h"
 #include "Items/MT2InventoryComponent.h"
 #include "Items/MT2AccessorySocketRules.h"
 #include "Items/MT2ItemTemplate.h"
@@ -16,7 +17,7 @@ FMT2AccessorySocketState UMT2InventoryComponent::GetEffectiveAccessoryState(int3
 	const double UpdatedAt = GetOwner() && !GetOwner()->HasAuthority() && ReceivedAccessoryTimes.IsValidIndex(WearPosition)
 		? ReceivedAccessoryTimes[WearPosition] : AccessoryWearUpdatedAt;
 	const double Elapsed = GetWorld() ? FMath::Max(0.0, GetWorld()->GetTimeSeconds() - UpdatedAt) : 0;
-	return MT2AccessorySockets::Advance(Equipment[WearPosition].AccessorySockets, Elapsed);
+	return MT2AccessorySockets::Advance(Equipment[WearPosition].GetAccessorySockets(), Elapsed);
 }
 
 void UMT2InventoryComponent::TrackReplicatedAccessoryWear()
@@ -24,10 +25,10 @@ void UMT2InventoryComponent::TrackReplicatedAccessoryWear()
 	ReceivedAccessoryStates.SetNum(Equipment.Num()); ReceivedAccessoryVnums.SetNum(Equipment.Num()); ReceivedAccessoryTimes.SetNum(Equipment.Num());
 	for (int32 Index=0; Index<Equipment.Num(); ++Index)
 	{
-		if (ReceivedAccessoryVnums[Index] != Equipment[Index].Vnum || !(ReceivedAccessoryStates[Index] == Equipment[Index].AccessorySockets))
+		if (ReceivedAccessoryVnums[Index] != Equipment[Index].Vnum || !(ReceivedAccessoryStates[Index] == Equipment[Index].GetAccessorySockets()))
 		{
 			ReceivedAccessoryTimes[Index] = GetWorld() ? GetWorld()->GetTimeSeconds() : 0;
-			ReceivedAccessoryStates[Index] = Equipment[Index].AccessorySockets;
+			ReceivedAccessoryStates[Index] = Equipment[Index].GetAccessorySockets();
 			ReceivedAccessoryVnums[Index] = Equipment[Index].Vnum;
 		}
 	}
@@ -42,8 +43,8 @@ void UMT2InventoryComponent::SettleAccessoryWear()
 	{
 		if (!MT2AccessorySockets::IsAccessory(ResolveTemplate(Equipment[Index].Vnum))) { continue; }
 		const auto Effective = GetEffectiveAccessoryState(Index);
-		bGradeChanged |= Effective.CurrentGrade != Equipment[Index].AccessorySockets.CurrentGrade;
-		Equipment[Index].AccessorySockets = Effective;
+		bGradeChanged |= Effective.CurrentGrade != Equipment[Index].GetAccessorySockets().CurrentGrade;
+		Equipment[Index].EditAccessorySockets() = Effective;
 	}
 	AccessoryWearUpdatedAt = GetWorld()->GetTimeSeconds();
 	if (bGradeChanged) { OnEquipmentChanged.Broadcast(); GetOwner()->ForceNetUpdate(); }
@@ -57,8 +58,8 @@ void UMT2InventoryComponent::ScheduleAccessoryWear()
 	double Delay = MAX_dbl;
 	for (const auto& Item : Equipment)
 	{
-		if (MT2AccessorySockets::IsAccessory(ResolveTemplate(Item.Vnum)) && Item.AccessorySockets.CurrentGrade > 0)
-		{ Delay = FMath::Min(Delay, Item.AccessorySockets.RemainingSeconds - Item.AccessorySockets.WearFraction); }
+		if (MT2AccessorySockets::IsAccessory(ResolveTemplate(Item.Vnum)) && Item.GetAccessorySockets().CurrentGrade > 0)
+		{ Delay = FMath::Min(Delay, Item.GetAccessorySockets().RemainingSeconds - Item.GetAccessorySockets().WearFraction); }
 	}
 	if (Delay != MAX_dbl) { Timers.SetTimer(AccessoryWearTimer, this, &ThisClass::ProcessAccessoryWear, FMath::Max(0.01f, static_cast<float>(Delay)), false); }
 }
@@ -84,8 +85,8 @@ EMT2AccessorySocketApplyResult UMT2InventoryComponent::ApplyAccessoryMaterialWit
 	// Countdown changes are not item replacement; grade/capacity and all other instance data still match.
 	if (Targets.IsValidIndex(TargetSlot))
 	{
-		if (bTargetEquipped) { ExpectedTarget.AccessorySockets.RemainingSeconds = Targets[TargetSlot].AccessorySockets.RemainingSeconds; }
-		ExpectedTarget.AccessorySockets.WearFraction = Targets[TargetSlot].AccessorySockets.WearFraction;
+		if (bTargetEquipped) { ExpectedTarget.EditAccessorySockets().RemainingSeconds = Targets[TargetSlot].GetAccessorySockets().RemainingSeconds; }
+		ExpectedTarget.EditAccessorySockets().WearFraction = Targets[TargetSlot].GetAccessorySockets().WearFraction;
 	}
 	if (bResolvingAccessory || !IsValid(Player) || !Player->HasAuthority() || !IsValid(State) ||
 		Player->GetHealthComponent()->IsDead() || (State->GetTradeComponent() && State->GetTradeComponent()->IsTrading()) ||
@@ -98,7 +99,7 @@ EMT2AccessorySocketApplyResult UMT2InventoryComponent::ApplyAccessoryMaterialWit
 	const auto* Material = Cast<UMT2ItemUseTemplate>(ResolveTemplate(ExpectedSource.Vnum));
 	if (!IsMaterial(Material) || !Compatible(Material, ResolveTemplate(ExpectedTarget.Vnum)))
 	{ return EMT2AccessorySocketApplyResult::Incompatible; }
-	auto SocketState = Normalize(Targets[TargetSlot].AccessorySockets);
+	auto SocketState = Normalize(Targets[TargetSlot].GetAccessorySockets());
 	const bool bOpening = Material->UseSubType == EMT2UseSubType::AddAccessorySocket;
 	if ((bOpening && SocketState.MaximumGrade == 3) || (!bOpening && SocketState.CurrentGrade >= SocketState.MaximumGrade))
 	{ return EMT2AccessorySocketApplyResult::Full; }
@@ -107,7 +108,7 @@ EMT2AccessorySocketApplyResult UMT2InventoryComponent::ApplyAccessoryMaterialWit
 	{
 		if (bOpening) { ++SocketState.MaximumGrade; }
 		else { SocketState.RemainingSeconds = Duration(++SocketState.CurrentGrade); SocketState.WearFraction = 0; }
-		Targets[TargetSlot].AccessorySockets = SocketState;
+		Targets[TargetSlot].EditAccessorySockets() = SocketState;
 	}
 	if (--Slots[SourceSlot].Count == 0) { Slots[SourceSlot] = FMT2ItemSlot(); }
 	ScheduleAccessoryWear();

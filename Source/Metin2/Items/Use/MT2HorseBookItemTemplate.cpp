@@ -8,6 +8,12 @@
 */
 
 #include "Items/Use/MT2HorseBookItemTemplate.h"
+#include "Skills/MT2SkillDefinition.h"
+
+int32 UMT2HorseBookItemTemplate::GetSummonSkillVnum() const
+{
+	return SummonSkill ? SummonSkill->Vnum : bTypedItemReferences ? 0 : SummonSkillVnum;
+}
 
 #include "Characters/MT2PlayerCharacter.h"
 #include "Components/MT2ManaComponent.h"
@@ -70,7 +76,7 @@ EMT2ItemUseExecution UMT2HorseBookItemTemplate::ExecuteUse(
 	}
 
 	Mana->SetMana(Mana->GetMana() - ManaCost);
-	const int32 SkillLevel = FMath::Max(Skills->GetSkillLevel(SummonSkillVnum), 0);
+	const int32 SkillLevel = FMath::Max(Skills->GetSkillLevel(GetSummonSkillVnum()), 0);
 	const int32 ChanceIndex = FMath::Min(SkillLevel, SuccessPercentBySkillLevel.Num() - 1);
 	const int32 SuccessPercent = SuccessPercentBySkillLevel.IsValidIndex(ChanceIndex)
 		? FMath::Clamp(SuccessPercentBySkillLevel[ChanceIndex], 0, 100) : 10;

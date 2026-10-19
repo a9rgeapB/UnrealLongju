@@ -7,6 +7,8 @@
 
 */
 
+#include "Items/Templates/MT2ItemEquipmentTemplate.h"
+
 #include "Items/MT2InventoryComponent.h"
 
 #include "Items/MT2ItemBonusSettings.h"
@@ -40,7 +42,7 @@ EMT2ItemBonusApplyResult UMT2InventoryComponent::ApplyBonusConsumable(
 	const auto CountKind = [&Target](EMT2ItemBonusKind Kind)
 	{
 		int32 Count = 0;
-		for (const FMT2ItemBonus& Bonus : Target.Bonuses)
+		for (const FMT2ItemBonus& Bonus : Target.GetBonuses())
 		{
 			Count += Bonus.IsValid() && Bonus.Kind == Kind ? 1 : 0;
 		}
@@ -68,8 +70,8 @@ EMT2ItemBonusApplyResult UMT2InventoryComponent::ApplyBonusConsumable(
 	else if (SourceVnum == Settings->ChangeNormalBonusesItemVnum && NormalCount > 0)
 	{
 		bValidUse = true;
-		const TArray<FMT2ItemBonus> OriginalBonuses = Target.Bonuses;
-		Target.Bonuses.RemoveAll([](const FMT2ItemBonus& Bonus)
+		const TArray<FMT2ItemBonus> OriginalBonuses = Target.GetBonuses();
+		Target.EditBonuses().RemoveAll([](const FMT2ItemBonus& Bonus)
 		{
 			return Bonus.Kind == EMT2ItemBonusKind::Normal;
 		});
@@ -90,7 +92,7 @@ EMT2ItemBonusApplyResult UMT2InventoryComponent::ApplyBonusConsumable(
 		}
 		if (CountKind(EMT2ItemBonusKind::Normal) != NormalCount)
 		{
-			Target.Bonuses = OriginalBonuses;
+			Target.EditBonuses() = OriginalBonuses;
 			bValidUse = false;
 		}
 		else
@@ -116,8 +118,8 @@ EMT2ItemBonusApplyResult UMT2InventoryComponent::ApplyBonusConsumable(
 	else if (SourceVnum == Settings->ChangeRareBonusesItemVnum && RareCount > 0)
 	{
 		bValidUse = true;
-		const TArray<FMT2ItemBonus> OriginalBonuses = Target.Bonuses;
-		Target.Bonuses.RemoveAll([](const FMT2ItemBonus& Bonus)
+		const TArray<FMT2ItemBonus> OriginalBonuses = Target.GetBonuses();
+		Target.EditBonuses().RemoveAll([](const FMT2ItemBonus& Bonus)
 		{
 			return Bonus.Kind == EMT2ItemBonusKind::Rare;
 		});
@@ -132,7 +134,7 @@ EMT2ItemBonusApplyResult UMT2InventoryComponent::ApplyBonusConsumable(
 		}
 		if (CountKind(EMT2ItemBonusKind::Rare) != RareCount)
 		{
-			Target.Bonuses = OriginalBonuses;
+			Target.EditBonuses() = OriginalBonuses;
 			bValidUse = false;
 		}
 		else

@@ -8,20 +8,8 @@
 */
 
 #pragma once
-
 #include "Items/Use/MT2ItemActionTemplate.h"
-#include "MT2SkillTrainingItemTemplates.generated.h"
-
-UCLASS(Blueprintable)
-class METIN2_API UMT2GrandMasterTrainingItemTemplate : public UMT2ItemActionTemplate
-{
-	GENERATED_BODY()
-
-public:
-	virtual EMT2ItemUseExecution ExecuteUse(
-		AMT2PlayerCharacter& Character, UMT2InventoryComponent& Inventory,
-		int32 InventorySlot) const override;
-};
+#include "MT2KarmaRecoveryItemTemplate.generated.h"
 
 UCLASS(Blueprintable)
 class METIN2_API UMT2KarmaRecoveryItemTemplate : public UMT2ItemActionTemplate

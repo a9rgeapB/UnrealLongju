@@ -347,6 +347,7 @@ private:
 	// Faithful to the old game's model where equip/unequip recomputes the character's bonus points.
 	void RecalculateEquipmentStats();
 	friend class FMT2AccessoryWearTest;
+	friend class FMT2EquipmentAmplificationTest;
 	uint32 AccessoryConfirmationCounter = 0;
 	uint32 LastAccessoryConfirmation = 0;
 

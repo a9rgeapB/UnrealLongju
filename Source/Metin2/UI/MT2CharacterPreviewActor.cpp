@@ -8,6 +8,10 @@
 */
 
 #include "UI/MT2CharacterPreviewActor.h"
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemCostumeTemplate.h"
+#include "Items/Templates/MT2ItemWeaponTemplate.h"
+
 
 #include "Animation/AnimInstance.h"
 #include "Characters/MT2CharacterAppearanceSettings.h"

@@ -1,4 +1,7 @@
 #pragma once
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemMaterialTemplate.h"
+#include "Items/Templates/MT2ItemWeaponTemplate.h"
 
 // Included by MT2QuestImporter.cpp to retain access to its private parser helpers.
 #if WITH_DEV_AUTOMATION_TESTS

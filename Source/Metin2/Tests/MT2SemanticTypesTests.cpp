@@ -1,3 +1,11 @@
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemAutoUseTemplate.h"
+#include "Items/Templates/MT2ItemCostumeTemplate.h"
+#include "Items/Templates/MT2ItemMaterialTemplate.h"
+#include "Items/Templates/MT2ItemMetinStoneTemplate.h"
+#include "Items/Templates/MT2ItemUniqueTemplate.h"
+#include "Items/Templates/MT2ItemUseTemplate.h"
+#include "Items/Templates/MT2ItemWeaponTemplate.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Items/MT2ItemBonusSettings.h"

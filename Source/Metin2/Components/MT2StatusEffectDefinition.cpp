@@ -109,6 +109,8 @@ const UMT2StatusEffectDefinition* UMT2StatusEffectDefinition::Get(EMT2StatusEffe
 	case EMT2StatusEffectKind::MovementSpeed:  return GetDefault<UMT2StatusEffect_MovementSpeed>();
 	case EMT2StatusEffectKind::AutoHealthRecovery: return GetDefault<UMT2StatusEffect_AutoHealthRecovery>();
 	case EMT2StatusEffectKind::AutoManaRecovery: return GetDefault<UMT2StatusEffect_AutoManaRecovery>();
+	case EMT2StatusEffectKind::ContinuousHealthRecovery: return GetDefault<UMT2StatusEffect_ContinuousHealthRecovery>();
+	case EMT2StatusEffectKind::ContinuousManaRecovery: return GetDefault<UMT2StatusEffect_ContinuousManaRecovery>();
 	case EMT2StatusEffectKind::StatBonus:
 	default:                                   return GetDefault<UMT2StatusEffectDefinition>();
 	}
@@ -222,4 +224,40 @@ bool UMT2StatusEffect_ManaRecovery::Tick(AMT2CharacterBase* Target, FMT2StatusEf
 		[Mana] { return Mana->GetMana(); },
 		[Mana] { return Mana->GetMaxMana(); },
 		[Mana](float V) { Mana->SetCurrentValue(V); });
+}
+
+bool UMT2StatusEffect_ContinuousHealthRecovery::Tick(AMT2CharacterBase* Target, FMT2StatusEffect& Effect) const
+{
+	auto* Health = Target ? Target->GetHealthComponent() : nullptr;
+	if (!Health || Health->IsDead() || Effect.ApplyValue <= 0) return true;
+	Health->SetCurrentValue(FMath::Min(Health->GetHealth() + Effect.ApplyValue, Health->GetMaxHealth()));
+	return Super::Tick(Target, Effect);
+}
+
+FText UMT2StatusEffect_ContinuousHealthRecovery::GetDisplayName() const
+{
+	return NSLOCTEXT("MT2StatusEffects", "ContinuousHP", "Continuous HP Recovery");
+}
+
+FText UMT2StatusEffect_ContinuousHealthRecovery::GetDescription(const FMT2StatusEffect& Effect) const
+{
+	return FText::Format(NSLOCTEXT("MT2StatusEffects", "ContinuousHPRate", "+{0} HP per second"), FText::AsNumber(Effect.ApplyValue));
+}
+
+bool UMT2StatusEffect_ContinuousManaRecovery::Tick(AMT2CharacterBase* Target, FMT2StatusEffect& Effect) const
+{
+	auto* Mana = Target ? Target->GetManaComponent() : nullptr;
+	if (!Mana || !Target->GetHealthComponent() || Target->GetHealthComponent()->IsDead() || Effect.ApplyValue <= 0) return true;
+	Mana->SetCurrentValue(FMath::Min(Mana->GetMana() + Effect.ApplyValue, Mana->GetMaxMana()));
+	return Super::Tick(Target, Effect);
+}
+
+FText UMT2StatusEffect_ContinuousManaRecovery::GetDisplayName() const
+{
+	return NSLOCTEXT("MT2StatusEffects", "ContinuousMP", "Continuous MP Recovery");
+}
+
+FText UMT2StatusEffect_ContinuousManaRecovery::GetDescription(const FMT2StatusEffect& Effect) const
+{
+	return FText::Format(NSLOCTEXT("MT2StatusEffects", "ContinuousMPRate", "+{0} MP per second"), FText::AsNumber(Effect.ApplyValue));
 }

@@ -8,6 +8,7 @@
 */
 
 #pragma once
+#include "Items/Templates/MT2ItemAutoRecoveryTemplate.h"
 
 #include "Components/ActorComponent.h"
 #include "CoreMinimal.h"
@@ -96,6 +97,8 @@ public:
 	// were actually removed; removes nothing and returns 0 when the player doesn't have enough.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
 	int32 RemoveItemByVnum(int32 Vnum, int32 Count);
+	// Server-only, atomic conversion: validates all output space before consuming the source.
+	bool ExchangeItemAtSlot(int32 InventorySlot, int32 ConsumeCount, int32 ResultVnum, int32 ResultCount);
 
 	// Server-only. Writes the scripted numeric value of a socket on an inventory item (old
 	// item.set_socket). Grows the socket array if the item has fewer sockets than the index asks for.

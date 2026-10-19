@@ -41,7 +41,7 @@ bool FMT2ObserverReplicationTest::RunTest(const FString&)
 	TArray<FMT2ItemSlot> Worn; Worn.SetNum(32);
 	Worn[0].Vnum = 11209; Worn[0].Count = 1;
 	Worn[4].Vnum = 19; Worn[4].Count = 1;
-	Worn[4].MetinSockets.SetNum(3); Worn[4].MetinSockets[0].Value = 777;
+	Worn[4].EditMetinSockets().SetNum(3); Worn[4].EditMetinSockets()[0].Value = 777;
 	Worn[20].Vnum = 73001; Worn[20].Count = 1;
 	Inventory->RestoreItems({}, Worn);
 	Inventory->RefreshPublicAppearance();
@@ -64,8 +64,8 @@ bool FMT2ObserverReplicationTest::RunTest(const FString&)
 	ObserverInventory->OnRep_PublicAppearance();
 	TestEqual(TEXT("Late observer reconstructs weapon"), ObserverInventory->GetEquipment()[4].Vnum, 19);
 	TestEqual(TEXT("Late observer reconstructs costume hair"), ObserverInventory->GetEquipment()[20].Vnum, 73001);
-	TestTrue(TEXT("Observer receives no socket state"), ObserverInventory->GetEquipment()[4].MetinSockets.IsEmpty());
-	TestEqual(TEXT("Owner socket state preserved"), Inventory->GetEquipment()[4].MetinSockets[0].Value, 777);
+	TestTrue(TEXT("Observer receives no socket state"), ObserverInventory->GetEquipment()[4].GetMetinSockets().IsEmpty());
+	TestEqual(TEXT("Owner socket state preserved"), Inventory->GetEquipment()[4].GetMetinSockets()[0].Value, 777);
 	Inventory->Equipment[4] = FMT2ItemSlot(); Inventory->RefreshPublicAppearance();
 	ObserverInventory->PublicAppearance = Inventory->PublicAppearance; ObserverInventory->OnRep_PublicAppearance();
 	TestTrue(TEXT("Observer sees unequip"), ObserverInventory->GetEquipment()[4].IsEmpty());

@@ -101,8 +101,8 @@ void UMT2InventoryGridWidget::RefreshSlots(const TArray<FMT2ItemSlot>& InSlots, 
 			const FMT2ItemSlot& OwnerItem = InSlots[OwnerDataIndex];
 			Slots[LocalIndex]->SetCoveredByItem(
 				StartIndex + OwnerLocalIndex, OwnerItem.Vnum, OwnerItem.Count,
-				OwnerItem.Bonuses, OwnerItem.MetinSockets, OwnerItem.SkillVnum,
-				OwnerItem.AutoRecoveryRemainingAmount, OwnerItem.bAutoRecoveryActive,
+				OwnerItem.GetBonuses(), OwnerItem.GetMetinSockets(), OwnerItem.GetSkillVnum(),
+				OwnerItem.GetAutoRecoveryState().RemainingAmount, OwnerItem.GetAutoRecoveryState().bActive,
 				OwnerItem.bNewlyAcquired);
 			Slots[LocalIndex]->SetInstanceTooltipData(OwnerItem,true);
 			continue;
@@ -112,10 +112,10 @@ void UMT2InventoryGridWidget::RefreshSlots(const TArray<FMT2ItemSlot>& InSlots, 
 		{
 			Slots[LocalIndex]->SetItemByVnum(
 				InSlots[DataIndex].Vnum, InSlots[DataIndex].Count,
-				InSlots[DataIndex].Bonuses, InSlots[DataIndex].MetinSockets,
-				InSlots[DataIndex].SkillVnum,
-				InSlots[DataIndex].AutoRecoveryRemainingAmount,
-				InSlots[DataIndex].bAutoRecoveryActive,
+				InSlots[DataIndex].GetBonuses(), InSlots[DataIndex].GetMetinSockets(),
+				InSlots[DataIndex].GetSkillVnum(),
+				InSlots[DataIndex].GetAutoRecoveryState().RemainingAmount,
+				InSlots[DataIndex].GetAutoRecoveryState().bActive,
 				InSlots[DataIndex].bNewlyAcquired);
 			Slots[LocalIndex]->SetInstanceTooltipData(InSlots[DataIndex],true);
 		}

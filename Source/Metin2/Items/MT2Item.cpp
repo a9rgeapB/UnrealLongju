@@ -19,7 +19,7 @@ void UMT2Item::PostLoad()
 	if (Count_DEPRECATED > 0)
 	{
 		InstanceData.Count = Count_DEPRECATED;
-		InstanceData.Bonuses = MoveTemp(Bonuses_DEPRECATED);
+		InstanceData.EditBonuses() = MoveTemp(Bonuses_DEPRECATED);
 		Sockets_DEPRECATED.Reset();
 		Count_DEPRECATED = 0;
 	}

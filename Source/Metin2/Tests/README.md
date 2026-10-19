@@ -1,5 +1,13 @@
 # Metin2 automation tests
 
+`Metin2.Items` includes numeric socket persistence/transfer/stacking, blend rolls and authoritative
+use, energy/costume attribute amplification, fixed-rate recovery, atomic item conversions, live-fish
+opening and campfire placement/roasting/range/lifetime checks. Import tests cover valid and malformed
+blend/fish tables and the configured legacy source files (including CP949 names and the fish-table
+totals footer). They require the relevant imported item assets. NullRHI verifies asset loading and
+gameplay rules, not particle rendering or multiplayer visual presentation. See
+[item behavior](../../../Docs/ItemBehavior.md).
+
 `Metin2.Editor.Effects.ImportedModuleOwnership` checks representative imported Cascade assets for module ownership that remains valid when saved/cooked. The editor commandlet `MT2RepairParticleOwnership` audits all imported particle systems and can repair invalid ownership with backups; see [offline play](../../../Docs/OfflinePlay.md).
 
 `Metin2.Offline` covers standalone/online launch isolation, credential-free local profiles, four-slot creation and validation, roster reopening, safe map selection, player restoration/saving, and local admin permissions without registry writes. Fixtures use separate databases under `Saved/Automation/Offline`; they do not modify the user's offline profile or coordinator database. Full packaged visual play and subsequent gameplay map transfers require separate validation. See [offline play](../../../Docs/OfflinePlay.md).

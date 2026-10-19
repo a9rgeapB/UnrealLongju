@@ -7,6 +7,8 @@
 
 */
 
+#include "Items/Templates/MT2ItemAutoRecoveryTemplate.h"
+
 #include "Items/MT2InventoryComponent.h"
 
 #include "Characters/MT2PlayerCharacter.h"
@@ -51,14 +53,14 @@ bool UMT2InventoryComponent::ToggleAutoRecoveryItem(
 
 	FMT2ItemSlot& Selected = Slots[InventorySlot];
 	Template.InitializeGeneratedInstance(Selected);
-	if (Selected.AutoRecoveryRemainingAmount <= 0)
+	if (Selected.GetAutoRecoveryState().RemainingAmount <= 0)
 	{
 		return false;
 	}
-	if (Selected.bAutoRecoveryActive)
+	if (Selected.GetAutoRecoveryState().bActive)
 	{
 		StopAutoRecoveryEffectForSlot(Selected);
-		Selected.bAutoRecoveryActive = false;
+		Selected.EditAutoRecoveryState().bActive = false;
 		OnInventoryChanged.Broadcast();
 		StartAutoRecoveryTimerIfNeeded();
 		return true;
@@ -66,7 +68,7 @@ bool UMT2InventoryComponent::ToggleAutoRecoveryItem(
 
 	for (FMT2ItemSlot& Item : Slots)
 	{
-		if (Item.IsEmpty() || !Item.bAutoRecoveryActive)
+		if (Item.IsEmpty() || !Item.GetAutoRecoveryState().bActive)
 		{
 			continue;
 		}
@@ -75,11 +77,11 @@ bool UMT2InventoryComponent::ToggleAutoRecoveryItem(
 		if (Other && Other->Resource == Template.Resource)
 		{
 			StopAutoRecoveryEffectForSlot(Item);
-			Item.bAutoRecoveryActive = false;
+			Item.EditAutoRecoveryState().bActive = false;
 		}
 	}
-	Selected.bAutoRecoveryActive = true;
-	RefreshAutoRecoveryEffect(Template, Selected.AutoRecoveryRemainingAmount);
+	Selected.EditAutoRecoveryState().bActive = true;
+	RefreshAutoRecoveryEffect(Template, Selected.GetAutoRecoveryState().RemainingAmount);
 	StartAutoRecoveryTimerIfNeeded();
 	ProcessAutoRecoveryItems();
 	OnInventoryChanged.Broadcast();
@@ -114,7 +116,7 @@ void UMT2InventoryComponent::RefreshAutoRecoveryEffect(
 
 void UMT2InventoryComponent::StopAutoRecoveryEffectForSlot(const FMT2ItemSlot& Slot)
 {
-	if (!Slot.bAutoRecoveryActive)
+	if (!Slot.GetAutoRecoveryState().bActive)
 	{
 		return;
 	}
@@ -137,7 +139,7 @@ void UMT2InventoryComponent::StartAutoRecoveryTimerIfNeeded()
 	}
 	const bool bHasActive = Slots.ContainsByPredicate([](const FMT2ItemSlot& Item)
 	{
-		return !Item.IsEmpty() && Item.bAutoRecoveryActive;
+		return !Item.IsEmpty() && Item.GetAutoRecoveryState().bActive;
 	});
 	if (bHasActive && !GetWorld()->GetTimerManager().IsTimerActive(AutoRecoveryTimer))
 	{
@@ -160,7 +162,7 @@ void UMT2InventoryComponent::ProcessAutoRecoveryItems()
 	bool bChanged = false;
 	for (FMT2ItemSlot& Item : Slots)
 	{
-		if (Item.IsEmpty() || !Item.bAutoRecoveryActive)
+		if (Item.IsEmpty() || !Item.GetAutoRecoveryState().bActive)
 		{
 			continue;
 		}
@@ -168,7 +170,7 @@ void UMT2InventoryComponent::ProcessAutoRecoveryItems()
 			Cast<UMT2ItemAutoRecoveryTemplate>(ResolveTemplate(Item.Vnum));
 		if (!Template)
 		{
-			Item.bAutoRecoveryActive = false;
+			Item.EditAutoRecoveryState().bActive = false;
 			bChanged = true;
 			continue;
 		}
@@ -181,7 +183,7 @@ void UMT2InventoryComponent::ProcessAutoRecoveryItems()
 			{
 				const int32 Missing = FMath::Max(
 					0, FMath::FloorToInt(Health->GetMaxHealth() - Health->GetHealth()));
-				Restored = FMath::Min3(Item.AutoRecoveryRemainingAmount, Missing,
+				Restored = FMath::Min3(Item.GetAutoRecoveryState().RemainingAmount, Missing,
 					FMath::Max(1, FMath::FloorToInt(Health->GetMaxHealth() * 0.03f)));
 				if (Restored > 0) Health->SetCurrentValue(Health->GetHealth() + Restored);
 			}
@@ -190,16 +192,16 @@ void UMT2InventoryComponent::ProcessAutoRecoveryItems()
 		{
 			const int32 Missing = FMath::Max(
 				0, FMath::FloorToInt(Mana->GetMaxMana() - Mana->GetMana()));
-			Restored = FMath::Min3(Item.AutoRecoveryRemainingAmount, Missing,
+			Restored = FMath::Min3(Item.GetAutoRecoveryState().RemainingAmount, Missing,
 				FMath::Max(1, FMath::FloorToInt(Mana->GetMaxMana() * 0.03f)));
 			if (Restored > 0) Mana->SetCurrentValue(Mana->GetMana() + Restored);
 		}
 		if (Restored > 0)
 		{
-			Item.AutoRecoveryRemainingAmount -= Restored;
+			Item.EditAutoRecoveryState().RemainingAmount -= Restored;
 			bChanged = true;
 		}
-		if (Item.AutoRecoveryRemainingAmount <= 0)
+		if (Item.GetAutoRecoveryState().RemainingAmount <= 0)
 		{
 			StopAutoRecoveryEffectForSlot(Item);
 			Item = FMT2ItemSlot();
@@ -207,7 +209,7 @@ void UMT2InventoryComponent::ProcessAutoRecoveryItems()
 		}
 		else
 		{
-			RefreshAutoRecoveryEffect(*Template, Item.AutoRecoveryRemainingAmount);
+			RefreshAutoRecoveryEffect(*Template, Item.GetAutoRecoveryState().RemainingAmount);
 		}
 	}
 	if (bChanged)

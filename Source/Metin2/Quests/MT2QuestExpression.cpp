@@ -8,6 +8,16 @@
 */
 
 #include "Quests/MT2QuestExpression.h"
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemAutoUseTemplate.h"
+#include "Items/Templates/MT2ItemCostumeTemplate.h"
+#include "Items/Templates/MT2ItemMaterialTemplate.h"
+#include "Items/Templates/MT2ItemMetinStoneTemplate.h"
+#include "Items/Templates/MT2ItemPickTemplate.h"
+#include "Items/Templates/MT2ItemRodTemplate.h"
+#include "Items/Templates/MT2ItemUseTemplate.h"
+#include "Items/Templates/MT2ItemWeaponTemplate.h"
+
 
 #include "Characters/MT2PlayerCharacter.h"
 #include "Dungeons/MT2DungeonSubsystem.h"
@@ -1482,7 +1492,7 @@ namespace
 			{
 				UE_LOG(LogTemp, Error, TEXT("Quest item.next_refine_vnum cannot find item proto %d."), Vnum);
 			}
-			return FMT2QuestValue(Item ? Item->RefinedVnum : 0);
+			return FMT2QuestValue(Item ? Item->GetRefinedVnum() : 0);
 		}
 
 		if (Name == TEXT("item.start_realtime_expire"))
@@ -1530,7 +1540,7 @@ namespace
 			}
 			if (Name == TEXT("item.get_refine_vnum"))
 			{
-				return FMT2QuestValue(Template ? Template->RefinedVnum : 0);
+				return FMT2QuestValue(Template ? Template->GetRefinedVnum() : 0);
 			}
 			if (Name == TEXT("item.get_value"))
 			{
@@ -1571,17 +1581,7 @@ namespace
 			}
 			if (Name == TEXT("item.get_socket"))
 			{
-				// Old sockets are numeric; ours hold a metin-stone template, so report the stone's vnum
-				// (0 for an open socket) which is what the scripts compare against.
-				const int32 SocketIndex = Argument(0).AsInt();
-				if (!Slot->MetinSockets.IsValidIndex(SocketIndex))
-				{
-					return FMT2QuestValue(0.0);
-				}
-				const FMT2MetinSocket& Socket = Slot->MetinSockets[SocketIndex];
-				const UMT2ItemMetinStoneTemplate* Stone = Socket.Stone.GetDefaultObject();
-				// A mounted stone reports its vnum; otherwise the socket's scripted numeric value.
-				return FMT2QuestValue(Stone ? Stone->Vnum : Socket.Value);
+				return FMT2QuestValue(MT2ItemUtils::GetNumericSocket(*Slot, Argument(0).AsInt()));
 			}
 			return FMT2QuestValue(0.0);
 		}

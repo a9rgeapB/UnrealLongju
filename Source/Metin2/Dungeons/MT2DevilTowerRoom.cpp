@@ -1,4 +1,6 @@
 #include "Dungeons/MT2DevilTowerRoom.h"
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemWeaponTemplate.h"
 #include "Player/MT2PlayerState.h"
 #include "Player/MT2PlayerController.h"
 #include "Dungeons/MT2DungeonSubsystem.h"

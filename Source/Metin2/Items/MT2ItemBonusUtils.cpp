@@ -8,6 +8,9 @@
 */
 
 #include "Items/MT2ItemBonusUtils.h"
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemWeaponTemplate.h"
+
 
 #include "Items/MT2ItemTemplate.h"
 
@@ -80,7 +83,7 @@ bool MT2ItemBonusUtils::AddRandomBonus(
 		if (Definition.ApplyType == EMT2ItemBonusType::None || Definition.SelectionWeight <= 0 ||
 			!MaximumLevel || *MaximumLevel <= 0 ||
 			(Definition.EligibleItemFlags & static_cast<int32>(Target)) == 0 ||
-			HasBonusType(Item.Bonuses, static_cast<int32>(Definition.ApplyType), Kind))
+			HasBonusType(Item.GetBonuses(), static_cast<int32>(Definition.ApplyType), Kind))
 		{
 			continue;
 		}
@@ -102,7 +105,7 @@ bool MT2ItemBonusUtils::AddRandomBonus(
 	{
 		return false;
 	}
-	FMT2ItemBonus& Bonus = Item.Bonuses.AddDefaulted_GetRef();
+	FMT2ItemBonus& Bonus = Item.EditBonuses().AddDefaulted_GetRef();
 	Bonus.Type = Definition.ApplyType;
 	Bonus.Value = Definition.Values[LevelIndex];
 	Bonus.Kind = Kind;
@@ -126,10 +129,10 @@ void MT2ItemBonusUtils::AddDamageAddon(FMT2ItemSlot& Item, const FMT2DamageAddon
 	const int32 Average = FMath::RoundToInt(Formula.AverageDamageSkillMultiplier * Skill) +
 		(FMath::Abs(Skill) <= Formula.SkillDamageThreshold ? FMath::Abs(Noise) : 0) +
 		FMath::RandRange(ExtraRange.X, ExtraRange.Y);
-	FMT2ItemBonus& AverageBonus = Item.Bonuses.AddDefaulted_GetRef();
+	FMT2ItemBonus& AverageBonus = Item.EditBonuses().AddDefaulted_GetRef();
 	AverageBonus.Type = Formula.AverageDamageApplyType;
 	AverageBonus.Value = Average;
-	FMT2ItemBonus& SkillBonus = Item.Bonuses.AddDefaulted_GetRef();
+	FMT2ItemBonus& SkillBonus = Item.EditBonuses().AddDefaulted_GetRef();
 	SkillBonus.Type = Formula.SkillDamageApplyType;
 	SkillBonus.Value = Skill;
 }

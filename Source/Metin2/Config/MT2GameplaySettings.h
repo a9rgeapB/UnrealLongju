@@ -119,6 +119,17 @@ public:
 	// Importer-only: runtime triggers are cooked as numeric VNUM filters.
 	UPROPERTY(EditAnywhere, config, Category = "Quests")
 	TMap<FString, int32> QuestItemTriggerAliases;
+
+	// RemoveBadAffect also removes the legacy SKILL_TUSOK debuff (skill 80).
+	UPROPERTY(EditAnywhere, config, Category = "Items|Cleansing")
+	TArray<int32> CleansedSkillVnums = {80};
+
+	UPROPERTY(EditAnywhere, config, Category = "Items|Attribute Amplification")
+	TArray<EMT2ItemWearFlag> EnergyWearSlots = {EMT2ItemWearFlag::Body, EMT2ItemWearFlag::Head,
+		EMT2ItemWearFlag::Foots, EMT2ItemWearFlag::Wrist, EMT2ItemWearFlag::Weapon,
+		EMT2ItemWearFlag::Neck, EMT2ItemWearFlag::Ear, EMT2ItemWearFlag::Shield};
+	UPROPERTY(EditAnywhere, config, Category = "Items|Attribute Amplification")
+	TArray<EMT2ItemWearFlag> CostumeAttributeWearSlots = {EMT2ItemWearFlag::CostumeBody, EMT2ItemWearFlag::CostumeHair};
 	virtual FName GetCategoryName() const override { return TEXT("Metin2"); }
 
 	static const UMT2GameplaySettings& Get() { return *GetDefault<UMT2GameplaySettings>(); }

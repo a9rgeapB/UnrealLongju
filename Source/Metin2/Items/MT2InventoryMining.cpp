@@ -1,3 +1,5 @@
+#include "Items/Templates/MT2ItemMetinStoneTemplate.h"
+#include "Items/Templates/MT2ItemPickTemplate.h"
 #include "Items/MT2InventoryComponent.h"
 #include "Items/MT2ItemTemplate.h"
 #include "Items/MT2ItemUtils.h"
@@ -47,6 +49,7 @@ int32 UMT2InventoryComponent::RefineOreWithRoll(int32 OreSlot, const FMT2ItemSlo
 		if (--Candidate[StoneSlot].Count == 0) { Candidate[StoneSlot] = FMT2ItemSlot(); FreedStone = StoneSlot; }
 	}
 	FMT2ItemSlot Reward(ResultVnum, ResultTemplate->MakeInstanceData(1));
+	Reward.Template = ResultTemplate->GetClass();
 	ResultTemplate->InitializeGeneratedInstance(Reward);
 	Reward.bNewlyAcquired = true;
 	int32 Destination = INDEX_NONE;
@@ -88,11 +91,10 @@ bool UMT2InventoryComponent::FinishMiningAttempt()
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority() || !Equipment.IsValidIndex(4)) { return false; }
 	const auto* Pick=Cast<UMT2ItemPickTemplate>(ResolveTemplate(Equipment[4].Vnum));
-	if (!Pick || Pick->RefinedVnum<=0 || Pick->PracticeChanceDenominator<=0 || Pick->ImprovementPointsRequired<=0) { return false; }
-	const int32 Points=Equipment[4].MetinSockets.IsValidIndex(0) ? Equipment[4].MetinSockets[0].Value : 0;
+	if (!Pick || Pick->GetRefinedVnum()<=0 || Pick->PracticeChanceDenominator<=0 || Pick->ImprovementPointsRequired<=0) { return false; }
+	const int32 Points=Equipment[4].GetPickaxeState().Proficiency;
 	if (Points>=Pick->ImprovementPointsRequired || FMath::RandRange(1,Pick->PracticeChanceDenominator)!=1) { return false; }
-	if (Equipment[4].MetinSockets.IsEmpty()) { Equipment[4].MetinSockets.SetNum(1); }
-	Equipment[4].MetinSockets[0].Value=Points+1;
+	Equipment[4].EditPickaxeState().Proficiency=Points+1;
 	OnInventoryChanged.Broadcast(); OnEquipmentChanged.Broadcast();
 	return true;
 }

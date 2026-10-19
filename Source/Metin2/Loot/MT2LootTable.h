@@ -34,7 +34,7 @@ struct METIN2_API FMT2LootTableEntry
 	TSubclassOf<UMT2ItemTemplate> ItemTemplate;
 
 	// Exact reward VNUM. It may select a variant inside ItemTemplate's VnumRange.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loot", meta = (ClampMin = "0"))
+	UPROPERTY()
 	int32 ItemVnum = 0;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loot")

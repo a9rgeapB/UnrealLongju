@@ -1,3 +1,4 @@
+#include "Items/Templates/MT2ItemRodTemplate.h"
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
@@ -98,8 +99,8 @@ bool FMT2FishingRulesTest::RunTest(const FString&)
 			TestTrue(FString::Printf(TEXT("%s %s has sound events"), *Name, *Action.ToString()), SoundCount > 0);
 		}
 	}
-	FMT2ItemSlot A; A.Vnum=27803; A.MetinSockets.SetNum(1); A.MetinSockets[0].Value=1000;
-	FMT2ItemSlot B=A; B.MetinSockets[0].Value=2000;
+	FMT2ItemSlot A; A.Vnum=27803; A.EditMetinSockets().SetNum(1); A.EditMetinSockets()[0].Value=1000;
+	FMT2ItemSlot B=A; B.EditMetinSockets()[0].Value=2000;
 	TestFalse(TEXT("Fish lengths cannot merge"), MT2ItemUtils::HaveSameInstanceData(A,B));
 	return true;
 }
@@ -120,7 +121,7 @@ bool FMT2FishingAuthorityTest::RunTest(const FString&)
 	Player->GetHealthComponent()->InitializeWithAbilitySystem(ASC);
 	Player->SetActorLocation(FVector(-1000,-1000,0)); Player->SetActorRotation(FRotator::ZeroRotator); Player->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 	auto* Inventory=Player->GetInventoryComponent(); TArray<FMT2ItemSlot> Slots,Worn; Slots.SetNum(180); Worn.SetNum(32);
-	Worn[4]=FMT2ItemSlot(27400,Rod->MakeInstanceData(1)); Worn[4].MetinSockets.SetNum(3); Worn[4].MetinSockets[2].Value=40; Inventory->RestoreItems(Slots,Worn);
+	Worn[4]=FMT2ItemSlot(27400,Rod->MakeInstanceData(1)); Worn[4].EditRodState().BaitPower=40; Inventory->RestoreItems(Slots,Worn);
 	auto* Map=World->SpawnActor<AMT2MapPresentationActor>(); Map->MapIndex=1; Map->WorldMin=FVector2D(-2000,-2000); Map->WorldMax=FVector2D::ZeroVector;
 	Map->Attributes.Size=FIntPoint(20,20); Map->Attributes.Flags.SetNumZeroed(400); World->GetSubsystem<UMT2MapAttributeSubsystem>()->RegisterMap(Map);
 	auto* Fishing=Player->GetFishingComponent();
@@ -132,13 +133,13 @@ bool FMT2FishingAuthorityTest::RunTest(const FString&)
 	TestTrue(TEXT("Duplicate start cannot stop active attempt"),Fishing->IsFishing());
 	Fishing->ServerCancelFishing_Implementation(First+1); TestTrue(TEXT("Wrong session rejected"),Fishing->IsFishing());
 	Fishing->ReelIn(); TestFalse(TEXT("Early stop cancels"),Fishing->IsFishing());
-	TestEqual(TEXT("Early stop keeps bait"),Inventory->GetEquipment()[4].MetinSockets[2].Value,40);
+	TestEqual(TEXT("Early stop keeps bait"),Inventory->GetEquipment()[4].GetRodState().BaitPower,40);
 	TestTrue(TEXT("Second cast"),Fishing->StartFishing()); Fishing->Bite();
 	TestEqual(TEXT("Server bite state"),int32(Fishing->State.Phase),int32(EMT2FishingPhase::Bite));
 	Fishing->BiteTime=World->GetTimeSeconds()-7; Fishing->ReelIn();
-	TestFalse(TEXT("Expired reel completes"),Fishing->IsFishing()); TestEqual(TEXT("Expired reel consumes bait"),Inventory->GetEquipment()[4].MetinSockets[2].Value,0);
+	TestFalse(TEXT("Expired reel completes"),Fishing->IsFishing()); TestEqual(TEXT("Expired reel consumes bait"),Inventory->GetEquipment()[4].GetRodState().BaitPower,0);
 	TestFalse(TEXT("No bait cannot recast"),Fishing->StartFishing());
-	Worn[4].MetinSockets[2].Value=40; Inventory->RestoreItems(Slots,Worn); TestTrue(TEXT("Rebait permits cast"),Fishing->StartFishing());
+	Worn[4].EditRodState().BaitPower=40; Inventory->RestoreItems(Slots,Worn); TestTrue(TEXT("Rebait permits cast"),Fishing->StartFishing());
 	Player->SetActorLocation(FVector(-1100,-1000,0)); Fishing->CheckAttempt(); TestFalse(TEXT("Movement cancels"),Fishing->IsFishing());
 	Player->SetActorLocation(FVector(-1000,-1000,0)); Map->Attributes.Flags[10*20+10]=MT2MapAttribute::Block;
 	TestFalse(TEXT("Blocked source denied"),Fishing->StartFishing());
@@ -148,27 +149,27 @@ bool FMT2FishingAuthorityTest::RunTest(const FString&)
 	const int32 BeforeFish=Inventory->CountItemByVnum(27803); Fishing->ReelIn();
 	TestEqual(TEXT("Successful reel gives one fish"),Inventory->CountItemByVnum(27803),BeforeFish+1);
 	const auto* Fish=Inventory->GetSlots().FindByPredicate([](const FMT2ItemSlot& Item) { return Item.Vnum==27803; });
-	TestTrue(TEXT("Fish length stored"),Fish && Fish->MetinSockets.IsValidIndex(0) && Fish->MetinSockets[0].Value>=1000 && Fish->MetinSockets[0].Value<=2800);
-	const int32 OriginalLength=Fish ? Fish->MetinSockets[0].Value : 0;
+	TestTrue(TEXT("Fish length stored"),Fish && Fish->GetFishState().LengthTenths>=1000 && Fish->GetFishState().LengthTenths<=2800);
+	const int32 OriginalLength=Fish ? Fish->GetFishState().LengthTenths : 0;
 	const FString FishPayload=PS->CapturePersistentStateJson_Implementation();
 	TestTrue(TEXT("Fish payload restores"),PS->ApplyPersistentStateJson_Implementation(FishPayload));
 	const auto* LoadedFish=Inventory->GetSlots().FindByPredicate([](const FMT2ItemSlot& Item) { return Item.Vnum==27803; });
-	TestTrue(TEXT("Fish length survives persistence"),LoadedFish && LoadedFish->MetinSockets[0].Value==OriginalLength);
+	TestTrue(TEXT("Fish length survives persistence"),LoadedFish && LoadedFish->GetFishState().LengthTenths==OriginalLength);
 	Fishing->ServerToggleFishing_Implementation(First); TestEqual(TEXT("Old reel cannot duplicate reward"),Inventory->CountItemByVnum(27803),BeforeFish+1);
 	Inventory->RestoreItems(Slots,Worn); TestTrue(TEXT("Swap test cast"),Fishing->StartFishing()); Fishing->Bite();
 	TestTrue(TEXT("Unequip allowed after cancelling"),Inventory->UnequipItem(4)); TestFalse(TEXT("Unequip cancelled cast"),Fishing->IsFishing());
 	const auto* Returned=Inventory->GetSlots().FindByPredicate([](const FMT2ItemSlot& Item) { return Item.Vnum==27400; });
-	TestTrue(TEXT("Bait consumed on original rod before swap"),Returned && Returned->MetinSockets[2].Value==0);
+	TestTrue(TEXT("Bait consumed on original rod before swap"),Returned && Returned->GetRodState().BaitPower==0);
 	auto* MutableRod=const_cast<UMT2ItemRodTemplate*>(Rod); const int32 OriginalDenominator=MutableRod->PracticeChanceDenominator;
 	ON_SCOPE_EXIT { MutableRod->PracticeChanceDenominator=OriginalDenominator; };
-	MutableRod->PracticeChanceDenominator=1; Worn[4].MetinSockets[0].Value=Rod->ImprovementPointsRequired-1; Inventory->RestoreItems(Slots,Worn);
+	MutableRod->PracticeChanceDenominator=1; Worn[4].EditRodState().Proficiency=Rod->ImprovementPointsRequired-1; Inventory->RestoreItems(Slots,Worn);
 	TestTrue(TEXT("Practice applied"),Inventory->FinishFishingAttempt(true));
-	TestEqual(TEXT("Proficiency reaches cap"),Inventory->GetEquipment()[4].MetinSockets[0].Value,Rod->ImprovementPointsRequired);
-	Inventory->FinishFishingAttempt(true); TestEqual(TEXT("Proficiency cannot exceed cap"),Inventory->GetEquipment()[4].MetinSockets[0].Value,Rod->ImprovementPointsRequired);
+	TestEqual(TEXT("Proficiency reaches cap"),Inventory->GetEquipment()[4].GetRodState().Proficiency,Rod->ImprovementPointsRequired);
+	Inventory->FinishFishingAttempt(true); TestEqual(TEXT("Proficiency cannot exceed cap"),Inventory->GetEquipment()[4].GetRodState().Proficiency,Rod->ImprovementPointsRequired);
 	const FString RodPayload=PS->CapturePersistentStateJson_Implementation();
 	TestTrue(TEXT("Rod payload restores"),PS->ApplyPersistentStateJson_Implementation(RodPayload));
-	TestEqual(TEXT("Rod proficiency survives persistence"),Inventory->GetEquipment()[4].MetinSockets[0].Value,Rod->ImprovementPointsRequired);
-	TestEqual(TEXT("Empty bait remains empty after persistence"),Inventory->GetEquipment()[4].MetinSockets[2].Value,0);
+	TestEqual(TEXT("Rod proficiency survives persistence"),Inventory->GetEquipment()[4].GetRodState().Proficiency,Rod->ImprovementPointsRequired);
+	TestEqual(TEXT("Empty bait remains empty after persistence"),Inventory->GetEquipment()[4].GetRodState().BaitPower,0);
 	TestEqual(TEXT("Equipped rod cannot refine"),Inventory->RefineFishingRod(0),2);
 	TestTrue(TEXT("Unequip trained rod"),Inventory->UnequipItem(4));
 	const int32 RodIndex=Inventory->GetSlots().IndexOfByPredicate([](const FMT2ItemSlot& Item) { return Item.Vnum==27400; });
@@ -182,7 +183,7 @@ bool FMT2FishingAuthorityTest::RunTest(const FString&)
 	TestTrue(TEXT("Fishing quest binding recognized"),Ok);
 	TestEqual(TEXT("Replayed refinement snapshot rejected"),FMT2QuestExpression::Evaluate(FString::Printf(TEXT("__fish_real_refine_rod(%d)"),RodIndex),Context,Ok).AsInt(),2);
 	TestEqual(TEXT("Rod replaced with next vnum"),Inventory->GetSlots()[RodIndex].Vnum,Rod->RefinedVnum);
-	TestEqual(TEXT("New rod resets proficiency"),Inventory->GetSlots()[RodIndex].MetinSockets[0].Value,0);
+	TestEqual(TEXT("New rod resets proficiency"),Inventory->GetSlots()[RodIndex].GetRodState().Proficiency,0);
 	return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2FishingPresentationTest, "Metin2.Fishing.Presentation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

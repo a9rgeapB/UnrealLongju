@@ -36,7 +36,8 @@ public:
 	void BuildTooltip(const UMT2ItemTemplate* Template, int32 Count, const AMT2PlayerState* Viewer,
 		int64 ShopPrice = -1, const TArray<FMT2ItemBonus>* Bonuses = nullptr,
 		const TArray<FMT2MetinSocket>* MetinSockets = nullptr, int32 SkillVnum = 0,
-		int32 AutoRecoveryRemainingAmount = INDEX_NONE, const FMT2AccessorySocketState* AccessorySockets = nullptr);
+		int32 AutoRecoveryRemainingAmount = INDEX_NONE, const FMT2AccessorySocketState* AccessorySockets = nullptr,
+		const FMT2ItemInstanceData* InstanceData = nullptr);
 
 	// Instantiates the right tooltip subclass for the item (Template->ResolveTooltipClass) and fills
 	// it. Returns null for an invalid template. ShopPrice >= 0 appends the affordability price line.
@@ -45,7 +46,8 @@ public:
 		const AMT2PlayerState* Viewer, int64 ShopPrice = -1,
 		const TArray<FMT2ItemBonus>* Bonuses = nullptr,
 		const TArray<FMT2MetinSocket>* MetinSockets = nullptr, int32 SkillVnum = 0,
-		int32 AutoRecoveryRemainingAmount = INDEX_NONE, const FMT2AccessorySocketState* AccessorySockets = nullptr);
+		int32 AutoRecoveryRemainingAmount = INDEX_NONE, const FMT2AccessorySocketState* AccessorySockets = nullptr,
+		const FMT2ItemInstanceData* InstanceData = nullptr);
 
 	// Old client colors.
 	static const FLinearColor NormalColor;

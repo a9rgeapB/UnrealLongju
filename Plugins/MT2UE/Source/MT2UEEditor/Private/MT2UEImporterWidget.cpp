@@ -1,4 +1,4 @@
-﻿/*
+/*
 
 - Copyright © 2026 Castellese Brian Vincenzo.
 - Licensed under the PolyForm Noncommercial License 1.0.0.

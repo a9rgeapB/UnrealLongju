@@ -194,7 +194,7 @@ void UMT2QuickSlotBarWidget::RefreshQuickSlots()
 					if (ItemSlot.Vnum == Assignment.Vnum)
 					{
 						TotalCount += ItemSlot.Count;
-						bItemActive |= ItemSlot.bAutoRecoveryActive;
+						bItemActive |= ItemSlot.GetAutoRecoveryState().bActive;
 					}
 				}
 			}

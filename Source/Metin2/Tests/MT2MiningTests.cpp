@@ -1,3 +1,4 @@
+#include "Items/Templates/MT2ItemPickTemplate.h"
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include "Core/MT2VnumRegistrySubsystem.h"
@@ -114,16 +115,16 @@ bool FMT2MiningAuthorityTest::RunTest(const FString&)
 	Vein->SetActorLocation(Player->GetActorLocation()+FVector(100,0,0));
 	auto* Mining=Player->GetMiningComponent();
 	TestFalse(TEXT("Wrong equipment denied"),Mining->StartMining(Vein));
-	Worn[4]=FMT2ItemSlot(29101,Pick->MakeInstanceData(1)); Worn[4].MetinSockets.SetNum(3); Inventory->RestoreItems(Slots,Worn);
+	Worn[4]=FMT2ItemSlot(29101,Pick->MakeInstanceData(1)); Inventory->RestoreItems(Slots,Worn);
 	TestTrue(TEXT("Equipped pick permits mining"),Mining->StartMining(Vein));
 	const uint32 Session=Mining->State.Session;
 	Mining->Complete(Session);
 	TestTrue(TEXT("Early completion cannot resolve"),Mining->IsMining());
-	TestEqual(TEXT("No practice before completion"),Inventory->GetEquipment()[4].MetinSockets[0].Value,0);
+	TestEqual(TEXT("No practice before completion"),Inventory->GetEquipment()[4].GetPickaxeState().Proficiency,0);
 	TestEqual(TEXT("No premature ore"),Inventory->CountItemByVnum(50601),0);
 	Mining->CancelMining();
 	TestFalse(TEXT("Cancellation stops sequence"),Mining->IsMining());
-	TestEqual(TEXT("Interrupted sequence grants no practice"),Inventory->GetEquipment()[4].MetinSockets[0].Value,0);
+	TestEqual(TEXT("Interrupted sequence grants no practice"),Inventory->GetEquipment()[4].GetPickaxeState().Proficiency,0);
 	TestTrue(TEXT("Next sequence starts"),Mining->StartMining(Vein));
 	Mining->Complete(Session);
 	TestTrue(TEXT("Stale callback cannot end new sequence"),Mining->IsMining());
@@ -131,14 +132,14 @@ bool FMT2MiningAuthorityTest::RunTest(const FString&)
 	Mining->Random.Initialize(1);
 	Mining->Complete(Mining->State.Session);
 	TestFalse(TEXT("Completed sequence stops"),Mining->IsMining());
-	TestEqual(TEXT("Completed sequence practices once"),Inventory->GetEquipment()[4].MetinSockets[0].Value,1);
+	TestEqual(TEXT("Completed sequence practices once"),Inventory->GetEquipment()[4].GetPickaxeState().Proficiency,1);
 	const int32 Ore=Inventory->CountItemByVnum(50601);
 	Mining->Complete(Mining->State.Session);
-	TestEqual(TEXT("Duplicate completion cannot duplicate practice"),Inventory->GetEquipment()[4].MetinSockets[0].Value,1);
+	TestEqual(TEXT("Duplicate completion cannot duplicate practice"),Inventory->GetEquipment()[4].GetPickaxeState().Proficiency,1);
 	TestEqual(TEXT("Duplicate completion cannot duplicate ore"),Inventory->CountItemByVnum(50601),Ore);
 	const FString Payload=PS->CapturePersistentStateJson_Implementation();
 	TestTrue(TEXT("Mining item payload restores"),PS->ApplyPersistentStateJson_Implementation(Payload));
-	TestEqual(TEXT("Practice survives reload"),Inventory->GetEquipment()[4].MetinSockets[0].Value,1);
+	TestEqual(TEXT("Practice survives reload"),Inventory->GetEquipment()[4].GetPickaxeState().Proficiency,1);
 	TestTrue(TEXT("Damage cancellation sequence starts"),Mining->StartMining(Vein));
 	Player->GetHealthComponent()->SetHealth(90);
 	TestFalse(TEXT("Damage interrupts mining immediately"),Mining->IsMining());
@@ -177,9 +178,9 @@ bool FMT2MiningAuthorityTest::RunTest(const FString&)
 		if (It->GetItemVnum()==50601) { ++Drops; TestTrue(TEXT("Only uncollected remainder dropped"),It->GetItemCount()>0 && It->GetItemCount()<90); }
 	}
 	TestEqual(TEXT("One owned remainder drop"),Drops,1);
-	Worn[4].MetinSockets[0].Value=Pick->ImprovementPointsRequired-1;
+	Worn[4].EditPickaxeState().Proficiency=Pick->ImprovementPointsRequired-1;
 	Inventory->RestoreItems(Slots,Worn); Inventory->FinishMiningAttempt(); Inventory->FinishMiningAttempt();
-	TestEqual(TEXT("Practice stops at imported cap"),Inventory->GetEquipment()[4].MetinSockets[0].Value,Pick->ImprovementPointsRequired);
+	TestEqual(TEXT("Practice stops at imported cap"),Inventory->GetEquipment()[4].GetPickaxeState().Proficiency,Pick->ImprovementPointsRequired);
 	Slots.Empty(); Slots.SetNum(180); Inventory->RestoreItems(Slots,Worn);
 	TestTrue(TEXT("Movement test starts"),Mining->StartMining(Vein));
 	Player->SetActorLocation(Player->GetActorLocation()+FVector(100,0,0)); Mining->CheckAttempt();

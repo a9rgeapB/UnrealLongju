@@ -45,6 +45,7 @@ public class MT2UEEditor : ModuleRules
 				"InterchangeEngine",
 				"InterchangePipelines",
 				"Json",
+				"JsonUtilities",
 				"Landscape",
 				"LevelEditor",
 				"Projects",

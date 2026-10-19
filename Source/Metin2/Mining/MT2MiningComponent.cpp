@@ -1,4 +1,5 @@
 #include "Mining/MT2MiningComponent.h"
+#include "Items/Templates/MT2ItemPickTemplate.h"
 #include "Mining/MT2MiningRules.h"
 #include "Characters/MT2PlayerCharacter.h"
 #include "Components/MT2HealthComponent.h"

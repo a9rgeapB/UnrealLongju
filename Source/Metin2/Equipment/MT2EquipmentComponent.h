@@ -8,6 +8,7 @@
 */
 
 #pragma once
+#include "Items/Types/MT2ItemVisualTypes.h"
 
 #include "Components/ActorComponent.h"
 #include "CoreMinimal.h"

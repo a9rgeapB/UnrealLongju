@@ -7,6 +7,10 @@
 
 */
 
+#include "Items/Templates/MT2ItemEquipmentTemplate.h"
+#include "Items/Templates/MT2ItemPickTemplate.h"
+#include "Items/Templates/MT2ItemRodTemplate.h"
+
 #include "Items/MT2InventoryComponent.h"
 
 #include "Characters/MT2PlayerCharacter.h"

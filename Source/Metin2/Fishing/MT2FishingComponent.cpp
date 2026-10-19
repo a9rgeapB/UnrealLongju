@@ -1,4 +1,5 @@
 #include "Fishing/MT2FishingComponent.h"
+#include "Items/Templates/MT2ItemRodTemplate.h"
 #include "Characters/MT2PlayerCharacter.h"
 #include "Components/MT2HealthComponent.h"
 #include "Animation/MT2CharacterAnimInstance.h"
@@ -33,7 +34,7 @@ namespace
 		return Inventory && Registry && Inventory->GetEquipment().IsValidIndex(4)
 			? Cast<UMT2ItemRodTemplate>(Registry->ResolveItemTemplateClass(Inventory->GetEquipment()[4].Vnum).GetDefaultObject()) : nullptr;
 	}
-	int32 Socket(const FMT2ItemSlot& Item, int32 Index) { return Item.MetinSockets.IsValidIndex(Index) ? Item.MetinSockets[Index].Value : 0; }
+	int32 Socket(const FMT2ItemSlot& Item, int32 Index) { return MT2ItemUtils::GetNumericSocket(Item, Index); }
 }
 UMT2FishingComponent::UMT2FishingComponent()
 {
@@ -159,14 +160,14 @@ void UMT2FishingComponent::ReelIn()
 	if (!Template || Template->Vnum <= 0 || ItemClass->HasAnyClassFlags(CLASS_Abstract))
 	{ UE_LOG(LogTemp, Error, TEXT("Fishing reward class '%s' is invalid."), *Catch.ItemTemplate.ToString()); Finish(EMT2FishingEvent::Failed, nullptr, true); return; }
 	// Inventory/save formats retain the template's numeric identity; loot selection does not.
-	FMT2ItemSlot Reward(Template->Vnum, Template->MakeInstanceData(1)); Reward.MetinSockets.SetNum(3);
+	FMT2ItemSlot Reward(Template->Vnum, Template->MakeInstanceData(1));
 	const auto& Length = Catch.LengthRange;
 	if (FMath::RandRange(0, 99))
 	{
 		int32 Sum = 0; for (int32 Roll = 0; Roll < 5; ++Roll) { Sum += FMath::RandRange(0, 2000); }
-		Reward.MetinSockets[0].Value = Length[0] + int32(int64(Length[1] - Length[0]) * Sum / 10000);
+		Reward.EditFishState().LengthTenths = Length[0] + int32(int64(Length[1] - Length[0]) * Sum / 10000);
 	}
-	else { Reward.MetinSockets[0].Value = Length[1] + FMath::TruncToInt((Length[2] - Length[1]) * 2.0 * FMath::Asin(FMath::RandRange(0, 10000) / 10000.0) / PI); }
+	else { Reward.EditFishState().LengthTenths = Length[1] + FMath::TruncToInt((Length[2] - Length[1]) * 2.0 * FMath::Asin(FMath::RandRange(0, 10000) / 10000.0) / PI); }
 	if (Player->GetInventoryComponent()->AddItemSlotPartial(Reward) != 1)
 	{
 		const auto* PS = Player->GetPlayerState<AMT2PlayerState>();

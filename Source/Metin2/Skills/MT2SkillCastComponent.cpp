@@ -8,6 +8,8 @@
 */
 
 #include "Skills/MT2SkillCastComponent.h"
+#include "Items/Templates/MT2ItemWeaponTemplate.h"
+
 #include "Config/MT2GameplaySettings.h"
 #include "Fishing/MT2FishingComponent.h"
 #include "Mining/MT2MiningComponent.h"

@@ -8,6 +8,15 @@
 */
 
 #include "Characters/MT2PlayerCharacter.h"
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemCostumeTemplate.h"
+#include "Items/Templates/MT2ItemMetinStoneTemplate.h"
+#include "Items/Templates/MT2ItemPickTemplate.h"
+#include "Items/Templates/MT2ItemRodTemplate.h"
+#include "Items/Templates/MT2ItemSkillBookTemplate.h"
+#include "Items/Templates/MT2ItemWeaponTemplate.h"
+#include "Items/Use/MT2GrandMasterTrainingItemTemplate.h"
+
 #include "Items/MT2AccessorySocketRules.h"
 #include "Fishing/MT2FishingComponent.h"
 #include "Mining/MT2MiningComponent.h"
@@ -53,10 +62,11 @@
 #include "InputActionValue.h"
 #include "Input/MT2InputConfig.h"
 #include "Items/MT2InventoryComponent.h"
+#include "Items/MT2ItemUtils.h"
+#include "Npcs/MT2Campfire.h"
 #include "Items/MT2Item.h"
 #include "Items/MT2ItemBonusSettings.h"
 #include "Items/MT2ItemTemplate.h"
-#include "Items/Use/MT2SkillTrainingItemTemplates.h"
 #include "Items/MT2WorldItem.h"
 #include "Mounts/MT2MountComponent.h"
 #include "Mounts/MT2HorseProgressionComponent.h"
@@ -1941,6 +1951,12 @@ void AMT2PlayerCharacter::ServerUseInventoryItemOnActor_Implementation(
 		return;
 	}
 
+	if (auto* Campfire = Cast<AMT2Campfire>(TargetActor))
+	{
+		Campfire->Roast(*this, InventorySlot);
+		return;
+	}
+
 	auto* Dungeon = GetWorld()->GetSubsystem<UMT2DungeonSubsystem>();
 	auto* Tower = Dungeon ? Cast<AMT2DevilTowerRoom>(Dungeon->GetPlayerRoom(GetPlayerState<AMT2PlayerState>())) : nullptr;
 	if (AMT2Npc* Npc = Cast<AMT2Npc>(TargetActor);
@@ -2152,8 +2168,8 @@ void AMT2PlayerCharacter::ServerReadSkillBook_Implementation(int32 InventorySlot
 		return;
 	}
 	// Generic 50300 books store the rolled skill per instance, as socket 0 did in the old server.
-	const int32 SkillVnum = InventorySlots[InventorySlot].SkillVnum > 0
-		? InventorySlots[InventorySlot].SkillVnum : Book->SkillVnum;
+	const int32 SkillVnum = InventorySlots[InventorySlot].GetSkillVnum() > 0
+		? InventorySlots[InventorySlot].GetSkillVnum() : Book->GetSkillVnum();
 	if (SkillVnum <= 0)
 	{
 		if (MT2Controller)
@@ -2925,10 +2941,10 @@ void AMT2PlayerCharacter::RecalculateEquipmentStats()
 		{
 			const int32 Type = static_cast<int32>(Apply.Type);
 			const int32 Extra = MT2AccessorySockets::IsAccessory(Template) && Type != 0 && Type != 51
-				? MT2AccessorySockets::Bonus(Apply.Value, MT2AccessorySockets::Normalize(Item.AccessorySockets).CurrentGrade) : 0;
+				? MT2AccessorySockets::Bonus(Apply.Value, MT2AccessorySockets::Normalize(Item.GetAccessorySockets()).CurrentGrade) : 0;
 			ApplyBonus(Type, Apply.Value + Extra);
 		}
-		for (const FMT2MetinSocket& Socket : Item.MetinSockets)
+		for (const FMT2MetinSocket& Socket : Item.GetMetinSockets())
 		{
 			const UMT2ItemMetinStoneTemplate* Stone = Socket.Stone.GetDefaultObject();
 			if (!Stone)
@@ -2940,7 +2956,7 @@ void AMT2PlayerCharacter::RecalculateEquipmentStats()
 				ApplyBonus(static_cast<int32>(Apply.Type), Apply.Value);
 			}
 		}
-		for (const FMT2ItemBonus& Bonus : Item.Bonuses)
+		for (const FMT2ItemBonus& Bonus : Item.GetBonuses())
 		{
 			if (Bonus.IsValid())
 			{
@@ -2971,6 +2987,17 @@ void AMT2PlayerCharacter::RecalculateEquipmentStats()
 			ApplyBonus(static_cast<int32>(Effect.ApplyType), Effect.ApplyValue);
 		}
 	}
+
+	// These affect rates amplify random equipment attributes, not proto applies or socket stones.
+	// Capture both before applying the results so attributes cannot recursively amplify themselves.
+	const int32 EnergyRate = ItemApplyBonuses.FindRef(static_cast<int32>(EMT2ItemBonusType::Energy));
+	const int32 CostumeRate = ItemApplyBonuses.FindRef(static_cast<int32>(EMT2ItemBonusType::CostumeAttributeBonus));
+	const auto& Settings = UMT2GameplaySettings::Get();
+	const auto& Equipment = GetInventoryComponent()->GetEquipment();
+	for (const auto& Bonus : MT2ItemUtils::GetAmplifiedEquipmentAttributes(Equipment, Settings.EnergyWearSlots, EnergyRate))
+		ApplyBonus(static_cast<int32>(Bonus.Key), Bonus.Value);
+	for (const auto& Bonus : MT2ItemUtils::GetAmplifiedEquipmentAttributes(Equipment, Settings.CostumeAttributeWearSlots, CostumeRate))
+		ApplyBonus(static_cast<int32>(Bonus.Key), Bonus.Value);
 
 	if (UMT2CombatStatsComponent* CombatStats = GetCombatStatsComponent())
 	{

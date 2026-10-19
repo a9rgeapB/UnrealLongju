@@ -30,6 +30,8 @@ struct FMT2ItemImportRecord
 	int32 MountDurationSeconds = 0;
 	int32 MountMinimumPlayerLevel = 0;
 	bool bConsumeMountItem = false;
+	FMT2BlendDefinition Blend;
+	FMT2FishDefinition Fish;
 };
 
 struct FMT2ItemImportResult
@@ -45,6 +47,9 @@ struct FMT2ItemImportResult
 class FMT2ItemImporter
 {
 public:
+	static bool ParseBlendTable(const FString& Text, TMap<int32, FMT2BlendDefinition>& OutDefinitions, FString& OutError);
+	static bool ParseFishTable(const FString& Text, TMap<int32, FMT2FishDefinition>& OutDefinitions, FString& OutError);
+	static bool LoadFishTable(const FString& Path, TMap<int32, FMT2FishDefinition>& OutDefinitions, FString& OutError);
 	static bool ImportHairCatalog(const FString& SourceRoot, const FString& DestinationRoot, FString& OutError);
 	static bool Discover(
 		const FString& SourceRoot,

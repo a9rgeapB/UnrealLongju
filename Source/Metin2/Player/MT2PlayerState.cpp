@@ -8,6 +8,13 @@
 */
 
 #include "Player/MT2PlayerState.h"
+#include "Items/Templates/MT2ItemAutoRecoveryTemplate.h"
+#include "Items/Templates/MT2ItemFishTemplate.h"
+#include "Items/Templates/MT2ItemMetinStoneTemplate.h"
+#include "Items/Templates/MT2ItemPickTemplate.h"
+#include "Items/Templates/MT2ItemRodTemplate.h"
+#include "Items/Templates/MT2ItemSkillBookTemplate.h"
+
 #include "Items/MT2AccessorySocketRules.h"
 #include "Config/MT2PathSettings.h"
 #include "Audio/MT2SoundPlaybackSubsystem.h"
@@ -1043,41 +1050,46 @@ FString AMT2PlayerState::CapturePersistentStateJson_Implementation() const
 					Item->SetNumberField(TEXT("count"), Items[SlotIndex].Count);
 					Item->SetNumberField(TEXT("realtime_expires_at"), static_cast<double>(Items[SlotIndex].RealtimeExpiresAt));
 					const UMT2ItemTemplate* Template = MT2ItemUtils::ResolveTemplate(this, Items[SlotIndex].Vnum);
-					const bool bFishingSockets = Template && (Template->IsA<UMT2ItemRodTemplate>() || Template->IsA<UMT2ItemFishTemplate>());
+					const bool bFishingSockets = Template && (Template->IsA<UMT2ItemRodTemplate>() || Template->IsA<UMT2ItemFishTemplate>() || Template->IsA<UMT2ItemPickTemplate>());
+					const bool bNumericSockets = MT2ItemUtils::UsesNumericSockets(Template);
 					const bool bAccessory = MT2AccessorySockets::IsAccessory(Template);
 					auto Accessory = Container == 1 ? Inventory->GetEffectiveAccessoryState(SlotIndex)
-						: MT2AccessorySockets::Normalize(Items[SlotIndex].AccessorySockets);
+						: MT2AccessorySockets::Normalize(Items[SlotIndex].GetAccessorySockets());
 					// Legacy persistence stores whole seconds: never grant a fresh fraction on reload.
 					if (Accessory.WearFraction > 0 && Accessory.RemainingSeconds > 0) { --Accessory.RemainingSeconds; }
 					for (int32 SocketIndex = 0; SocketIndex < 3; ++SocketIndex)
 					{
 						int32 StoredSocket = 0;
-						if (bAccessory)
+						if (bNumericSockets)
+						{
+							StoredSocket = MT2ItemUtils::GetNumericSocket(Items[SlotIndex], SocketIndex);
+						}
+						else if (bAccessory)
 						{
 							StoredSocket = SocketIndex == 0 ? Accessory.CurrentGrade : SocketIndex == 1 ? Accessory.MaximumGrade : Accessory.RemainingSeconds;
 						}
 						else if (bFishingSockets)
 						{
-							StoredSocket = Items[SlotIndex].MetinSockets.IsValidIndex(SocketIndex) ? Items[SlotIndex].MetinSockets[SocketIndex].Value : 0;
+							StoredSocket = MT2ItemUtils::GetNumericSocket(Items[SlotIndex], SocketIndex);
 						}
-						else if (Items[SlotIndex].AutoRecoveryMaximumAmount > 0)
+						else if (Items[SlotIndex].GetAutoRecoveryState().MaximumAmount > 0)
 						{
 							StoredSocket = SocketIndex == 0
-								? (Items[SlotIndex].bAutoRecoveryActive ? 1 : 0)
+								? (Items[SlotIndex].GetAutoRecoveryState().bActive ? 1 : 0)
 								: SocketIndex == 1
-								? Items[SlotIndex].AutoRecoveryMaximumAmount -
-									Items[SlotIndex].AutoRecoveryRemainingAmount
-								: Items[SlotIndex].AutoRecoveryMaximumAmount;
+								? Items[SlotIndex].GetAutoRecoveryState().MaximumAmount -
+									Items[SlotIndex].GetAutoRecoveryState().RemainingAmount
+								: Items[SlotIndex].GetAutoRecoveryState().MaximumAmount;
 						}
 						else if (SocketIndex == 0)
 						{
-							StoredSocket = Items[SlotIndex].SkillVnum;
+							StoredSocket = Items[SlotIndex].GetSkillVnum();
 						}
-						if (!bAccessory && !bFishingSockets && StoredSocket == 0 &&
-							Items[SlotIndex].MetinSockets.IsValidIndex(SocketIndex))
+						if (!bNumericSockets && !bAccessory && !bFishingSockets && StoredSocket == 0 &&
+							Items[SlotIndex].GetMetinSockets().IsValidIndex(SocketIndex))
 						{
 							const FMT2MetinSocket& Socket =
-								Items[SlotIndex].MetinSockets[SocketIndex];
+								Items[SlotIndex].GetMetinSockets()[SocketIndex];
 							const UMT2ItemMetinStoneTemplate* Stone =
 								Socket.Stone.GetDefaultObject();
 							StoredSocket = Stone ? Stone->Vnum
@@ -1093,7 +1105,7 @@ FString AMT2PlayerState::CapturePersistentStateJson_Implementation() const
 					}
 					int32 NormalIndex = 0;
 					int32 RareIndex = 0;
-					for (const FMT2ItemBonus& Bonus : Items[SlotIndex].Bonuses)
+					for (const FMT2ItemBonus& Bonus : Items[SlotIndex].GetBonuses())
 					{
 						if (!Bonus.IsValid()) continue;
 						const bool bRare = Bonus.Kind == EMT2ItemBonusKind::Rare;
@@ -1481,36 +1493,42 @@ bool AMT2PlayerState::ApplyPersistentStateJson_Implementation(const FString& Pay
 			const TSubclassOf<UMT2ItemTemplate> ItemTemplateClass = Registry
 				? Registry->ResolveItemTemplateClass(Slot.Vnum) : nullptr;
 			const UMT2ItemTemplate* ItemTemplate = ItemTemplateClass.GetDefaultObject();
+			Slot.Template = ItemTemplateClass;
+			MT2ItemUtils::NormalizeNumericSockets(Slot, ItemTemplate);
 			if (MT2AccessorySockets::IsAccessory(ItemTemplate))
 			{
-				Slot.AccessorySockets.CurrentGrade = ReadInteger(TEXT("socket_0"));
-				Slot.AccessorySockets.MaximumGrade = ReadInteger(TEXT("socket_1"));
-				Slot.AccessorySockets.RemainingSeconds = ReadInteger(TEXT("socket_2"));
-				Slot.AccessorySockets = MT2AccessorySockets::Advance(Slot.AccessorySockets, 0);
+				Slot.EditAccessorySockets().CurrentGrade = ReadInteger(TEXT("socket_0"));
+				Slot.EditAccessorySockets().MaximumGrade = ReadInteger(TEXT("socket_1"));
+				Slot.EditAccessorySockets().RemainingSeconds = ReadInteger(TEXT("socket_2"));
+				Slot.EditAccessorySockets() = MT2AccessorySockets::Advance(Slot.GetAccessorySockets(), 0);
 			}
 			else if (Cast<UMT2ItemSkillBookTemplate>(ItemTemplate))
 			{
-				Slot.SkillVnum = ReadInteger(TEXT("socket_0"));
+				Slot.SetSkillVnum(ReadInteger(TEXT("socket_0")));
 				ItemTemplate->InitializeGeneratedInstance(Slot);
 			}
 			else if (const UMT2ItemAutoRecoveryTemplate* AutoRecovery =
 				Cast<UMT2ItemAutoRecoveryTemplate>(ItemTemplate))
 			{
-				Slot.AutoRecoveryMaximumAmount = ReadInteger(TEXT("socket_2"), AutoRecovery->RecoveryCapacity);
-				if (Slot.AutoRecoveryMaximumAmount <= 0)
+				Slot.EditAutoRecoveryState().MaximumAmount = ReadInteger(TEXT("socket_2"), AutoRecovery->RecoveryCapacity);
+				if (Slot.GetAutoRecoveryState().MaximumAmount <= 0)
 				{
-					Slot.AutoRecoveryMaximumAmount = AutoRecovery->RecoveryCapacity;
+					Slot.EditAutoRecoveryState().MaximumAmount = AutoRecovery->RecoveryCapacity;
 				}
-				Slot.AutoRecoveryRemainingAmount = FMath::Clamp(
-					Slot.AutoRecoveryMaximumAmount - ReadInteger(TEXT("socket_1")),
-					0, Slot.AutoRecoveryMaximumAmount);
-				Slot.bAutoRecoveryActive = ReadInteger(TEXT("socket_0")) != 0 &&
-					Slot.AutoRecoveryRemainingAmount > 0;
+				Slot.EditAutoRecoveryState().RemainingAmount = FMath::Clamp(
+					Slot.GetAutoRecoveryState().MaximumAmount - ReadInteger(TEXT("socket_1")),
+					0, Slot.GetAutoRecoveryState().MaximumAmount);
+				Slot.EditAutoRecoveryState().bActive = ReadInteger(TEXT("socket_0")) != 0 &&
+					Slot.GetAutoRecoveryState().RemainingAmount > 0;
 			}
-			else if (ItemTemplate && (ItemTemplate->IsA<UMT2ItemRodTemplate>() || ItemTemplate->IsA<UMT2ItemFishTemplate>()))
+			else if (ItemTemplate && (ItemTemplate->IsA<UMT2ItemRodTemplate>() || ItemTemplate->IsA<UMT2ItemFishTemplate>() || ItemTemplate->IsA<UMT2ItemPickTemplate>()))
 			{
-				Slot.MetinSockets.SetNum(3);
-				for (int32 Index = 0; Index < 3; ++Index) { Slot.MetinSockets[Index].Value = ReadInteger(*FString::Printf(TEXT("socket_%d"), Index)); }
+				for (int32 Index = 0; Index < 3; ++Index) { MT2ItemUtils::SetNumericSocket(Slot, Index, ReadInteger(*FString::Printf(TEXT("socket_%d"), Index))); }
+			}
+			else if (MT2ItemUtils::UsesNumericSockets(ItemTemplate))
+			{
+				for (int32 Index = 0; Index < 3; ++Index)
+					MT2ItemUtils::SetNumericSocket(Slot, Index, ReadInteger(*FString::Printf(TEXT("socket_%d"), Index)));
 			}
 			else for (int32 SocketIndex = 0; SocketIndex < 3; ++SocketIndex)
 			{
@@ -1520,7 +1538,7 @@ bool AMT2PlayerState::ApplyPersistentStateJson_Implementation(const FString& Pay
 				{
 					continue;
 				}
-				FMT2MetinSocket& Socket = Slot.MetinSockets.AddDefaulted_GetRef();
+				FMT2MetinSocket& Socket = Slot.EditMetinSockets().AddDefaulted_GetRef();
 				Socket.Type = (Stored < 0 || Stored == 2)
 					? EMT2MetinSocketType::Gold : EMT2MetinSocketType::Silver;
 				const int32 StoneVnum = FMath::Abs(Stored);
@@ -1548,7 +1566,7 @@ bool AMT2PlayerState::ApplyPersistentStateJson_Implementation(const FString& Pay
 				Bonus.Type = static_cast<EMT2ItemBonusType>(FMath::Clamp(
 					ReadInteger(*FString::Printf(TEXT("bonus_type_%d"), BonusIndex)), 0, 91));
 				Bonus.Value = ReadInteger(*FString::Printf(TEXT("bonus_value_%d"), BonusIndex));
-				if (Bonus.IsValid()) Slot.Bonuses.Add(Bonus);
+				if (Bonus.IsValid()) Slot.EditBonuses().Add(Bonus);
 			}
 			for (int32 BonusIndex = 0; BonusIndex < 2; ++BonusIndex)
 			{
@@ -1557,7 +1575,7 @@ bool AMT2PlayerState::ApplyPersistentStateJson_Implementation(const FString& Pay
 					ReadInteger(*FString::Printf(TEXT("rare_bonus_type_%d"), BonusIndex)), 0, 91));
 				Bonus.Value = ReadInteger(*FString::Printf(TEXT("rare_bonus_value_%d"), BonusIndex));
 				Bonus.Kind = EMT2ItemBonusKind::Rare;
-				if (Bonus.IsValid()) Slot.Bonuses.Add(Bonus);
+				if (Bonus.IsValid()) Slot.EditBonuses().Add(Bonus);
 			}
 			if (Container == 0 && PendingInventorySlots.IsValidIndex(SlotIndex)) PendingInventorySlots[SlotIndex] = Slot;
 			else if (Container == 1 && PendingEquipmentSlots.IsValidIndex(SlotIndex)) PendingEquipmentSlots[SlotIndex] = Slot;

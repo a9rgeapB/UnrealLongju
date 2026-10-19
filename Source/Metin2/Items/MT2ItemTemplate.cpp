@@ -8,8 +8,8 @@
 */
 
 #include "Items/MT2ItemTemplate.h"
-
 #include "Config/MT2GameplaySettings.h"
+#include "Items/MT2ItemUtils.h"
 #include "UI/MT2ItemTooltipWidget.h"
 #include "UI/MT2ItemTooltipWidgets.h"
 #include "Skills/MT2SkillSet.h"
@@ -17,6 +17,25 @@
 int32 UMT2ItemTemplate::GetMaxStackSize() const
 {
 	return IsStackable() ? FMath::Max(UMT2GameplaySettings::Get().MaximumItemStackSize, 1) : 1;
+}
+
+int32 UMT2ItemTemplate::GetRefinedVnum() const
+{
+	const auto Class = RefinedItemTemplate.LoadSynchronous();
+	return Class ? Class->GetDefaultObject<UMT2ItemTemplate>()->Vnum : bTypedItemReferences ? 0 : RefinedVnum;
+}
+
+int32 UMT2ItemTemplate::GetPreviousRefinedVnum() const
+{
+	const auto Class = PreviousRefinedItemTemplate.LoadSynchronous();
+	return Class ? Class->GetDefaultObject<UMT2ItemTemplate>()->Vnum : bTypedItemReferences ? 0 : PreviousRefinedVnum;
+}
+
+void UMT2ItemTemplate::ResetImportedItemReferences()
+{
+	bTypedItemReferences = false;
+	RefinedItemTemplate.Reset();
+	PreviousRefinedItemTemplate.Reset();
 }
 
 void UMT2ItemTemplate::PostLoad()
@@ -31,44 +50,27 @@ void UMT2ItemTemplate::PostLoad()
 FMT2ItemInstanceData UMT2ItemTemplate::MakeInstanceData(int32 Count) const
 {
 	FMT2ItemInstanceData Result = DefaultInstanceData;
+	if (bTypedFamilyDefaults) InitializeDefaultFamilyState(Result);
 	Result.Count = FMath::Clamp(Count, 1, GetMaxStackSize());
+	MT2ItemUtils::NormalizeNumericSockets(Result, this);
 	InitializeGeneratedInstance(Result);
 	return Result;
 }
 
-void UMT2ItemAutoRecoveryTemplate::InitializeGeneratedInstance(
-	FMT2ItemInstanceData& InOutData) const
+void UMT2ItemTemplate::FinalizeFamilyDefaults()
 {
-	if (InOutData.AutoRecoveryMaximumAmount <= 0)
-	{
-		InOutData.AutoRecoveryMaximumAmount = FMath::Max(RecoveryCapacity, 0);
-		InOutData.AutoRecoveryRemainingAmount = InOutData.AutoRecoveryMaximumAmount;
-	}
-	InOutData.AutoRecoveryRemainingAmount = FMath::Clamp(
-		InOutData.AutoRecoveryRemainingAmount, 0, InOutData.AutoRecoveryMaximumAmount);
+	if (bTypedFamilyDefaults) return;
+	MT2ItemUtils::NormalizeNumericSockets(DefaultInstanceData, this);
+	CaptureDefaultFamilyState(DefaultInstanceData);
+	// Arbitrary quest state stays opaque for the legacy Lua boundary. Named family payloads now
+	// live on their template and are no longer duplicated on the common defaults.
+	if (!MT2ItemUtils::UsesNumericSockets(this) || DefaultInstanceData.FindState<FMT2BlendItemState>()) DefaultInstanceData.FamilyState.Reset();
+	bTypedFamilyDefaults = true;
 }
 
-void UMT2ItemSkillBookTemplate::InitializeGeneratedInstance(
-	FMT2ItemInstanceData& InOutData) const
-{
-	if (InOutData.SkillVnum > 0)
-	{
-		return;
-	}
-	if (SkillVnum > 0)
-	{
-		InOutData.SkillVnum = SkillVnum;
-		return;
-	}
 
-	// The old server rolls vnum 50300 from the available job skills and stores the selected skill
-	// in socket 0. Imported definitions are the authority here, so nonexistent skills cannot roll.
-	const TArray<int32> SkillVnums = UMT2SkillSet::GetSkillVnumsInRange(1, 111);
-	if (!SkillVnums.IsEmpty())
-	{
-		InOutData.SkillVnum = SkillVnums[FMath::RandHelper(SkillVnums.Num())];
-	}
-}
+
+
 
 TSubclassOf<UMT2ItemTooltipWidget> UMT2ItemTemplate::ResolveTooltipClass() const
 {
@@ -83,29 +85,4 @@ TSubclassOf<UMT2ItemTooltipWidget> UMT2ItemTemplate::GetDefaultTooltipClass() co
 {
 	// Base/material/quest/etc.: name + description + any bonuses.
 	return UMT2ItemTooltipWidget::StaticClass();
-}
-
-TSubclassOf<UMT2ItemTooltipWidget> UMT2ItemWeaponTemplate::GetDefaultTooltipClass() const
-{
-	return UMT2WeaponTooltipWidget::StaticClass();
-}
-
-TSubclassOf<UMT2ItemTooltipWidget> UMT2ItemArmorTemplate::GetDefaultTooltipClass() const
-{
-	return UMT2ArmorTooltipWidget::StaticClass();
-}
-
-TSubclassOf<UMT2ItemTooltipWidget> UMT2ItemRingTemplate::GetDefaultTooltipClass() const
-{
-	return UMT2AccessoryTooltipWidget::StaticClass();
-}
-
-TSubclassOf<UMT2ItemTooltipWidget> UMT2ItemBeltTemplate::GetDefaultTooltipClass() const
-{
-	return UMT2AccessoryTooltipWidget::StaticClass();
-}
-
-TSubclassOf<UMT2ItemTooltipWidget> UMT2ItemUseTemplate::GetDefaultTooltipClass() const
-{
-	return UMT2UseItemTooltipWidget::StaticClass();
 }

@@ -8,6 +8,9 @@
 */
 
 #include "UI/MT2InventorySlotWidget.h"
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemWeaponTemplate.h"
+
 
 #include "Blueprint/DragDropOperation.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
@@ -141,8 +144,17 @@ void UMT2InventorySlotWidget::SetItemByVnum(
 	EnsureSlotEffects();
 	InteractionSlotIndex = SlotIndex;
 	DisplayedItem = {};
-	DisplayedItem.Vnum = Vnum; DisplayedItem.Count = Count; DisplayedItem.Bonuses = Bonuses; DisplayedItem.MetinSockets = MetinSockets;
-	DisplayedItem.SkillVnum = SkillVnum; DisplayedItem.AutoRecoveryRemainingAmount = AutoRecoveryRemainingAmount;
+	DisplayedItem.Vnum = Vnum; DisplayedItem.Count = Count;
+	if (SkillVnum > 0) DisplayedItem.SetSkillVnum(SkillVnum);
+	else if (AutoRecoveryRemainingAmount > 0 || bAutoRecoveryActive)
+	{
+		DisplayedItem.EditAutoRecoveryState().RemainingAmount = AutoRecoveryRemainingAmount;
+		DisplayedItem.EditAutoRecoveryState().bActive = bAutoRecoveryActive;
+	}
+	else if (!MetinSockets.IsEmpty())
+	{ DisplayedItem.EditMetinSockets() = MetinSockets; DisplayedItem.EditBonuses() = Bonuses; }
+	else if (!Bonuses.IsEmpty()) DisplayedItem.EditBonuses() = Bonuses;
+	MT2ItemUtils::NormalizeNumericSockets(DisplayedItem, MT2ItemUtils::ResolveTemplate(this, Vnum));
 	bResolveOwnedInstance = false;
 	SetCovered(false);
 	if (Vnum <= 0 || Count <= 0)
@@ -207,7 +219,7 @@ void UMT2InventorySlotWidget::RefreshInstanceTooltip()
 	if (DisplayedItem.IsEmpty() || SlotKind == EMT2InventorySlotKind::Quick) { return; }
 	const auto* Viewer = GetOwningPlayer() ? GetOwningPlayer()->GetPlayerState<AMT2PlayerState>() : nullptr;
 	SetToolTip(UMT2ItemTooltipWidget::Create(GetOwningPlayer(),MT2ItemUtils::ResolveTemplate(this,DisplayedItem.Vnum),DisplayedItem.Count,Viewer,
-		-1,&DisplayedItem.Bonuses,&DisplayedItem.MetinSockets,DisplayedItem.SkillVnum,DisplayedItem.AutoRecoveryRemainingAmount,&DisplayedItem.AccessorySockets));
+		-1,&DisplayedItem.GetBonuses(),&DisplayedItem.GetMetinSockets(),DisplayedItem.GetSkillVnum(),DisplayedItem.GetAutoRecoveryState().RemainingAmount,&DisplayedItem.GetAccessorySockets(),&DisplayedItem));
 }
 
 void UMT2InventorySlotWidget::NativeOnMouseEnter(
@@ -226,7 +238,7 @@ void UMT2InventorySlotWidget::NativeOnMouseEnter(
 				const auto& Item = Items[InteractionSlotIndex];
 				DisplayedItem = Item;
 				if (SlotKind == EMT2InventorySlotKind::Equipment)
-				{ DisplayedItem.AccessorySockets = Inventory->GetEffectiveAccessoryState(InteractionSlotIndex); }
+				{ DisplayedItem.EditAccessorySockets() = Inventory->GetEffectiveAccessoryState(InteractionSlotIndex); }
 			}
 		}
 	}

@@ -7,6 +7,9 @@
 
 */
 
+#include "Items/Templates/MT2ItemEquipmentTemplate.h"
+#include "Items/Templates/MT2ItemMetinStoneTemplate.h"
+
 #include "Items/MT2InventoryComponent.h"
 
 #include "Items/MT2ItemTemplate.h"
@@ -41,38 +44,39 @@ EMT2MetinSocketApplyResult UMT2InventoryComponent::ApplyMetinStone(
 	}
 
 	FMT2ItemSlot& Target = TargetContainer[TargetSlot];
-	if (Target.MetinSockets.IsEmpty() &&
-		!EquipmentTemplate->DefaultInstanceData.MetinSockets.IsEmpty())
+	const auto DefaultData = EquipmentTemplate->MakeInstanceData();
+	if (Target.GetMetinSockets().IsEmpty() &&
+		!DefaultData.GetMetinSockets().IsEmpty())
 	{
-		Target.MetinSockets = EquipmentTemplate->DefaultInstanceData.MetinSockets;
+		Target.EditMetinSockets() = DefaultData.GetMetinSockets();
 	}
-	if (Target.MetinSockets.IsEmpty())
+	if (Target.GetMetinSockets().IsEmpty())
 	{
 		for (int32 Index = 0;
 			Index < FMath::Clamp(EquipmentTemplate->DefaultSilverSocketCount, 0, 3); ++Index)
 		{
-			Target.MetinSockets.AddDefaulted_GetRef().Type = EMT2MetinSocketType::Silver;
+			Target.EditMetinSockets().AddDefaulted_GetRef().Type = EMT2MetinSocketType::Silver;
 		}
 		for (int32 Index = 0;
 			Index < FMath::Clamp(EquipmentTemplate->DefaultGoldSocketCount, 0,
-				3 - Target.MetinSockets.Num()); ++Index)
+				3 - Target.GetMetinSockets().Num()); ++Index)
 		{
-			Target.MetinSockets.AddDefaulted_GetRef().Type = EMT2MetinSocketType::Gold;
+			Target.EditMetinSockets().AddDefaulted_GetRef().Type = EMT2MetinSocketType::Gold;
 		}
 	}
-	const bool bHasCategory = Target.MetinSockets.ContainsByPredicate(
+	const bool bHasCategory = Target.GetMetinSockets().ContainsByPredicate(
 		[Stone](const FMT2MetinSocket& Socket)
 	{
 		const UMT2ItemMetinStoneTemplate* Existing = Socket.Stone.GetDefaultObject();
 		return Existing && Existing->Vnum != 28960 &&
-			Existing->StoneCategory == Stone->StoneCategory;
+			Existing->ConflictsWith(*Stone);
 	});
 	if (bHasCategory)
 	{
 		return EMT2MetinSocketApplyResult::DuplicateStone;
 	}
 
-	FMT2MetinSocket* OpenSocket = Target.MetinSockets.FindByPredicate(
+	FMT2MetinSocket* OpenSocket = Target.EditMetinSockets().FindByPredicate(
 		[Stone](const FMT2MetinSocket& Socket)
 		{
 			const int32 SocketGrade = Socket.Type == EMT2MetinSocketType::Gold ? 2 : 1;

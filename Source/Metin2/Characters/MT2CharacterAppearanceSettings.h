@@ -13,6 +13,7 @@
 #include "Engine/DeveloperSettings.h"
 #include "Engine/DataAsset.h"
 #include "Items/MT2ItemTemplate.h"
+#include "Items/Types/MT2ItemVisualTypes.h"
 #include "Player/MT2PlayerTypes.h"
 #include "MT2CharacterAppearanceSettings.generated.h"
 

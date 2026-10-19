@@ -8,6 +8,19 @@
 */
 
 #include "Items/MT2InventoryComponent.h"
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemAutoRecoveryTemplate.h"
+#include "Items/Templates/MT2ItemBeltTemplate.h"
+#include "Items/Templates/MT2ItemBlendTemplate.h"
+#include "Items/Templates/MT2ItemCostumeTemplate.h"
+#include "Items/Templates/MT2ItemEquipmentTemplate.h"
+#include "Items/Templates/MT2ItemLootCrateTemplate.h"
+#include "Items/Templates/MT2ItemMetinStoneTemplate.h"
+#include "Items/Templates/MT2ItemPickTemplate.h"
+#include "Items/Templates/MT2ItemRingTemplate.h"
+#include "Items/Templates/MT2ItemRodTemplate.h"
+#include "Items/Templates/MT2ItemUseTemplate.h"
+
 #include "Items/MT2AccessorySocketRules.h"
 #include "Loot/MT2LootTable.h"
 
@@ -35,6 +48,7 @@
 #include "Quests/MT2QuestManagerComponent.h"
 #include "Quests/MT2QuestTableAsset.h"
 #include "Stats/MT2PrimaryStatsComponent.h"
+#include "Trade/MT2TradeComponent.h"
 
 namespace
 {
@@ -206,8 +220,15 @@ void UMT2InventoryComponent::RestoreItems(
 	{
 		for (auto& Item : *Container)
 		{
-			if (MT2AccessorySockets::IsAccessory(ResolveTemplate(Item.Vnum)))
-			{ Item.AccessorySockets = MT2AccessorySockets::Advance(Item.AccessorySockets, 0); }
+			if (Item.IsEmpty()) continue;
+			const auto* Template = ResolveTemplate(Item.Vnum);
+			Item.Template = Template ? Template->GetClass() : nullptr;
+			MT2ItemUtils::NormalizeNumericSockets(Item, Template);
+			// Saved blends with no initialized payload need their first roll. The initializer leaves
+			// any nonzero socket untouched, so restoring an existing roll can never reroll it.
+			if (const auto* Blend = Cast<UMT2ItemBlendTemplate>(Template)) Blend->InitializeGeneratedInstance(Item);
+			if (MT2AccessorySockets::IsAccessory(Template))
+			{ Item.EditAccessorySockets() = MT2AccessorySockets::Advance(Item.GetAccessorySockets(), 0); }
 		}
 	}
 	AccessoryWearUpdatedAt = GetWorld() ? GetWorld()->GetTimeSeconds() : 0;
@@ -345,7 +366,7 @@ void UMT2InventoryComponent::NotifyItemReceived(const FMT2ItemSlot& Item, int32 
 	if (AMT2PlayerController* Controller = Character
 		? Cast<AMT2PlayerController>(Character->GetController()) : nullptr)
 	{
-		Controller->ClientNotifyItemReceived(Item.Vnum, AddedCount, Item.SkillVnum);
+		Controller->ClientNotifyItemReceived(Item.Vnum, AddedCount, Item.GetSkillVnum());
 	}
 }
 
@@ -362,6 +383,8 @@ int32 UMT2InventoryComponent::AddItemSlotPartialInternal(
 		return 0;
 	}
 	FMT2ItemSlot GeneratedItem = Item;
+	GeneratedItem.Template = Template->GetClass();
+	MT2ItemUtils::NormalizeNumericSockets(GeneratedItem, Template);
 	Template->InitializeGeneratedInstance(GeneratedItem);
 	GeneratedItem.bNewlyAcquired = true;
 	if (GeneratedItem.RealtimeExpiresAt > 0 && GeneratedItem.RealtimeExpiresAt <= FDateTime::UtcNow().ToUnixTimestamp()) return 0;
@@ -400,7 +423,7 @@ int32 UMT2InventoryComponent::AddItemSlotPartialInternal(
 			const UMT2ItemBonusSettings* BonusSettings = GetDefault<UMT2ItemBonusSettings>();
 			const UMT2ItemEquipmentTemplate* EquipmentTemplate =
 				Cast<UMT2ItemEquipmentTemplate>(Template);
-			if (bGenerateIntrinsicBonuses && Slots[TopSlot].Bonuses.IsEmpty() &&
+			if (bGenerateIntrinsicBonuses && Slots[TopSlot].GetBonuses().IsEmpty() &&
 				EquipmentTemplate &&
 				EquipmentTemplate->BonusAddonType == BonusSettings->DamageAddonType)
 			{
@@ -572,10 +595,12 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 
 	const UMT2ItemTemplate* ItemTemplate = ResolveTemplate(Slots[InventorySlot].Vnum);
 	AMT2PlayerCharacter* Character = Cast<AMT2PlayerCharacter>(GetOwner());
-	if (!ItemTemplate || !Character)
+	if (!ItemTemplate || !Character || !Character->GetHealthComponent() || Character->GetHealthComponent()->IsDead())
 	{
 		return false;
 	}
+	if (const auto* State = Character->GetPlayerState<AMT2PlayerState>();
+		State && State->GetTradeComponent() && State->GetTradeComponent()->IsTrading()) return false;
 	const bool bHairLook = MT2ItemUtils::IsConsumableHairLook(ItemTemplate);
 	if (bHairLook && !CanEquipTemplate(ItemTemplate)) return false;
 	const UMT2ItemActionTemplate* ActionTemplate = Cast<UMT2ItemActionTemplate>(ItemTemplate);
@@ -620,6 +645,9 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 	{
 		return ExecuteAction();
 	}
+	const EMT2ItemUseExecution NativeUse = ItemTemplate->ExecuteUse(*Character, *this, InventorySlot);
+	if (NativeUse == EMT2ItemUseExecution::Consume) return ConsumeItemAtSlot(InventorySlot);
+	if (NativeUse == EMT2ItemUseExecution::Accepted) return true;
 	if (bHairLook)
 	{
 		AMT2PlayerState* State = Character->GetPlayerState<AMT2PlayerState>();
@@ -670,6 +698,28 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 	{
 	case EMT2UseSubType::Bait: // USE_BAIT
 		return ApplyFishingBait(InventorySlot);
+	case EMT2UseSubType::Clear:
+		if (!Character->GetStatusEffectComponent()) return false;
+		Character->GetStatusEffectComponent()->RemoveBadEffects();
+		bUsed = true;
+		break;
+	case EMT2UseSubType::PotionContinue:
+	{
+		auto* Effects = Character->GetStatusEffectComponent();
+		if (!Effects || UseTemplate->BuffDurationSeconds <= 0 ||
+			(UseTemplate->HealthRecovery <= 0 && UseTemplate->ManaRecovery <= 0)) return false;
+		const bool bHealth = UseTemplate->HealthRecovery > 0;
+		FMT2StatusEffect Effect;
+		Effect.Kind = bHealth ? EMT2StatusEffectKind::ContinuousHealthRecovery : EMT2StatusEffectKind::ContinuousManaRecovery;
+		Effect.Type = FMT2AffectIdentifier::FromBuiltin(bHealth ? EMT2BuiltinAffect::HealthRecoveryContinue : EMT2BuiltinAffect::ManaRecoveryContinue);
+		Effect.SourceItemVnum = ItemVnum;
+		Effect.ApplyValue = bHealth ? UseTemplate->HealthRecovery : UseTemplate->ManaRecovery;
+		Effect.RemainingSeconds = UseTemplate->BuffDurationSeconds;
+		Effect.bRemoveOnDeath = true;
+		Effect.Icon = UseTemplate->Icon;
+		bUsed = Effects->AddEffect(Effect, true);
+		break;
+	}
 	case EMT2UseSubType::Potion: // USE_POTION: add VALUE0 HP / VALUE1 SP into a single over-time recovery pool per resource.
 	{
 		UMT2StatusEffectComponent* StatusEffects = Character->GetStatusEffectComponent();
@@ -742,9 +792,21 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 		}
 		else
 		{
-			return false; // only attack/move-speed buffs are wired up for now
+			EMT2BuiltinAffect Type;
+			switch (UseTemplate->GrantedBonus)
+			{
+			case EMT2ItemBonusType::Strength: Type = EMT2BuiltinAffect::Strength; break;
+			case EMT2ItemBonusType::Dexterity: Type = EMT2BuiltinAffect::Dexterity; break;
+			case EMT2ItemBonusType::Constitution: Type = EMT2BuiltinAffect::Constitution; break;
+			case EMT2ItemBonusType::Intelligence: Type = EMT2BuiltinAffect::Intelligence; break;
+			case EMT2ItemBonusType::CastSpeed: Type = EMT2BuiltinAffect::CastSpeed; break;
+			case EMT2ItemBonusType::AttackValue: Type = EMT2BuiltinAffect::AttackGrade; break;
+			case EMT2ItemBonusType::DefenseBonus: Type = EMT2BuiltinAffect::DefenseGrade; break;
+			default: return false;
+			}
+			Effect.Type = FMT2AffectIdentifier::FromBuiltin(Type);
 		}
-		bUsed = StatusEffects->AddEffect(Effect, false); // rejected (false) if the buff is still active
+		bUsed = StatusEffects->AddEffect(Effect, true);
 		break;
 	}
 	case EMT2UseSubType::Affect: // USE_AFFECT: VALUE0=affect id, VALUE1=apply type, VALUE2=value, VALUE3=duration.
@@ -862,7 +924,7 @@ bool UMT2InventoryComponent::RemoveItemsInVnumRange(int32 Count, int32 FirstVnum
 	for (int32 Index : Candidates)
 	{
 		const int32 Taken = FMath::Min(Remaining, Slots[Index].Count);
-		if (Taken > 0 && Slots[Index].bAutoRecoveryActive) { RecoveryItems.Add(Slots[Index]); }
+		if (Taken > 0 && Slots[Index].GetAutoRecoveryState().bActive) { RecoveryItems.Add(Slots[Index]); }
 		Slots[Index].Count -= Taken;
 		Remaining -= Taken;
 		if (Slots[Index].Count <= 0) { Slots[Index] = FMT2ItemSlot(); }
@@ -893,7 +955,7 @@ int32 UMT2InventoryComponent::RemoveItemByVnum(int32 Vnum, int32 Count)
 			continue;
 		}
 		const int32 Taken = FMath::Min(Remaining, Slots[Index].Count);
-		if (Taken > 0 && Slots[Index].bAutoRecoveryActive)
+		if (Taken > 0 && Slots[Index].GetAutoRecoveryState().bActive)
 		{
 			StopAutoRecoveryEffectForSlot(Slots[Index]);
 		}
@@ -926,8 +988,7 @@ bool UMT2InventoryComponent::StartItemRealtimeExpiry(int32 InventorySlot)
 	// The original binding only schedules items whose proto declares a real-time limit.
 	if (!Template->Limits.ContainsByPredicate([](const FMT2ItemLimit& Limit)
 		{ return Limit.Type == EMT2ItemLimitType::RealTime || Limit.Type == EMT2ItemLimitType::RealTimeFromFirstUse; })) return true;
-	Slots[InventorySlot].RealtimeExpiresAt = Slots[InventorySlot].MetinSockets.IsValidIndex(0)
-		? Slots[InventorySlot].MetinSockets[0].Value : FDateTime::UtcNow().ToUnixTimestamp();
+	Slots[InventorySlot].RealtimeExpiresAt = MT2ItemUtils::GetNumericSocket(Slots[InventorySlot], 0);
 	if (Slots[InventorySlot].RealtimeExpiresAt <= 0) Slots[InventorySlot].RealtimeExpiresAt = FDateTime::UtcNow().ToUnixTimestamp();
 	ProcessItemExpiry();
 	OnInventoryChanged.Broadcast();
@@ -958,19 +1019,15 @@ void UMT2InventoryComponent::ProcessItemExpiry()
 
 bool UMT2InventoryComponent::SetItemSocketValue(int32 InventorySlot, int32 SocketIndex, int32 Value)
 {
-	if (!GetOwner() || !GetOwner()->HasAuthority() || SocketIndex < 0 ||
+	if (!GetOwner() || !GetOwner()->HasAuthority() || SocketIndex < 0 || SocketIndex >= 3 ||
 		!Slots.IsValidIndex(InventorySlot) || Slots[InventorySlot].IsEmpty())
 	{
 		return false;
 	}
 	FMT2ItemSlot& Item = Slots[InventorySlot];
-	// Quest items are given scratch sockets on demand; a stone mounted later overrides the reported
-	// value, so growing the array here cannot disturb real socket contents.
-	if (Item.MetinSockets.Num() <= SocketIndex)
-	{
-		Item.MetinSockets.SetNum(SocketIndex + 1);
-	}
-	Item.MetinSockets[SocketIndex].Value = Value;
+	const UMT2ItemTemplate* Template = ResolveTemplate(Item.Vnum);
+	MT2ItemUtils::NormalizeNumericSockets(Item, Template);
+	if (!MT2ItemUtils::SetNumericSocket(Item, SocketIndex, Value)) return false;
 	OnInventoryChanged.Broadcast();
 	return true;
 }
@@ -984,7 +1041,8 @@ bool UMT2InventoryComponent::SetItemBonusValue(
 	{
 		return false;
 	}
-	TArray<FMT2ItemBonus>& Bonuses = Slots[InventorySlot].Bonuses;
+	if (!Slots[InventorySlot].SupportsBonuses()) return false;
+	TArray<FMT2ItemBonus>& Bonuses = Slots[InventorySlot].EditBonuses();
 	if (Bonuses.Num() <= BonusIndex) { Bonuses.SetNum(BonusIndex + 1); }
 	FMT2ItemBonus& Bonus = Bonuses[BonusIndex];
 	Bonus.Type = static_cast<EMT2ItemBonusType>(ApplyType);
@@ -1013,7 +1071,7 @@ bool UMT2InventoryComponent::CopyAndReplaceQuestItemWithTemplates(
 			static_cast<int64>(Vnum) <= static_cast<int64>(Template->Vnum) + FMath::Max(Template->VnumRange, 0);
 	};
 	if (!GetOwner() || !GetOwner()->HasAuthority() || !Slots.IsValidIndex(InventorySlot) ||
-		ExpectedSource.IsEmpty() || ExpectedSource.Count != 1 || ExpectedSource.bAutoRecoveryActive ||
+		ExpectedSource.IsEmpty() || ExpectedSource.Count != 1 || ExpectedSource.GetAutoRecoveryState().bActive ||
 		!CoversVnum(SourceTemplate, ExpectedSource.Vnum) ||
 		!SourceTemplate->IsA<UMT2ItemEquipmentTemplate>() || !ResultTemplate ||
 		!ResultTemplate->IsA<UMT2ItemEquipmentTemplate>() || !CoversVnum(ResultTemplate, ResultVnum) ||
@@ -1031,29 +1089,29 @@ bool UMT2InventoryComponent::CopyAndReplaceQuestItemWithTemplates(
 		(SourceArmor->ArmorSubType == EMT2ArmorSubType::Wrist || SourceArmor->ArmorSubType == EMT2ArmorSubType::Neck || SourceArmor->ArmorSubType == EMT2ArmorSubType::Ear));
 	const bool bResultAccessory = ResultTemplate->IsA<UMT2ItemBeltTemplate>() || (ResultArmor &&
 		(ResultArmor->ArmorSubType == EMT2ArmorSubType::Wrist || ResultArmor->ArmorSubType == EMT2ArmorSubType::Neck || ResultArmor->ArmorSubType == EMT2ArmorSubType::Ear));
-	if (bAccessory != bResultAccessory || ExpectedSource.MetinSockets.Num() > 3) { return false; }
+	if (bAccessory != bResultAccessory || ExpectedSource.GetMetinSockets().Num() > 3) { return false; }
 
 	FMT2ItemSlot Replacement;
 	Replacement.Vnum = ResultVnum;
-	Replacement.Bonuses = ExpectedSource.Bonuses;
+	Replacement.EditBonuses() = ExpectedSource.GetBonuses();
 	Replacement.bNewlyAcquired = true;
 	if (bAccessory)
 	{
-		Replacement.AccessorySockets = ExpectedSource.AccessorySockets;
+		Replacement.EditAccessorySockets() = ExpectedSource.GetAccessorySockets();
 	}
 	else
 	{
 		// ITEM_MANAGER::CopyAllAttrTo opens silver sockets, then packs surviving stones from the
 		// front. Broken Metin (28960) is discarded; unrelated per-item runtime state is not copied.
-		Replacement.MetinSockets.SetNum(ExpectedSource.MetinSockets.Num());
+		Replacement.EditMetinSockets().SetNum(ExpectedSource.GetMetinSockets().Num());
 		int32 StoneSlot = 0;
-		for (const FMT2MetinSocket& Socket : ExpectedSource.MetinSockets)
+		for (const FMT2MetinSocket& Socket : ExpectedSource.GetMetinSockets())
 		{
 			const UMT2ItemMetinStoneTemplate* Stone = Socket.Stone.GetDefaultObject();
 			if (Stone && Stone->Vnum <= 0) { return false; }
 			if (Stone && Stone->Vnum != 28960)
 			{
-				Replacement.MetinSockets[StoneSlot++].Stone = Socket.Stone;
+				Replacement.EditMetinSockets()[StoneSlot++].Stone = Socket.Stone;
 			}
 			else if (!Stone && Socket.Value > 2 && Socket.Value != 28960)
 			{
@@ -1071,7 +1129,7 @@ bool UMT2InventoryComponent::CopyAndReplaceQuestItemWithTemplates(
 		{
 			FMT2ItemSlot& Slot = Candidate[Index];
 			if (Index == InventorySlot || Slot.IsEmpty() || Slot.Vnum != Material.Key) { continue; }
-			if (Slot.bAutoRecoveryActive) { return false; }
+			if (Slot.GetAutoRecoveryState().bActive) { return false; }
 			const int32 Removed = FMath::Min(Remaining, Slot.Count);
 			Remaining -= Removed;
 			Slot.Count -= Removed;
@@ -1083,6 +1141,73 @@ bool UMT2InventoryComponent::CopyAndReplaceQuestItemWithTemplates(
 	Slots = MoveTemp(Candidate);
 	OnInventoryChanged.Broadcast();
 	GetOwner()->ForceNetUpdate();
+	return true;
+}
+
+bool UMT2InventoryComponent::ExchangeItemAtSlot(int32 InventorySlot, int32 ConsumeCount, int32 ResultVnum, int32 ResultCount)
+{
+	auto* Player = Cast<AMT2PlayerCharacter>(GetOwner());
+	auto* State = Player ? Player->GetPlayerState<AMT2PlayerState>() : nullptr;
+	if (!Player || !Player->HasAuthority() || Player->GetHealthComponent()->IsDead() ||
+		(State && State->GetTradeComponent() && State->GetTradeComponent()->IsTrading()) ||
+		!Slots.IsValidIndex(InventorySlot) || Slots[InventorySlot].IsEmpty() || ConsumeCount <= 0 ||
+		ConsumeCount > Slots[InventorySlot].Count || Slots[InventorySlot].GetAutoRecoveryState().bActive ||
+		ResultCount < 0 || ResultVnum < 0 || ((ResultVnum == 0) != (ResultCount == 0))) return false;
+	const auto* ResultTemplate = ResultVnum ? ResolveTemplate(ResultVnum) : nullptr;
+	if (ResultVnum && !ResultTemplate) return false;
+	TArray<FMT2ItemSlot> Candidate = Slots;
+	Candidate[InventorySlot].Count -= ConsumeCount;
+	if (Candidate[InventorySlot].Count == 0) Candidate[InventorySlot] = FMT2ItemSlot();
+	FMT2ItemSlot Reward;
+	if (ResultTemplate)
+	{
+		Reward = FMT2ItemSlot(ResultVnum, ResultTemplate->MakeInstanceData());
+		Reward.Template = ResultTemplate->GetClass();
+		Reward.bNewlyAcquired = true;
+		const int32 MaxStack = ResultTemplate->GetMaxStackSize();
+		if (MaxStack < 1) return false;
+		int32 Remaining = ResultCount;
+		for (auto& Slot : Candidate)
+		{
+			if (!Slot.IsEmpty() && Slot.Count < MaxStack && MT2ItemUtils::HaveSameInstanceData(Slot, Reward))
+			{
+				const int32 Added = FMath::Min(Remaining, MaxStack - Slot.Count);
+				Slot.Count += Added; Remaining -= Added; Slot.bNewlyAcquired = true;
+			}
+		}
+		TBitArray<> Occupied(false, Candidate.Num());
+		for (int32 Index = 0; Index < Candidate.Num(); ++Index)
+		{
+			if (Candidate[Index].IsEmpty()) continue;
+			const auto* Template = ResolveTemplate(Candidate[Index].Vnum);
+			if (!Template) return false;
+			const int32 Size = FMath::Clamp(Template->InventorySize, 1, 3);
+			for (int32 Cell = 0; Cell < Size; ++Cell)
+			{
+				const int32 Covered = Index + Cell * MT2InventoryLayout::Columns;
+				if (!Candidate.IsValidIndex(Covered) || Covered / PageSlotCount != Index / PageSlotCount) return false;
+				Occupied[Covered] = true;
+			}
+		}
+		const int32 Size = FMath::Clamp(ResultTemplate->InventorySize, 1, 3);
+		for (int32 Index = 0; Index < Candidate.Num() && Remaining > 0; ++Index)
+		{
+			if ((Index % PageSlotCount) / MT2InventoryLayout::Columns + Size > MT2InventoryLayout::Rows) continue;
+			bool bFree = true;
+			for (int32 Cell = 0; Cell < Size; ++Cell)
+				if (Occupied[Index + Cell * MT2InventoryLayout::Columns]) bFree = false;
+			if (!bFree) continue;
+			Candidate[Index] = Reward;
+			Candidate[Index].Count = FMath::Min(Remaining, MaxStack);
+			Remaining -= Candidate[Index].Count;
+			for (int32 Cell = 0; Cell < Size; ++Cell) Occupied[Index + Cell * MT2InventoryLayout::Columns] = true;
+		}
+		if (Remaining > 0) return false;
+	}
+	Slots = MoveTemp(Candidate);
+	OnInventoryChanged.Broadcast();
+	GetOwner()->ForceNetUpdate();
+	if (ResultCount > 0) NotifyItemReceived(Reward, ResultCount);
 	return true;
 }
 
@@ -1120,7 +1245,7 @@ bool UMT2InventoryComponent::ExtractItemForDrop(
 	const UMT2ItemTemplate* Template = ResolveTemplate(Slots[InventorySlot].Vnum);
 	constexpr int32 AntiDrop = 1 << 7;
 	constexpr int32 AntiGive = 1 << 13;
-	if (!Template || Slots[InventorySlot].bAutoRecoveryActive ||
+	if (!Template || Slots[InventorySlot].GetAutoRecoveryState().bActive ||
 		(Template->AntiFlags & (AntiDrop | AntiGive)) != 0)
 	{
 		return false;
@@ -1190,7 +1315,7 @@ bool UMT2InventoryComponent::ExecuteAtomicTrade(
 			{
 				return false;
 			}
-			if (Inventory.Slots[SlotIndex].bAutoRecoveryActive)
+			if (Inventory.Slots[SlotIndex].GetAutoRecoveryState().bActive)
 			{
 				return false;
 			}
@@ -1236,7 +1361,7 @@ bool UMT2InventoryComponent::CanTradeItemAtSlot(int32 InventorySlot) const
 	if (!Slots.IsValidIndex(InventorySlot) || Slots[InventorySlot].IsEmpty()) return false;
 	const UMT2ItemTemplate* Template = ResolveTemplate(Slots[InventorySlot].Vnum);
 	constexpr int32 AntiGive = 1 << 13;
-	return Template && !Slots[InventorySlot].bAutoRecoveryActive &&
+	return Template && !Slots[InventorySlot].GetAutoRecoveryState().bActive &&
 		(Template->AntiFlags & AntiGive) == 0;
 }
 

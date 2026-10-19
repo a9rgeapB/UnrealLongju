@@ -8,6 +8,8 @@
 */
 
 #include "UI/MT2RefinementDialogWidget.h"
+#include "Items/Templates/MT2ItemRefinementScrollTemplate.h"
+
 
 #include "Blueprint/WidgetTree.h"
 #include "Characters/MT2PlayerCharacter.h"
@@ -193,7 +195,7 @@ void UMT2RefinementDialogWidget::RebuildPreview()
 	const UMT2ItemTemplate* FutureTemplate =
 		CurrentTemplate && Registry
 			? Registry->ResolveItemTemplateClass(
-				CurrentTemplate->RefinedVnum).GetDefaultObject() : nullptr;
+				CurrentTemplate->GetRefinedVnum()).GetDefaultObject() : nullptr;
 	if (!CurrentTemplate || !FutureTemplate ||
 		!CurrentTemplate->RefinementRecipe.IsValid())
 	{
@@ -210,7 +212,7 @@ void UMT2RefinementDialogWidget::RebuildPreview()
 		AddLabel(*WidgetTree, Column, Heading, UMT2ItemTooltipWidget::TitleColor, 10);
 		if (UMT2ItemTooltipWidget* Tooltip = UMT2ItemTooltipWidget::Create(
 			GetOwningPlayer(), Template, Item.Count, State, -1,
-			&Item.Bonuses, &Item.MetinSockets, Item.SkillVnum))
+			&Item.GetBonuses(), &Item.GetMetinSockets(), Item.GetSkillVnum()))
 		{
 			Column->AddChildToVerticalBox(Tooltip);
 		}
@@ -269,15 +271,15 @@ void UMT2RefinementDialogWidget::RebuildPreview()
 	}
 	if (!bMoneyOnly) for (const FMT2RefinementMaterial& Material : Recipe.Materials)
 	{
-		const int32 Owned = CountAvailableMaterial(Material.ItemVnum);
+		const int32 Owned = CountAvailableMaterial(Material.GetItemVnum());
 		const UMT2ItemTemplate* MaterialTemplate = Registry
-			? Registry->ResolveItemTemplateClass(Material.ItemVnum).GetDefaultObject() : nullptr;
+			? Registry->ResolveItemTemplateClass(Material.GetItemVnum()).GetDefaultObject() : nullptr;
 		if (MaterialSlotClass)
 		{
 			UMT2InventorySlotWidget* ItemIcon = WidgetTree->ConstructWidget<UMT2InventorySlotWidget>(MaterialSlotClass);
 			ItemIcon->TakeWidget();
 			ItemIcon->InitializeSlot(INDEX_NONE, EMT2InventorySlotKind::Item, FText::GetEmpty());
-			ItemIcon->SetItemByVnum(Material.ItemVnum, Material.Count);
+			ItemIcon->SetItemByVnum(Material.GetItemVnum(), Material.Count);
 			if (UTextBlock* Count = Cast<UTextBlock>(ItemIcon->GetWidgetFromName(TEXT("CountText"))))
 			{
 				Count->SetText(FText::AsNumber(Material.Count));

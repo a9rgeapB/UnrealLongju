@@ -7,6 +7,8 @@
 
 */
 
+#include "Items/Templates/MT2ItemRefinementScrollTemplate.h"
+
 #include "Items/MT2InventoryComponent.h"
 
 #include "Characters/MT2PlayerCharacter.h"
@@ -33,9 +35,9 @@ bool UMT2InventoryComponent::CanRefineItem(int32 TargetSlot) const
 		return false;
 	}
 	const UMT2ItemTemplate* CurrentTemplate = ResolveTemplate(Slots[TargetSlot].Vnum);
-	return CurrentTemplate && CurrentTemplate->RefinedVnum > 0 &&
+	return CurrentTemplate && CurrentTemplate->GetRefinedVnum() > 0 &&
 		CurrentTemplate->RefinementRecipe.IsValid() &&
-		ResolveTemplate(CurrentTemplate->RefinedVnum) != nullptr;
+		ResolveTemplate(CurrentTemplate->GetRefinedVnum()) != nullptr;
 }
 
 EMT2RefinementResult UMT2InventoryComponent::RefineItem(int32 TargetSlot, int32 ScrollSlot, bool bMoneyOnly)
@@ -48,7 +50,7 @@ EMT2RefinementResult UMT2InventoryComponent::RefineItem(int32 TargetSlot, int32 
 
 	const UMT2ItemTemplate* CurrentTemplate = ResolveTemplate(Slots[TargetSlot].Vnum);
 	const UMT2ItemTemplate* FutureTemplate =
-		CurrentTemplate ? ResolveTemplate(CurrentTemplate->RefinedVnum) : nullptr;
+		CurrentTemplate ? ResolveTemplate(CurrentTemplate->GetRefinedVnum()) : nullptr;
 	if (!CurrentTemplate || !FutureTemplate)
 	{
 		return EMT2RefinementResult::Invalid;
@@ -92,7 +94,7 @@ EMT2RefinementResult UMT2InventoryComponent::RefineItem(int32 TargetSlot, int32 
 	};
 	if (!bMoneyOnly) for (const FMT2RefinementMaterial& Material : Recipe.Materials)
 	{
-		if (CountMaterial(Material.ItemVnum) < Material.Count)
+		if (CountMaterial(Material.GetItemVnum()) < Material.Count)
 		{
 			return EMT2RefinementResult::MissingMaterials;
 		}
@@ -126,7 +128,7 @@ EMT2RefinementResult UMT2InventoryComponent::RefineItem(int32 TargetSlot, int32 
 	};
 	if (!bMoneyOnly) for (const FMT2RefinementMaterial& Material : Recipe.Materials)
 	{
-		RemoveMaterial(Material.ItemVnum, Material.Count);
+		RemoveMaterial(Material.GetItemVnum(), Material.Count);
 	}
 	if (ScrollTemplate)
 	{
@@ -145,15 +147,17 @@ EMT2RefinementResult UMT2InventoryComponent::RefineItem(int32 TargetSlot, int32 
 	if (FMath::RandRange(1, 100) <= SuccessChance)
 	{
 		Slots[TargetSlot].Vnum = FutureTemplate->Vnum;
+		Slots[TargetSlot].Template = FutureTemplate->GetClass();
 	}
 	else if (!ScrollTemplate)
 	{
 		Slots[TargetSlot] = FMT2ItemSlot();
 		Result = EMT2RefinementResult::FailedDestroyed;
 	}
-	else if (CurrentTemplate->RefinementLevel > 0 && CurrentTemplate->PreviousRefinedVnum > 0)
+	else if (CurrentTemplate->RefinementLevel > 0 && CurrentTemplate->GetPreviousRefinedVnum() > 0)
 	{
-		Slots[TargetSlot].Vnum = CurrentTemplate->PreviousRefinedVnum;
+		Slots[TargetSlot].Vnum = CurrentTemplate->GetPreviousRefinedVnum();
+		if (const auto* Previous = ResolveTemplate(Slots[TargetSlot].Vnum)) Slots[TargetSlot].Template = Previous->GetClass();
 		Result = EMT2RefinementResult::FailedDowngraded;
 	}
 	else

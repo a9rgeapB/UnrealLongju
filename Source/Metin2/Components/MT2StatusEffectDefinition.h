@@ -105,6 +105,27 @@ public:
 	virtual FText GetMagnitudeLabel(const FMT2StatusEffect& Effect) const override;
 };
 
+// A fixed amount per second for a fixed duration. Full resources do not end these effects early.
+UCLASS()
+class METIN2_API UMT2StatusEffect_ContinuousHealthRecovery : public UMT2StatusEffectDefinition
+{
+	GENERATED_BODY()
+public:
+	virtual bool Tick(AMT2CharacterBase* Target, FMT2StatusEffect& Effect) const override;
+	virtual FText GetDisplayName() const override;
+	virtual FText GetDescription(const FMT2StatusEffect& Effect) const override;
+};
+
+UCLASS()
+class METIN2_API UMT2StatusEffect_ContinuousManaRecovery : public UMT2StatusEffectDefinition
+{
+	GENERATED_BODY()
+public:
+	virtual bool Tick(AMT2CharacterBase* Target, FMT2StatusEffect& Effect) const override;
+	virtual FText GetDisplayName() const override;
+	virtual FText GetDescription(const FMT2StatusEffect& Effect) const override;
+};
+
 UCLASS()
 class METIN2_API UMT2StatusEffect_AutoHealthRecovery : public UMT2StatusEffectDefinition
 {
@@ -126,26 +147,26 @@ public:
 };
 
 // Timed +% attack-speed buff. The magnitude rides on ApplyType=APPLY_ATT_SPEED/ApplyValue and is applied
-// by the character's stat recompute; here we only forbid stacking (deny re-use while active).
+// by the character's stat recompute; re-use refreshes the existing affect instead of stacking it.
 UCLASS()
 class METIN2_API UMT2StatusEffect_AttackSpeed : public UMT2StatusEffectDefinition
 {
 	GENERATED_BODY()
 
 public:
-	virtual bool DeniesReapplyWhileActive() const override { return true; }
+	virtual bool DeniesReapplyWhileActive() const override { return false; }
 	virtual FText GetDisplayName() const override;
 	virtual FText GetMagnitudeLabel(const FMT2StatusEffect& Effect) const override;
 };
 
-// Timed +% movement-speed buff (ApplyType=APPLY_MOV_SPEED); non-stacking like the attack-speed buff.
+// Timed +% movement-speed buff (ApplyType=APPLY_MOV_SPEED); re-use refreshes its duration.
 UCLASS()
 class METIN2_API UMT2StatusEffect_MovementSpeed : public UMT2StatusEffectDefinition
 {
 	GENERATED_BODY()
 
 public:
-	virtual bool DeniesReapplyWhileActive() const override { return true; }
+	virtual bool DeniesReapplyWhileActive() const override { return false; }
 	virtual FText GetDisplayName() const override;
 	virtual FText GetMagnitudeLabel(const FMT2StatusEffect& Effect) const override;
 };

@@ -1,3 +1,9 @@
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemBeltTemplate.h"
+#include "Items/Templates/MT2ItemMaterialTemplate.h"
+#include "Items/Templates/MT2ItemMetinStoneTemplate.h"
+#include "Items/Templates/MT2ItemRingTemplate.h"
+#include "Items/Templates/MT2ItemUseTemplate.h"
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include "Items/MT2AccessorySocketRules.h"
@@ -27,7 +33,7 @@
 #include "Misc/ScopeExit.h"
 #include "UObject/StrongObjectPtr.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2AccessoryRulesTest,"Metin2.Items.AccessorySockets.Rules",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2AccessoryRulesTest,"Metin2.Items.GetAccessorySockets().Rules",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FMT2AccessoryRulesTest::RunTest(const FString&)
 {
 	using namespace MT2AccessorySockets;
@@ -64,7 +70,7 @@ bool FMT2AccessoryRulesTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2AccessoryTooltipTest,"Metin2.Items.AccessorySockets.Tooltips",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2AccessoryTooltipTest,"Metin2.Items.GetAccessorySockets().Tooltips",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FMT2AccessoryTooltipTest::RunTest(const FString&)
 {
 	auto* Diamond=NewObject<UMT2ItemUseTemplate>(); Diamond->Vnum=50621; Diamond->UseSubType=EMT2UseSubType::AddAccessorySocket;
@@ -118,7 +124,7 @@ bool FMT2AccessoryTooltipTest::RunTest(const FString&)
 	PartnerCell->NativeOnMouseEnter(FGeometry(),FPointerEvent());
 	TestEqual(TEXT("Partner hover preserves offered item despite occupied own slot zero"),TooltipText(PartnerCell->GetToolTip()),OfferedText);
 	FMT2ItemSlot OfferedAccessory; OfferedAccessory.Vnum=14000; OfferedAccessory.Count=1;
-	OfferedAccessory.AccessorySockets.MaximumGrade=3; OfferedAccessory.AccessorySockets.CurrentGrade=2; OfferedAccessory.AccessorySockets.RemainingSeconds=100;
+	OfferedAccessory.EditAccessorySockets().MaximumGrade=3; OfferedAccessory.EditAccessorySockets().CurrentGrade=2; OfferedAccessory.EditAccessorySockets().RemainingSeconds=100;
 	PartnerCell->SetItemByVnum(14000,1); PartnerCell->SetInstanceTooltipData(OfferedAccessory);
 	const auto Images=[](UWidget* Widget)
 	{
@@ -153,15 +159,15 @@ bool FMT2AccessoryTooltipTest::RunTest(const FString&)
 	TestTrue(TEXT("Active mineral row displays remaining wear"),TooltipText(PartnerCell->GetToolTip()).Contains(TEXT("1m 40s")));
 	PartnerCell->NativeOnMouseEnter(FGeometry(),FPointerEvent());
 	TestEqual(TEXT("Trade hover preserves accessory socket visuals"),Frames(PartnerCell->GetToolTip()).Num(),3);
-	OfferedAccessory.AccessorySockets.CurrentGrade=0; OfferedAccessory.AccessorySockets.RemainingSeconds=0;
+	OfferedAccessory.EditAccessorySockets().CurrentGrade=0; OfferedAccessory.EditAccessorySockets().RemainingSeconds=0;
 	PartnerCell->SetInstanceTooltipData(OfferedAccessory);
 	TestEqual(TEXT("Opened but entirely empty accessory still shows frames"),Frames(PartnerCell->GetToolTip()).Num(),3);
-	OfferedAccessory.AccessorySockets.MaximumGrade=0; PartnerCell->SetInstanceTooltipData(OfferedAccessory);
+	OfferedAccessory.EditAccessorySockets().MaximumGrade=0; PartnerCell->SetInstanceTooltipData(OfferedAccessory);
 	TestEqual(TEXT("Unopened accessory has no socket frames"),Frames(PartnerCell->GetToolTip()).Num(),0);
 	FMT2ItemSlot Weapon; Weapon.Vnum=19; Weapon.Count=1;
 	const auto* Stone=MT2ItemUtils::ResolveTemplate<UMT2ItemMetinStoneTemplate>(Player,28030);
 	if (!TestNotNull(TEXT("Ordinary Metin stone fixture"),Stone)) { return false; }
-	auto& Socket=Weapon.MetinSockets.AddDefaulted_GetRef(); Socket.Type=EMT2MetinSocketType::Gold;
+	auto& Socket=Weapon.EditMetinSockets().AddDefaulted_GetRef(); Socket.Type=EMT2MetinSocketType::Gold;
 	Socket.Stone=Stone->GetClass(); PartnerCell->SetItemByVnum(19,1); PartnerCell->SetInstanceTooltipData(Weapon);
 	const auto GoldFrames=Frames(PartnerCell->GetToolTip());
 	if (TestEqual(TEXT("Weapon uses the same socket-row renderer"),GoldFrames.Num(),1))
@@ -169,7 +175,7 @@ bool FMT2AccessoryTooltipTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2ItemBonusNamesTest,"Metin2.Items.Bonuses.DisplayNames",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2ItemBonusNamesTest,"Metin2.Items.GetBonuses().DisplayNames",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FMT2ItemBonusNamesTest::RunTest(const FString&)
 {
 	auto* Defaults=NewObject<UMT2ItemBonusSettings>();
@@ -215,7 +221,7 @@ bool FMT2ItemBonusNamesTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2AccessoryAuthorityTest,"Metin2.Items.AccessorySockets.Authority",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2AccessoryAuthorityTest,"Metin2.Items.GetAccessorySockets().Authority",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FMT2AccessoryAuthorityTest::RunTest(const FString&)
 {
 	TStrongObjectPtr<UGameInstance> GI(NewObject<UGameInstance>(GEngine)); GI->InitializeStandalone();
@@ -241,31 +247,31 @@ bool FMT2AccessoryAuthorityTest::RunTest(const FString&)
 	auto* Inv=Player->GetInventoryComponent(); Inv->RestoreItems(Slots,Equipment);
 	TestEqual(TEXT("Diamond opens first socket"),Inv->ApplyAccessoryMaterialWithRoll(0,1,false,Slots[0],Slots[1],50),EMT2AccessorySocketApplyResult::Success);
 	TestEqual(TEXT("Exactly one diamond consumed"),Inv->GetSlots()[0].Count,1);
-	TestEqual(TEXT("Permanent socket opened"),Inv->GetSlots()[1].AccessorySockets.MaximumGrade,1);
-	TestEqual(TEXT("Opening grants no bonus grade"),Inv->GetSlots()[1].AccessorySockets.CurrentGrade,0);
+	TestEqual(TEXT("Permanent socket opened"),Inv->GetSlots()[1].GetAccessorySockets().MaximumGrade,1);
+	TestEqual(TEXT("Opening grants no bonus grade"),Inv->GetSlots()[1].GetAccessorySockets().CurrentGrade,0);
 	TestEqual(TEXT("Replayed snapshot cannot consume again"),Inv->ApplyAccessoryMaterialWithRoll(0,1,false,Slots[0],Slots[1],1),EMT2AccessorySocketApplyResult::Invalid);
 	for (int32 Grade=0; Grade<3; ++Grade)
 	{
 		Slots[0].Vnum=50623; Slots[0].Count=2;
-		Slots[1].AccessorySockets.MaximumGrade=3; Slots[1].AccessorySockets.CurrentGrade=Grade;
-		Slots[1].AccessorySockets.RemainingSeconds=Grade?100:0;
+		Slots[1].EditAccessorySockets().MaximumGrade=3; Slots[1].EditAccessorySockets().CurrentGrade=Grade;
+		Slots[1].EditAccessorySockets().RemainingSeconds=Grade?100:0;
 		Inv->RestoreItems(Slots,Equipment);
 		TestEqual(TEXT("Fill boundary succeeds"),Inv->ApplyAccessoryMaterialWithRoll(0,1,false,Slots[0],Slots[1],90-Grade*10),EMT2AccessorySocketApplyResult::Success);
-		TestEqual(TEXT("Fill increases grade once"),Inv->GetSlots()[1].AccessorySockets.CurrentGrade,Grade+1);
+		TestEqual(TEXT("Fill increases grade once"),Inv->GetSlots()[1].GetAccessorySockets().CurrentGrade,Grade+1);
 		Inv->RestoreItems(Slots,Equipment);
 		TestEqual(TEXT("Fill boundary plus one fails"),Inv->ApplyAccessoryMaterialWithRoll(0,1,false,Slots[0],Slots[1],91-Grade*10),EMT2AccessorySocketApplyResult::Failed);
 		TestEqual(TEXT("Failed insertion consumes one"),Inv->GetSlots()[0].Count,1);
-		TestEqual(TEXT("Failure preserves existing grade"),Inv->GetSlots()[1].AccessorySockets.CurrentGrade,Grade);
+		TestEqual(TEXT("Failure preserves existing grade"),Inv->GetSlots()[1].GetAccessorySockets().CurrentGrade,Grade);
 	}
-	Slots[0].Vnum=50621; Slots[1].AccessorySockets={}; Inv->RestoreItems(Slots,Equipment);
+	Slots[0].Vnum=50621; Slots[1].EditAccessorySockets()={}; Inv->RestoreItems(Slots,Equipment);
 	TestEqual(TEXT("Opening roll 51 fails"),Inv->ApplyAccessoryMaterialWithRoll(0,1,false,Slots[0],Slots[1],51),EMT2AccessorySocketApplyResult::Failed);
 	TestEqual(TEXT("Failed opening consumes one"),Inv->GetSlots()[0].Count,1);
-	Slots[1].AccessorySockets.MaximumGrade=3; Inv->RestoreItems(Slots,Equipment);
+	Slots[1].EditAccessorySockets().MaximumGrade=3; Inv->RestoreItems(Slots,Equipment);
 	TestEqual(TEXT("Fully opened accessory rejects"),Inv->ApplyAccessoryMaterialWithRoll(0,1,false,Inv->GetSlots()[0],Inv->GetSlots()[1],1),EMT2AccessorySocketApplyResult::Full);
 	TestEqual(TEXT("Full rejection consumes nothing"),Inv->GetSlots()[0].Count,2);
 	Slots[1].Vnum=11200; Inv->RestoreItems(Slots,Equipment);
 	TestEqual(TEXT("Body armor rejects accessory material"),Inv->ApplyAccessoryMaterialWithRoll(0,1,false,Slots[0],Slots[1],1),EMT2AccessorySocketApplyResult::Incompatible);
-	Slots[1].Vnum=14000; Slots[1].AccessorySockets={}; Inv->RestoreItems(Slots,Equipment);
+	Slots[1].Vnum=14000; Slots[1].EditAccessorySockets()={}; Inv->RestoreItems(Slots,Equipment);
 	Player->ServerApplyAccessoryMaterial_Implementation(1,0,1,false,Slots[0],Slots[1]);
 	TestEqual(TEXT("First confirmation consumes once regardless of roll"),Inv->GetSlots()[0].Count,1);
 	Player->ServerApplyAccessoryMaterial_Implementation(1,0,1,false,Inv->GetSlots()[0],Inv->GetSlots()[1]);
@@ -277,7 +283,7 @@ bool FMT2AccessoryAuthorityTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2AccessoryWearTest,"Metin2.Items.AccessorySockets.Wear",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2AccessoryWearTest,"Metin2.Items.GetAccessorySockets().Wear",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FMT2AccessoryWearTest::RunTest(const FString&)
 {
 	TStrongObjectPtr<UGameInstance> GI(NewObject<UGameInstance>(GEngine)); GI->InitializeStandalone();
@@ -292,50 +298,50 @@ bool FMT2AccessoryWearTest::RunTest(const FString&)
 	auto* Inv=Player->GetInventoryComponent();
 	TArray<FMT2ItemSlot> Slots,Equipment; Slots.SetNum(180); Equipment.SetNum(32);
 	Equipment[3].Vnum=14000; Equipment[3].Count=1;
-	Equipment[3].AccessorySockets.MaximumGrade=3; Equipment[3].AccessorySockets.CurrentGrade=3; Equipment[3].AccessorySockets.RemainingSeconds=10;
+	Equipment[3].EditAccessorySockets().MaximumGrade=3; Equipment[3].EditAccessorySockets().CurrentGrade=3; Equipment[3].EditAccessorySockets().RemainingSeconds=10;
 	Inv->RestoreItems(Slots,Equipment);
 	const FString Saved=State->CapturePersistentStateJson_Implementation();
 	TestTrue(TEXT("Accessory save has current grade"),Saved.Contains(TEXT("\"socket_0\":3")));
 	TestTrue(TEXT("Accessory save has remaining wear"),Saved.Contains(TEXT("\"socket_2\":10")));
 	TestTrue(TEXT("Accessory save restores"),State->ApplyPersistentStateJson_Implementation(Saved));
-	TestEqual(TEXT("Accessory grade survives persistence"),Inv->GetEquipment()[3].AccessorySockets.CurrentGrade,3);
+	TestEqual(TEXT("Accessory grade survives persistence"),Inv->GetEquipment()[3].GetAccessorySockets().CurrentGrade,3);
 	Player->RecalculateEquipmentStats();
 	TestEqual(TEXT("Low intrinsic attack speed gets grade minimum"),Player->GetItemApplyBonus(EMT2ItemBonusType::AttackSpeed),4);
 	TestEqual(TEXT("Stamina receives only total forty percent"),Player->GetItemApplyBonus(EMT2ItemBonusType::MaxStamina),14);
 	Inv->AccessoryWearUpdatedAt=World->GetTimeSeconds()-4.25;
 	TestEqual(TEXT("Const projection deducts partial equipped wear"),Inv->GetEffectiveAccessoryState(3).RemainingSeconds,6);
 	TestTrue(TEXT("Unequip succeeds"),Inv->UnequipItem(3));
-	TestEqual(TEXT("Unequip carries elapsed seconds"),Inv->GetSlots()[0].AccessorySockets.RemainingSeconds,6);
+	TestEqual(TEXT("Unequip carries elapsed seconds"),Inv->GetSlots()[0].GetAccessorySockets().RemainingSeconds,6);
 	Inv->AccessoryWearUpdatedAt=World->GetTimeSeconds()-30;
-	TestEqual(TEXT("Inventory pauses wear"),Inv->GetSlots()[0].AccessorySockets.RemainingSeconds,6);
+	TestEqual(TEXT("Inventory pauses wear"),Inv->GetSlots()[0].GetAccessorySockets().RemainingSeconds,6);
 	TestFalse(TEXT("No timer when unworn"),World->GetTimerManager().IsTimerActive(Inv->AccessoryWearTimer));
 	FMT2ItemSlot Dropped;
 	TestTrue(TEXT("Accessory can be dropped"),Inv->ExtractItemForDrop(0,1,Dropped));
-	TestEqual(TEXT("Ground item retains paused duration"),Dropped.AccessorySockets.RemainingSeconds,6);
-	TestTrue(TEXT("Ground item retains fractional wear"),FMath::IsNearlyEqual(Dropped.AccessorySockets.WearFraction,0.25));
+	TestEqual(TEXT("Ground item retains paused duration"),Dropped.GetAccessorySockets().RemainingSeconds,6);
+	TestTrue(TEXT("Ground item retains fractional wear"),FMath::IsNearlyEqual(Dropped.GetAccessorySockets().WearFraction,0.25));
 	TestEqual(TEXT("Ground pickup restores full instance"),Inv->AddItemSlotPartial(Dropped),1);
 	auto* OtherPlayer=World->SpawnActor<AMT2PlayerCharacter>(); auto* OtherInv=OtherPlayer->GetInventoryComponent(); OtherInv->RestoreItems({},{});
 	TArray<int32> Offered={0}; TArray<FMT2ItemSlot> Expected={Inv->GetSlots()[0]};
 	TestTrue(TEXT("Accessory trade succeeds"),Inv->ExecuteAtomicTrade(*OtherInv,Offered,Expected,{},{}));
-	TestEqual(TEXT("Trade preserves paused grade"),OtherInv->GetSlots()[0].AccessorySockets.CurrentGrade,3);
-	TestEqual(TEXT("Trade preserves paused duration"),OtherInv->GetSlots()[0].AccessorySockets.RemainingSeconds,6);
-	TestTrue(TEXT("Trade preserves fractional wear"),FMath::IsNearlyEqual(OtherInv->GetSlots()[0].AccessorySockets.WearFraction,0.25));
+	TestEqual(TEXT("Trade preserves paused grade"),OtherInv->GetSlots()[0].GetAccessorySockets().CurrentGrade,3);
+	TestEqual(TEXT("Trade preserves paused duration"),OtherInv->GetSlots()[0].GetAccessorySockets().RemainingSeconds,6);
+	TestTrue(TEXT("Trade preserves fractional wear"),FMath::IsNearlyEqual(OtherInv->GetSlots()[0].GetAccessorySockets().WearFraction,0.25));
 	Inv->RestoreItems(Slots,Equipment); Inv->AccessoryWearUpdatedAt=World->GetTimeSeconds()-0.6; Inv->SettleAccessoryWear();
 	Inv->AccessoryWearUpdatedAt=World->GetTimeSeconds()-0.6; Inv->SettleAccessoryWear();
-	TestEqual(TEXT("Repeated subsecond settlements cannot grant free wear"),Inv->GetEquipment()[3].AccessorySockets.RemainingSeconds,9);
+	TestEqual(TEXT("Repeated subsecond settlements cannot grant free wear"),Inv->GetEquipment()[3].GetAccessorySockets().RemainingSeconds,9);
 	Inv->AccessoryWearUpdatedAt=World->GetTimeSeconds()-0.6;
 	TestTrue(TEXT("Death drop succeeds"),Inv->ExtractRandomEquippedItem(Dropped));
-	TestEqual(TEXT("Death drop settles remaining wear"),Dropped.AccessorySockets.RemainingSeconds,9);
+	TestEqual(TEXT("Death drop settles remaining wear"),Dropped.GetAccessorySockets().RemainingSeconds,9);
 	TestFalse(TEXT("Death drop stops timer"),World->GetTimerManager().IsTimerActive(Inv->AccessoryWearTimer));
 	FMT2AccessorySocketState Late; Late.MaximumGrade=3; Late.CurrentGrade=3; Late.RemainingSeconds=10;
 	Late=MT2AccessorySockets::Advance(Late,43215);
 	TestEqual(TEXT("Late callback crosses two grades"),Late.CurrentGrade,1);
 	TestEqual(TEXT("Residual elapsed applied to lower grade"),Late.RemainingSeconds,86395);
-	Equipment[3].AccessorySockets.CurrentGrade=1; Equipment[3].AccessorySockets.RemainingSeconds=2;
+	Equipment[3].EditAccessorySockets().CurrentGrade=1; Equipment[3].EditAccessorySockets().RemainingSeconds=2;
 	Inv->RestoreItems(Slots,Equipment); Inv->AccessoryWearUpdatedAt=World->GetTimeSeconds()-3;
 	Inv->ProcessAccessoryWear(); Player->RecalculateEquipmentStats();
-	TestEqual(TEXT("Expiry removes only filled grade"),Inv->GetEquipment()[3].AccessorySockets.CurrentGrade,0);
-	TestEqual(TEXT("Expiry keeps open sockets"),Inv->GetEquipment()[3].AccessorySockets.MaximumGrade,3);
+	TestEqual(TEXT("Expiry removes only filled grade"),Inv->GetEquipment()[3].GetAccessorySockets().CurrentGrade,0);
+	TestEqual(TEXT("Expiry keeps open sockets"),Inv->GetEquipment()[3].GetAccessorySockets().MaximumGrade,3);
 	TestEqual(TEXT("Expiry removes intrinsic amplification"),Player->GetItemApplyBonus(EMT2ItemBonusType::AttackSpeed),1);
 	TestFalse(TEXT("Expired accessory has no active wear timer"),World->GetTimerManager().IsTimerActive(Inv->AccessoryWearTimer));
 	return true;

@@ -8,6 +8,18 @@
 */
 
 #include "UI/MT2InventoryWidget.h"
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemEquipmentTemplate.h"
+#include "Items/Templates/MT2ItemLootCrateTemplate.h"
+#include "Items/Templates/MT2ItemMetinStoneTemplate.h"
+#include "Items/Templates/MT2ItemPickTemplate.h"
+#include "Items/Templates/MT2ItemQuestTemplate.h"
+#include "Items/Templates/MT2ItemRefinementScrollTemplate.h"
+#include "Items/Templates/MT2ItemRodTemplate.h"
+#include "Items/Templates/MT2ItemSkillBookTemplate.h"
+#include "Items/Templates/MT2ItemUseTemplate.h"
+#include "Items/Templates/MT2ItemWeaponTemplate.h"
+
 #include "Items/MT2AccessorySocketRules.h"
 #include "Config/MT2PathSettings.h"
 #include "Audio/MT2SoundPlaybackSubsystem.h"
@@ -597,7 +609,7 @@ void UMT2InventoryWidget::OpenMetinAttachDialog(
 	if (MT2AccessorySockets::IsMaterial(Stone))
 	{
 		FMT2ItemSlot TargetSnapshot = Targets[TargetSlot];
-		if (bTargetEquipped) { TargetSnapshot.AccessorySockets = Inventory->GetEffectiveAccessoryState(TargetSlot); }
+		if (bTargetEquipped) { TargetSnapshot.EditAccessorySockets() = Inventory->GetEffectiveAccessoryState(TargetSlot); }
 		DropDialogWidget->OpenAccessoryDialog(StoneSlot,TargetSlot,bTargetEquipped,Inventory->GetSlots()[StoneSlot],TargetSnapshot);
 		return;
 	}

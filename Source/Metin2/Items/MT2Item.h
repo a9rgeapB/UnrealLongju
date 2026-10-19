@@ -36,7 +36,7 @@ public:
 	int32 GetVnum() const;
 
 	UFUNCTION(BlueprintPure, Category = "Items")
-	FMT2ItemSlot ToItemSlot() const { return FMT2ItemSlot(GetVnum(), InstanceData); }
+	FMT2ItemSlot ToItemSlot() const { FMT2ItemSlot Result(GetVnum(), InstanceData); Result.Template = Template; return Result; }
 
 	UFUNCTION(BlueprintPure, Category = "Items")
 	bool IsValidItem() const { return Template != nullptr && InstanceData.Count > 0; }

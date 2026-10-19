@@ -33,6 +33,8 @@ enum class EMT2StatusEffectKind : uint8
 	MovementSpeed,     // timed +% movement speed buff (USE_ABILITY_UP)
 	AutoHealthRecovery,// active USE_SPECIAL HP reservoir; inventory owns the actual regeneration
 	AutoManaRecovery,  // active USE_SPECIAL MP reservoir; inventory owns the actual regeneration
+	ContinuousHealthRecovery,
+	ContinuousManaRecovery,
 };
 
 // One buff/debuff, mirroring the old game's CAffect (affect.h): an affect id, one stat apply
@@ -123,6 +125,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Status Effects")
 	int32 RemoveEffectsOnDeath();
+
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Status Effects")
+	int32 RemoveBadEffects();
 
 	UFUNCTION(BlueprintPure, Category = "Status Effects")
 	const TArray<FMT2StatusEffect>& GetEffects() const { return Effects; }

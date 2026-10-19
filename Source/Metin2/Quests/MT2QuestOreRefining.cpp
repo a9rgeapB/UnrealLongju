@@ -1,4 +1,5 @@
 #include "Quests/MT2QuestOreRefining.h"
+#include "Items/Templates/MT2ItemMetinStoneTemplate.h"
 #include "Quests/MT2QuestManagerComponent.h"
 #include "Characters/MT2PlayerCharacter.h"
 #include "Player/MT2PlayerState.h"

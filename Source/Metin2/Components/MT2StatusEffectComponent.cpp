@@ -10,6 +10,7 @@
 #include "Components/MT2StatusEffectComponent.h"
 
 #include "Characters/MT2CharacterBase.h"
+#include "Config/MT2GameplaySettings.h"
 #include "Components/MT2ManaComponent.h"
 #include "Components/MT2StatusEffectDefinition.h"
 #include "Engine/World.h"
@@ -107,6 +108,32 @@ void UMT2StatusEffectComponent::ClearAllEffects()
 	}
 	Effects.Reset();
 	OnStatusEffectsChanged.Broadcast();
+}
+
+int32 UMT2StatusEffectComponent::RemoveBadEffects()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority()) return 0;
+	const auto& Skills = UMT2GameplaySettings::Get().CleansedSkillVnums;
+	const uint32 BadFlags = (1u << static_cast<uint8>(EMT2EffectFlag::Poison)) |
+		(1u << static_cast<uint8>(EMT2EffectFlag::Fire)) |
+		(1u << static_cast<uint8>(EMT2EffectFlag::Stun)) |
+		(1u << static_cast<uint8>(EMT2EffectFlag::Slow));
+	int32 Removed = 0;
+	for (int32 Index = Effects.Num() - 1; Index >= 0; --Index)
+	{
+		const auto& Effect = Effects[Index];
+		bool bBad = (static_cast<uint32>(Effect.Flags) & BadFlags) != 0 ||
+			(Effect.Type.Kind == EMT2AffectIdentityKind::Skill && Skills.Contains(Effect.Type.SkillVnum));
+		for (const auto Type : {EMT2BuiltinAffect::Poison, EMT2BuiltinAffect::Fire, EMT2BuiltinAffect::Stun, EMT2BuiltinAffect::Slow})
+			bBad |= Effect.Type == FMT2AffectIdentifier::FromBuiltin(Type);
+		if (!bBad) continue;
+		UMT2StatusEffectDefinition::Get(Effect.Kind)->OnRemoved(Cast<AMT2CharacterBase>(GetOwner()), Effect);
+		Effects.RemoveAt(Index);
+		++Removed;
+	}
+	if (Effects.IsEmpty() && GetWorld()) GetWorld()->GetTimerManager().ClearTimer(ProcessTimer);
+	if (Removed > 0) OnStatusEffectsChanged.Broadcast();
+	return Removed;
 }
 
 int32 UMT2StatusEffectComponent::RemoveEffectsOnDeath()

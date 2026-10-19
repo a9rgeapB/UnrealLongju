@@ -6,6 +6,7 @@
 class UStaticMesh;
 class UMaterialInterface;
 class UMT2ItemTemplate;
+class UParticleSystem;
 
 USTRUCT(BlueprintType)
 struct METIN2_API FMT2FishingCatch
@@ -41,6 +42,14 @@ class METIN2_API UMT2FishingSettings : public UDeveloperSettings
 	GENERATED_BODY()
 public:
 	virtual FName GetCategoryName() const override { return TEXT("Metin2"); }
+	UPROPERTY(EditAnywhere, Config, Category="Campfire", meta=(ClampMin="1", Units="s")) float CampfireLifetime = 40;
+	UPROPERTY(EditAnywhere, Config, Category="Campfire", meta=(ClampMin="1", Units="cm")) float CampfirePlacementDistance = 100;
+	UPROPERTY(EditAnywhere, Config, Category="Campfire", meta=(ClampMin="1", Units="cm")) float CampfireGroundTraceHeight = 500;
+	UPROPERTY(EditAnywhere, Config, Category="Campfire", meta=(ClampMin="1", Units="cm")) float CampfireGroundTraceDepth = 5000;
+	UPROPERTY(EditAnywhere, Config, Category="Campfire", meta=(ClampMin="1", Units="cm")) float CampfireCollisionRadius = 60;
+	UPROPERTY(EditAnywhere, Config, Category="Campfire", meta=(ClampMin="1", Units="cm")) float CampfireCollisionHalfHeight = 100;
+	UPROPERTY(EditAnywhere, Config, Category="Campfire") TSoftObjectPtr<UStaticMesh> CampfireMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/ymir_work/zone/b/obj/SM_general_obj_campfire.SM_general_obj_campfire")));
+	UPROPERTY(EditAnywhere, Config, Category="Campfire") TSoftObjectPtr<UParticleSystem> CampfireEffect = TSoftObjectPtr<UParticleSystem>(FSoftObjectPath(TEXT("/Game/ymir_work/effect/background/PS_fire_general_obj_campfire.PS_fire_general_obj_campfire")));
 	UPROPERTY(EditAnywhere, Config, Category="Rules", meta=(ClampMin="1", ClampMax="3600")) int32 MinimumWaitSeconds = 10;
 	UPROPERTY(EditAnywhere, Config, Category="Rules", meta=(ClampMin="1", ClampMax="3600")) int32 MaximumWaitSeconds = 40;
 	UPROPERTY(EditAnywhere, Config, Category="Rules", meta=(ClampMin="1", ClampMax="10000", Units="cm")) float CastDistance = 600;

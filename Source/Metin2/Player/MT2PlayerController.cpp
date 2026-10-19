@@ -8,6 +8,8 @@
 */
 
 #include "Player/MT2PlayerController.h"
+#include "Items/Templates/MT2ItemSkillBookTemplate.h"
+
 #include "Authentication/MT2OfflineSessionSubsystem.h"
 #include "Duel/MT2DuelComponent.h"
 #include "Config/MT2PathSettings.h"

@@ -8,6 +8,10 @@
 */
 
 #include "Items/MT2WorldItem.h"
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemSkillBookTemplate.h"
+#include "Items/Templates/MT2ItemWeaponTemplate.h"
+
 #include "Audio/MT2SoundPlaybackSubsystem.h"
 
 #include "Characters/MT2PlayerCharacter.h"
@@ -250,6 +254,11 @@ void AMT2WorldItem::InitializeItemInstance(
 		return;
 	}
 	ItemInstance = Item;
+	if (const auto* Definition = MT2ItemUtils::ResolveTemplate(this, ItemInstance.Vnum))
+	{
+		ItemInstance.Template = Definition->GetClass();
+		MT2ItemUtils::NormalizeNumericSockets(ItemInstance, Definition);
+	}
 	ItemInstance.Count = FMath::Max(ItemInstance.Count, 1);
 	YangAmount = ItemInstance.Vnum == 1 ? static_cast<int64>(ItemInstance.Count) : 0;
 	OwnerCharacterId = InOwnerCharacterId;
@@ -388,10 +397,10 @@ FString AMT2WorldItem::GetItemDisplayName() const
 		? Template->DisplayName.ToString()
 		: (Template && !Template->InternalName.IsEmpty()
 			? Template->InternalName : FString::Printf(TEXT("Item %d"), ItemInstance.Vnum));
-	if (Cast<UMT2ItemSkillBookTemplate>(Template) && ItemInstance.SkillVnum > 0)
+	if (Cast<UMT2ItemSkillBookTemplate>(Template) && ItemInstance.GetSkillVnum() > 0)
 	{
 		if (const UMT2SkillDefinition* Skill =
-			UMT2SkillSet::FindSkillAcrossSets(ItemInstance.SkillVnum))
+			UMT2SkillSet::FindSkillAcrossSets(ItemInstance.GetSkillVnum()))
 		{
 			Name = FString::Printf(
 				TEXT("%s Skill Book"), *Skill->GetGradeDisplayName(EMT2SkillMastery::Normal).ToString());

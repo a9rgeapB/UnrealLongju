@@ -8,6 +8,14 @@
 */
 
 #include "UI/MT2ItemTooltipWidget.h"
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemAutoRecoveryTemplate.h"
+#include "Items/Templates/MT2ItemBlendTemplate.h"
+#include "Items/Templates/MT2ItemEquipmentTemplate.h"
+#include "Items/Templates/MT2ItemMetinStoneTemplate.h"
+#include "Items/Templates/MT2ItemSkillBookTemplate.h"
+#include "Items/Templates/MT2ItemUseTemplate.h"
+
 #include "Items/MT2AccessorySocketRules.h"
 #include "Items/MT2InventoryComponent.h"
 #include "Items/MT2ItemUtils.h"
@@ -122,7 +130,7 @@ UMT2ItemTooltipWidget* UMT2ItemTooltipWidget::Create(
 	APlayerController* Owner, const UMT2ItemTemplate* Template, int32 Count,
 	const AMT2PlayerState* Viewer, int64 ShopPrice, const TArray<FMT2ItemBonus>* Bonuses,
 	const TArray<FMT2MetinSocket>* MetinSockets, int32 SkillVnum,
-	int32 AutoRecoveryRemainingAmount, const FMT2AccessorySocketState* AccessorySockets)
+	int32 AutoRecoveryRemainingAmount, const FMT2AccessorySocketState* AccessorySockets, const FMT2ItemInstanceData* InstanceData)
 {
 	if (!Owner || !Template)
 	{
@@ -138,7 +146,7 @@ UMT2ItemTooltipWidget* UMT2ItemTooltipWidget::Create(
 	{
 		Tooltip->BuildTooltip(
 			Template, Count, Viewer, ShopPrice, Bonuses, MetinSockets, SkillVnum,
-			AutoRecoveryRemainingAmount, AccessorySockets);
+			AutoRecoveryRemainingAmount, AccessorySockets, InstanceData);
 	}
 	return Tooltip;
 }
@@ -381,7 +389,7 @@ void UMT2ItemTooltipWidget::AddSocketRow(EMT2MetinSocketType Type, const UMT2Ite
 void UMT2ItemTooltipWidget::BuildTooltip(
 	const UMT2ItemTemplate* Template, int32 Count, const AMT2PlayerState* Viewer, int64 ShopPrice,
 	const TArray<FMT2ItemBonus>* Bonuses, const TArray<FMT2MetinSocket>* MetinSockets,
-	int32 SkillVnum, int32 AutoRecoveryRemainingAmount, const FMT2AccessorySocketState* AccessorySockets)
+	int32 SkillVnum, int32 AutoRecoveryRemainingAmount, const FMT2AccessorySocketState* AccessorySockets, const FMT2ItemInstanceData* InstanceData)
 {
 	TakeWidget();
 	if (!LinesBox || !Template)
@@ -394,7 +402,7 @@ void UMT2ItemTooltipWidget::BuildTooltip(
 	FString Name = Template->DisplayName.IsEmpty() ? Template->InternalName : Template->DisplayName.ToString();
 	if (const UMT2ItemSkillBookTemplate* Book = Cast<UMT2ItemSkillBookTemplate>(Template))
 	{
-		const int32 EffectiveSkillVnum = SkillVnum > 0 ? SkillVnum : Book->SkillVnum;
+		const int32 EffectiveSkillVnum = SkillVnum > 0 ? SkillVnum : Book->GetSkillVnum();
 		if (const UMT2SkillDefinition* Skill = ResolveBookSkill(EffectiveSkillVnum, Viewer))
 		{
 			Name = FString::Printf(TEXT("%s Skill Book"), *Skill->GetGradeDisplayName(EMT2SkillMastery::Normal).ToString());
@@ -428,6 +436,18 @@ void UMT2ItemTooltipWidget::BuildTooltip(
 		AddLimits(Template, Viewer);
 	}
 	BuildTypeSpecific(Template, Viewer);
+	if (Cast<UMT2ItemBlendTemplate>(Template) && InstanceData)
+	{
+		const int32 Type = MT2ItemUtils::GetNumericSocket(*InstanceData, 0);
+		const int32 Magnitude = MT2ItemUtils::GetNumericSocket(*InstanceData, 1);
+		const int32 Seconds = MT2ItemUtils::GetNumericSocket(*InstanceData, 2);
+		EMT2ItemBonusType Bonus;
+		if (MT2ItemSemanticTypes::TryDecodeBonus(Type, Bonus) && Bonus != EMT2ItemBonusType::None && Magnitude > 0 && Seconds > 0)
+		{
+			AddLine(FormatApply(Type, Magnitude), PositiveColor);
+			AddLine(FString::Printf(TEXT("Duration: %dm %ds"), Seconds / 60, Seconds % 60), NormalColor);
+		}
+	}
 	const FString MaterialDescription = DescribeAccessoryMaterial(Template);
 	if (!MaterialDescription.IsEmpty())
 	{

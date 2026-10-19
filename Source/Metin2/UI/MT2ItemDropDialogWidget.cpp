@@ -8,6 +8,8 @@
 */
 
 #include "UI/MT2ItemDropDialogWidget.h"
+#include "Items/Templates/MT2ItemUseTemplate.h"
+
 #include "Items/MT2AccessorySocketRules.h"
 #include "UI/MT2ItemTooltipWidget.h"
 #include "Components/CanvasPanelSlot.h"
@@ -85,7 +87,7 @@ void UMT2ItemDropDialogWidget::OpenAccessoryDialog(int32 SourceSlot, int32 Targe
 	auto* Player = Cast<AMT2PlayerCharacter>(GetOwningPlayerPawn());
 	const auto* Material = Cast<UMT2ItemUseTemplate>(MT2ItemUtils::ResolveTemplate(this,Source.Vnum));
 	const auto* TargetTemplate = MT2ItemUtils::ResolveTemplate(this,Target.Vnum);
-	const auto State = MT2AccessorySockets::Normalize(Target.AccessorySockets);
+	const auto State = MT2AccessorySockets::Normalize(Target.GetAccessorySockets());
 	const bool bOpening = Material && Material->UseSubType == EMT2UseSubType::AddAccessorySocket;
 	const bool bValid = Player && MT2AccessorySockets::Compatible(Material,TargetTemplate) &&
 		(bOpening ? State.MaximumGrade < 3 : State.CurrentGrade < State.MaximumGrade);

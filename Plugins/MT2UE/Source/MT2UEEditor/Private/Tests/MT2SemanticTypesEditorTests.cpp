@@ -1,3 +1,4 @@
+#include "Items/Templates/MT2ItemWeaponTemplate.h"
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include "Commandlets/Commandlet.h"

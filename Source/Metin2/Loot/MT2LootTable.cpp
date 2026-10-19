@@ -8,6 +8,7 @@
 */
 
 #include "Loot/MT2LootTable.h"
+#include "Items/MT2ItemUtils.h"
 
 namespace
 {
@@ -47,10 +48,12 @@ namespace
 		{
 			const UMT2ItemTemplate* Template = Entry.ItemTemplate.GetDefaultObject();
 			FMT2ItemInstanceData ItemData = Entry.ItemData;
+			MT2ItemUtils::NormalizeNumericSockets(ItemData, Template);
 			Template->InitializeGeneratedInstance(ItemData);
 			Result.Item = FMT2ItemSlot(
 				Entry.ItemVnum > 0 ? Entry.ItemVnum : Template->Vnum, ItemData);
 			Result.Item.Count = FMath::Clamp<int64>(Amount, 1, MAX_int32);
+			Result.Item.Template = Entry.ItemTemplate;
 		}
 	}
 }

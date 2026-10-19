@@ -8,6 +8,47 @@
 */
 
 #include "Importers/MT2ItemImporter.h"
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemAutoRecoveryTemplate.h"
+#include "Items/Templates/MT2ItemAutoUseTemplate.h"
+#include "Items/Templates/MT2ItemBeltTemplate.h"
+#include "Items/Templates/MT2ItemBlendTemplate.h"
+#include "Items/Templates/MT2ItemCampfireTemplate.h"
+#include "Items/Templates/MT2ItemContainerTemplate.h"
+#include "Items/Templates/MT2ItemCostumeTemplate.h"
+#include "Items/Templates/MT2ItemDragonSoulTemplate.h"
+#include "Items/Templates/MT2ItemEquipmentTemplate.h"
+#include "Items/Templates/MT2ItemExtractTemplate.h"
+#include "Items/Templates/MT2ItemFishTemplate.h"
+#include "Items/Templates/MT2ItemGiftBoxTemplate.h"
+#include "Items/Templates/MT2ItemGoldTemplate.h"
+#include "Items/Templates/MT2ItemHairTemplate.h"
+#include "Items/Templates/MT2ItemLootCrateTemplate.h"
+#include "Items/Templates/MT2ItemLotteryTemplate.h"
+#include "Items/Templates/MT2ItemMaterialTemplate.h"
+#include "Items/Templates/MT2ItemMetinStoneTemplate.h"
+#include "Items/Templates/MT2ItemPickTemplate.h"
+#include "Items/Templates/MT2ItemPolymorphTemplate.h"
+#include "Items/Templates/MT2ItemQuestTemplate.h"
+#include "Items/Templates/MT2ItemRefinementScrollTemplate.h"
+#include "Items/Templates/MT2ItemResourceTemplate.h"
+#include "Items/Templates/MT2ItemRingTemplate.h"
+#include "Items/Templates/MT2ItemRodTemplate.h"
+#include "Items/Templates/MT2ItemSecondaryCoinTemplate.h"
+#include "Items/Templates/MT2ItemSkillBookTemplate.h"
+#include "Items/Templates/MT2ItemSkillForgetTemplate.h"
+#include "Items/Templates/MT2ItemSpecialDragonSoulTemplate.h"
+#include "Items/Templates/MT2ItemSpecialTemplate.h"
+#include "Items/Templates/MT2ItemToolTemplate.h"
+#include "Items/Templates/MT2ItemTotemTemplate.h"
+#include "Items/Templates/MT2ItemTreasureBoxTemplate.h"
+#include "Items/Templates/MT2ItemTreasureKeyTemplate.h"
+#include "Items/Templates/MT2ItemUniqueTemplate.h"
+#include "Items/Templates/MT2ItemUseTemplate.h"
+#include "Items/Templates/MT2ItemWeaponTemplate.h"
+#include "Items/Use/MT2GrandMasterTrainingItemTemplate.h"
+#include "Items/Use/MT2KarmaRecoveryItemTemplate.h"
+
 #include "Characters/MT2CharacterAppearanceSettings.h"
 #include "Config/MT2GameplaySettings.h"
 #include "Config/MT2PathSettings.h"
@@ -27,7 +68,6 @@
 #include "Items/Use/MT2HorseCareItemTemplate.h"
 #include "Items/Use/MT2MobLureItemTemplate.h"
 #include "Items/Use/MT2MountItemTemplate.h"
-#include "Items/Use/MT2SkillTrainingItemTemplates.h"
 #include "Core/MT2VnumRegistry.h"
 #include "Mobs/MT2Mob.h"
 #include "Mounts/MT2MountDefinition.h"
@@ -43,6 +83,8 @@
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/SavePackage.h"
+#include "UObject/UObjectHash.h"
+#include "Importers/MT2ItemReferenceResolver.h"
 
 namespace
 {
@@ -1125,6 +1167,7 @@ namespace
 			Defaults->Flags = Definition.Flags;
 			Defaults->ImmuneFlags = Definition.ImmuneFlags;
 			Defaults->RefinedVnum = Definition.RefinedVnum;
+			Defaults->ResetImportedItemReferences();
 			Defaults->RefineSet = Definition.RefineSet;
 			Defaults->PreviousRefinedVnum = Definition.PreviousRefinedVnum;
 			Defaults->RefinementLevel = Definition.RefinementLevel;
@@ -1133,7 +1176,13 @@ namespace
 			Defaults->Applies = Definition.Applies;
 			Defaults->Limits = Definition.Limits;
 			Defaults->DefaultInstanceData = Definition.DefaultInstanceData;
-			Defaults->DefaultInstanceData.MetinSockets.Reset();
+			Defaults->bTypedFamilyDefaults = false;
+			if (auto* Blend = Cast<UMT2ItemBlendTemplate>(Defaults)) Blend->Blend = Record.Blend;
+			if (auto* Fish = Cast<UMT2ItemFishTemplate>(Defaults))
+			{
+				Fish->FishSubType = Definition.SubType.Fish;
+				Fish->Fish = Record.Fish;
+			}
 			if (UMT2MountItemTemplate* MountItem = Cast<UMT2MountItemTemplate>(Defaults))
 			{
 				const FString MountName = FString::Printf(TEXT("DA_Mount_%05d"), Record.MountVnum);
@@ -1167,7 +1216,7 @@ namespace
 					SocketIndex < Equipment->DefaultSilverSocketCount; ++SocketIndex)
 				{
 					FMT2MetinSocket& Socket =
-						Defaults->DefaultInstanceData.MetinSockets.AddDefaulted_GetRef();
+						Defaults->DefaultInstanceData.EditMetinSockets().AddDefaulted_GetRef();
 					Socket.Type = EMT2MetinSocketType::Silver;
 				}
 				for (int32 SocketIndex = 0;
@@ -1175,7 +1224,7 @@ namespace
 						3 - Equipment->DefaultSilverSocketCount); ++SocketIndex)
 				{
 					FMT2MetinSocket& Socket =
-						Defaults->DefaultInstanceData.MetinSockets.AddDefaulted_GetRef();
+						Defaults->DefaultInstanceData.EditMetinSockets().AddDefaulted_GetRef();
 					Socket.Type = EMT2MetinSocketType::Gold;
 				}
 			}
@@ -1194,11 +1243,16 @@ namespace
 			{
 				Use->UseSubType = static_cast<EMT2UseSubType>(Definition.SubType.ToLegacy());
 				Use->AffectType = FMT2AffectIdentifier();
+				Use->BuffDurationSeconds = 0;
 				Use->HealthRecovery = Definition.Values.IsValidIndex(0) ? Definition.Values[0] : 0;
 				Use->ManaRecovery = Definition.Values.IsValidIndex(1) ? Definition.Values[1] : 0;
 				Use->HealthRecoveryPercent = Definition.Values.IsValidIndex(3) ? Definition.Values[3] : 0;
 				Use->ManaRecoveryPercent = Definition.Values.IsValidIndex(4) ? Definition.Values[4] : 0;
-				if (Definition.SubType.ToLegacy() == 7)
+				if (Use->UseSubType == EMT2UseSubType::PotionContinue)
+				{
+					Use->BuffDurationSeconds = Definition.Values.IsValidIndex(2) ? Definition.Values[2] : 0;
+				}
+				else if (Definition.SubType.ToLegacy() == 7)
 				{
 					Use->GrantedBonus = static_cast<EMT2ItemBonusType>(
 						Definition.Values.IsValidIndex(0) ? Definition.Values[0] : 0);
@@ -1227,9 +1281,9 @@ namespace
 					Definition.Values.IsValidIndex(0) ? FMath::Max(Definition.Values[0], 0) : 0;
 				AutoRecovery->Resource = Definition.Vnum >= 72727 && Definition.Vnum <= 72730
 					? EMT2AutoRecoveryResource::Mana : EMT2AutoRecoveryResource::Health;
-				Defaults->DefaultInstanceData.AutoRecoveryMaximumAmount = AutoRecovery->RecoveryCapacity;
-				Defaults->DefaultInstanceData.AutoRecoveryRemainingAmount = AutoRecovery->RecoveryCapacity;
-				Defaults->DefaultInstanceData.bAutoRecoveryActive = false;
+				Defaults->DefaultInstanceData.EditAutoRecoveryState().MaximumAmount = AutoRecovery->RecoveryCapacity;
+				Defaults->DefaultInstanceData.EditAutoRecoveryState().RemainingAmount = AutoRecovery->RecoveryCapacity;
+				Defaults->DefaultInstanceData.EditAutoRecoveryState().bActive = false;
 			}
 			else if (UMT2ItemAutoUseTemplate* AutoUse = Cast<UMT2ItemAutoUseTemplate>(Defaults))
 			{
@@ -1322,6 +1376,7 @@ namespace
 
 		// Recompiling is what actually bakes the CDO changes into the class, instead of leaving them
 		// silently stuck on whatever the CDO held at the last compile (same fix as the mob importer).
+		if (auto* Defaults = Cast<UMT2ItemTemplate>(Blueprint->GeneratedClass->GetDefaultObject())) Defaults->FinalizeFamilyDefaults();
 		FKismetEditorUtilities::CompileBlueprint(Blueprint);
 		Blueprint->MarkPackageDirty();
 		return Blueprint;
@@ -1607,10 +1662,33 @@ bool FMT2ItemImporter::Discover(
 	TMap<int32, FParsedLootCrateGroup> LootGroups =
 		LoadSpecialItemGroups(SourceRoot, ItemVnumsByName, OutWarnings);
 	const TMap<int32, FParsedMountItem> MountItems = LoadMountItems(SourceRoot, OutWarnings);
+	TMap<int32, FMT2BlendDefinition> BlendDefinitions;
+	{
+		FString BlendText;
+		const FString BlendPath = FString(UMT2PathSettings::Path(TEXT("LegacyServerLocaleRoot"))) / TEXT("blend.txt");
+		FString BlendError;
+		if (!FFileHelper::LoadFileToString(BlendText, *BlendPath) || !ParseBlendTable(BlendText, BlendDefinitions, BlendError))
+		{
+			OutError = FString::Printf(TEXT("Could not load blend table %s: %s"), *BlendPath, *BlendError);
+			return false;
+		}
+	}
 	int32 ConfiguredLootCrates = 0;
 	int32 ConfiguredMountItems = 0;
+	TMap<int32, FMT2FishDefinition> FishDefinitions;
+	{
+		FString FishError;
+		const FString FishPath = FString(UMT2PathSettings::Path(TEXT("LegacyServerLocaleRoot"))) / TEXT("fishing.txt");
+		if (!LoadFishTable(FishPath, FishDefinitions, FishError))
+		{
+			OutError = FString::Printf(TEXT("Could not load fish table %s: %s"), *FishPath, *FishError);
+			return false;
+		}
+	}
 	for (FMT2ItemImportRecord& Record : OutRecords)
 	{
+		if (const auto* Blend = BlendDefinitions.Find(Record.Definition.Vnum)) Record.Blend = *Blend;
+		if (const auto* Fish = FishDefinitions.Find(Record.Definition.Vnum)) Record.Fish = *Fish;
 		// The classic horse licences are quest items, so item_proto does not identify their horse.
 		// horse_rider.cpp maps grades 1/2/3 to races 20101/20104/20107.
 		if (Record.Definition.Vnum >= 50051 && Record.Definition.Vnum <= 50053)
@@ -1878,6 +1956,20 @@ bool FMT2ItemImporter::Import(
 
 	if (!PackagesToSave.IsEmpty())
 	{
+		TArray<UMT2ItemTemplate*> ImportedItems;
+		for (const auto* Package : PackagesToSave)
+		{
+			ForEachObjectWithPackage(Package, [&ImportedItems](UObject* Object)
+			{
+				if (auto* Blueprint = Cast<UBlueprint>(Object); Blueprint && Blueprint->GeneratedClass &&
+					Blueprint->GeneratedClass->IsChildOf(UMT2ItemTemplate::StaticClass()))
+					ImportedItems.AddUnique(Blueprint->GeneratedClass->GetDefaultObject<UMT2ItemTemplate>());
+				return true;
+			}, false);
+		}
+		TArray<FString> ReferenceWarnings;
+		ResolveMT2ItemReferences(ImportedItems, ReferenceWarnings, VnumRegistry);
+		for (const auto& Warning : ReferenceWarnings) UE_LOG(LogTemp, Warning, TEXT("%s"), *Warning);
 		UEditorLoadingAndSavingUtils::SavePackages(PackagesToSave, true);
 	}
 	return OutResult.Errors.IsEmpty();

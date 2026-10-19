@@ -7,6 +7,9 @@
 
 */
 
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemMetinStoneTemplate.h"
+
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
@@ -1342,13 +1345,13 @@ bool FMT2QuestItemCopyTest::RunTest(const FString& Parameters)
 	ResultTemplate->InventorySize = 3;
 	FMT2ItemSlot Source;
 	Source.Vnum = 11299;
-	Source.Bonuses.SetNum(1);
-	Source.Bonuses[0].Type = EMT2ItemBonusType::MaxHP;
-	Source.Bonuses[0].Value = 1000;
-	Source.Bonuses[0].Kind = EMT2ItemBonusKind::Rare;
-	Source.MetinSockets.SetNum(3);
-	Source.MetinSockets[0].Type = EMT2MetinSocketType::Gold;
-	Source.MetinSockets[0].Value = 28960;
+	Source.EditBonuses().SetNum(1);
+	Source.EditBonuses()[0].Type = EMT2ItemBonusType::MaxHP;
+	Source.EditBonuses()[0].Value = 1000;
+	Source.EditBonuses()[0].Kind = EMT2ItemBonusKind::Rare;
+	Source.EditMetinSockets().SetNum(3);
+	Source.EditMetinSockets()[0].Type = EMT2MetinSocketType::Gold;
+	Source.EditMetinSockets()[0].Value = 28960;
 	Source.bNewlyAcquired = true;
 	const TMap<int32, int32> Materials = {{70031, 3}, {51001, 100}, {25040, 2}};
 	auto Reset = [&]()
@@ -1385,10 +1388,10 @@ bool FMT2QuestItemCopyTest::RunTest(const FString& Parameters)
 	Inventory->Slots[0].bNewlyAcquired = false; // Viewing a tooltip is not an item change.
 	TestTrue(TEXT("Copy and complete material batch commit"), Replace());
 	TestEqual(TEXT("Requested ranged VNUM retained"), Inventory->Slots[0].Vnum, 20009);
-	TestEqual(TEXT("Bonus value retained"), Inventory->Slots[0].Bonuses[0].Value, 1000);
-	TestEqual(TEXT("Rare bonus kind retained"), Inventory->Slots[0].Bonuses[0].Kind, EMT2ItemBonusKind::Rare);
-	TestEqual(TEXT("Broken stone cleared"), Inventory->Slots[0].MetinSockets[0].Value, 0);
-	TestEqual(TEXT("Sockets become silver"), Inventory->Slots[0].MetinSockets[0].Type, EMT2MetinSocketType::Silver);
+	TestEqual(TEXT("Bonus value retained"), Inventory->Slots[0].GetBonuses()[0].Value, 1000);
+	TestEqual(TEXT("Rare bonus kind retained"), Inventory->Slots[0].GetBonuses()[0].Kind, EMT2ItemBonusKind::Rare);
+	TestEqual(TEXT("Broken stone cleared"), Inventory->Slots[0].GetMetinSockets()[0].Value, 0);
+	TestEqual(TEXT("Sockets become silver"), Inventory->Slots[0].GetMetinSockets()[0].Type, EMT2MetinSocketType::Silver);
 	TestEqual(TEXT("Materials removed across stacks"), Inventory->CountItemByVnum(70031), 1);
 	TestEqual(TEXT("Other material fully consumed"), Inventory->CountItemByVnum(51001), 0);
 
@@ -1398,7 +1401,7 @@ bool FMT2QuestItemCopyTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Missing materials reject complete transaction"), Replace());
 	CheckUnchanged(Before);
 	Reset();
-	Inventory->Slots[0].Bonuses[0].Value = 500;
+	Inventory->Slots[0].EditBonuses()[0].Value = 500;
 	Before = Inventory->Slots;
 	TestFalse(TEXT("Source modified while dialog suspended is rejected"), Replace());
 	CheckUnchanged(Before);
@@ -1436,13 +1439,13 @@ bool FMT2QuestItemCopyTest::RunTest(const FString& Parameters)
 	if (TestNotNull(TEXT("Imported source item"), ImportedSource) &&
 		TestNotNull(TEXT("Imported replacement item"), ImportedResult) && TestNotNull(TEXT("Imported stone"), Stone))
 	{
-		Source.MetinSockets[1].Stone = Stone;
+		Source.EditMetinSockets()[1].Stone = Stone;
 		Reset();
 		TestTrue(TEXT("Imported metadata accepts cube replacement"), Inventory->CopyAndReplaceQuestItemWithTemplates(
 			0, Source, 20000, ImportedSource->GetDefaultObject<UMT2ItemTemplate>(),
 			ImportedResult->GetDefaultObject<UMT2ItemTemplate>(), Materials));
 		TestEqual(TEXT("Surviving stone packed ahead of broken/open sockets"),
-			Inventory->Slots[0].MetinSockets[0].Stone.Get(), Stone);
+			Inventory->Slots[0].GetMetinSockets()[0].Stone.Get(), Stone);
 	}
 	return true;
 }

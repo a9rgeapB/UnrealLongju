@@ -1,4 +1,7 @@
 #include "Items/MT2AccessorySocketRules.h"
+#include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemBeltTemplate.h"
+#include "Items/Templates/MT2ItemUseTemplate.h"
 #include "Items/MT2ItemTemplate.h"
 bool MT2AccessorySockets::IsAccessory(const UMT2ItemTemplate* Item)
 {

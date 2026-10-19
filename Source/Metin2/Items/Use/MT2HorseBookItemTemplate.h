@@ -12,6 +12,8 @@
 #include "Items/Use/MT2MountItemTemplate.h"
 #include "MT2HorseBookItemTemplate.generated.h"
 
+class UMT2SkillDefinition;
+
 // The original horse licences (50051-50053) call the player's owned horse. The remake keeps the
 // called horse as server-authoritative mount data, then mounts it directly because it does not need
 // a second gameplay actor standing beside the player.
@@ -22,6 +24,7 @@ class METIN2_API UMT2HorseBookItemTemplate : public UMT2MountItemTemplate
 
 public:
 	UMT2HorseBookItemTemplate();
+	int32 GetSummonSkillVnum() const;
 	virtual bool ExecuteBeforeQuestItemUse() const override { return true; }
 
 	virtual EMT2ItemUseExecution ExecuteUse(
@@ -31,7 +34,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Horse|Summoning", meta = (ClampMin = "0"))
 	int32 ManaCost = 300;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Horse|Summoning", meta = (ClampMin = "1"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Horse|Summoning")
+	TObjectPtr<UMT2SkillDefinition> SummonSkill;
+	UPROPERTY()
 	int32 SummonSkillVnum = 131;
 
 	// Array index is the summon skill level. This mirrors horse_summon.quest and remains editable.
