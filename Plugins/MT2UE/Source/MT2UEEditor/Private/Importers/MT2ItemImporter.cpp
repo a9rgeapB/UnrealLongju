@@ -27,6 +27,8 @@
 #include "Items/Templates/MT2ItemLotteryTemplate.h"
 #include "Items/Templates/MT2ItemMaterialTemplate.h"
 #include "Items/Templates/MT2ItemMetinStoneTemplate.h"
+#include "Items/Templates/MT2ItemMetinRemovalTemplate.h"
+#include "Items/Templates/MT2ItemSocketCleanerTemplate.h"
 #include "Items/Templates/MT2ItemPickTemplate.h"
 #include "Items/Templates/MT2ItemPolymorphTemplate.h"
 #include "Items/Templates/MT2ItemQuestTemplate.h"
@@ -1079,6 +1081,15 @@ namespace
 		const FString Name = FString::Printf(TEXT("BP_Item_%05d"), Definition.Vnum);
 		const FString PackageName = NormalizeItemDestinationRoot(DestinationRoot) / UMT2PathSettings::Path(TEXT("Relative_Items_Blueprints")) / Name;
 		const FString ObjectPath = PackageName + TEXT(".") + Name;
+		const UClass* SingleRemovalClass =
+			UMT2GameplaySettings::Get().SingleMetinRemovalItemTemplate.LoadSynchronous();
+		const UMT2ItemUseTemplate* SingleRemovalDefaults = SingleRemovalClass
+			? SingleRemovalClass->GetDefaultObject<UMT2ItemUseTemplate>() : nullptr;
+		const bool bIsConfiguredSingleRemovalItem = SingleRemovalDefaults &&
+			Definition.ItemType == EMT2ItemType::Use &&
+			Definition.Vnum >= SingleRemovalDefaults->Vnum &&
+			static_cast<int64>(Definition.Vnum) <= static_cast<int64>(SingleRemovalDefaults->Vnum) +
+				FMath::Max(SingleRemovalDefaults->VnumRange, 0);
 		UClass* ParentClass = Definition.Vnum >= 50051 && Definition.Vnum <= 50053
 			? UMT2HorseBookItemTemplate::StaticClass()
 			: Definition.Vnum >= 50054 && Definition.Vnum <= 50059
@@ -1087,6 +1098,14 @@ namespace
 			? UMT2MountItemTemplate::StaticClass()
 			: IsMobLureItem(Definition.Vnum)
 			? UMT2MobLureItemTemplate::StaticClass()
+			: Definition.ItemType == EMT2ItemType::Use &&
+				Definition.SubType.ToLegacy() == static_cast<int32>(EMT2UseSubType::Detachment)
+			? UMT2ItemMetinRemovalTemplate::StaticClass()
+			: Definition.ItemType == EMT2ItemType::Use &&
+				Definition.SubType.ToLegacy() == static_cast<int32>(EMT2UseSubType::CleanSocket)
+			? UMT2ItemSocketCleanerTemplate::StaticClass()
+			: bIsConfiguredSingleRemovalItem
+			? UMT2ItemMetinRemovalTemplate::StaticClass()
 			: Definition.ItemType == EMT2ItemType::Use && Definition.SubType.ToLegacy() == 10
 			? UMT2ItemAutoRecoveryTemplate::StaticClass()
 			: Definition.Vnum == 25040
@@ -1242,6 +1261,14 @@ namespace
 			if (UMT2ItemUseTemplate* Use = Cast<UMT2ItemUseTemplate>(Defaults))
 			{
 				Use->UseSubType = static_cast<EMT2UseSubType>(Definition.SubType.ToLegacy());
+				if (UMT2ItemMetinRemovalTemplate* Removal =
+					Cast<UMT2ItemMetinRemovalTemplate>(Defaults))
+				{
+					Removal->RemovalMode = bIsConfiguredSingleRemovalItem ||
+						Use->UseSubType != EMT2UseSubType::Detachment
+						? EMT2MetinRemovalMode::SingleStone
+						: EMT2MetinRemovalMode::AllStones;
+				}
 				Use->AffectType = FMT2AffectIdentifier();
 				Use->BuffDurationSeconds = 0;
 				Use->HealthRecovery = Definition.Values.IsValidIndex(0) ? Definition.Values[0] : 0;

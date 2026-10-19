@@ -20,6 +20,18 @@ enum class EMT2ItemBonusApplyResult : uint8
 };
 
 UENUM(BlueprintType)
+enum class EMT2MetinSocketItemResult : uint8
+{
+	Invalid,
+	Incompatible,
+	NoRemovableStones,
+	NoBrokenSockets,
+	MissingBrokenStoneTemplate,
+	CannotReturnStone,
+	Success
+};
+
+UENUM(BlueprintType)
 enum class EMT2LootCrateOpenResult : uint8
 {
 	Invalid,

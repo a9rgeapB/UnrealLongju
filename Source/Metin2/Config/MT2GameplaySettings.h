@@ -21,6 +21,7 @@
 class UMT2ItemTemplate;
 class UMT2HorseBookItemTemplate;
 class UMT2ItemSkillForgetTemplate;
+class UMT2ItemMetinStoneTemplate;
 class UMT2ItemUseTemplate;
 class UStaticMesh;
 class UMaterialInterface;
@@ -248,6 +249,18 @@ public:
 
 	UPROPERTY(EditAnywhere, config, Category = "Items", meta = (ClampMin = "1"))
 	int32 MaximumItemStackSize = 999;
+
+	// Legacy item that removes exactly the last inserted Metin stone. Kept as an asset reference so
+	// projects can select a regional/server variant without exposing its proto VNUM as a setting.
+	UPROPERTY(EditAnywhere, config, Category = "Items|Metin Sockets")
+	TSoftClassPtr<UMT2ItemUseTemplate> SingleMetinRemovalItemTemplate = TSoftClassPtr<UMT2ItemUseTemplate>(
+		FSoftObjectPath(TEXT("/Game/Items/Blueprints/BP_Item_71109.BP_Item_71109_C")));
+
+	// The legacy broken-Metin sentinel is represented at runtime by the actual item class.
+	UPROPERTY(EditAnywhere, config, Category = "Items|Metin Sockets")
+	TSoftClassPtr<UMT2ItemMetinStoneTemplate> BrokenMetinStoneTemplate =
+		TSoftClassPtr<UMT2ItemMetinStoneTemplate>(
+			FSoftObjectPath(TEXT("/Game/Items/Blueprints/BP_Item_28960.BP_Item_28960_C")));
 
 	UPROPERTY(EditAnywhere, config, Category = "Interaction", meta = (ClampMin = "0.0", Units = "cm"))
 	float WorldItemInteractionRange = 250.0f;

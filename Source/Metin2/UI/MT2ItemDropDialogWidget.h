@@ -28,6 +28,8 @@ public:
 	void OpenMetinAttachDialog(
 		int32 StoneSlot, int32 TargetSlot, bool bTargetEquipped,
 		const FText& StoneName, const FText& TargetName);
+	void OpenMetinSocketItemDialog(int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped,
+		const FMT2ItemSlot& Source, const FMT2ItemSlot& Target);
 	void OpenAccessoryDialog(int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped,
 		const FMT2ItemSlot& Source, const FMT2ItemSlot& Target);
 
@@ -44,10 +46,13 @@ private:
 	int32 PendingCount = 0;
 	int32 PendingTargetSlot = INDEX_NONE;
 	bool bPendingMetinAttach = false;
+	bool bPendingMetinSocketItem = false;
 	bool bPendingTargetEquipped = false;
 	uint32 PendingAccessoryConfirmation = 0;
 	UPROPERTY(Transient) FMT2ItemSlot PendingAccessorySource;
 	UPROPERTY(Transient) FMT2ItemSlot PendingAccessoryTarget;
+	UPROPERTY(Transient) FMT2ItemSlot PendingMetinSocketSource;
+	UPROPERTY(Transient) FMT2ItemSlot PendingMetinSocketTarget;
 	void SetDialogHeight(float Height);
 
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<UMT2BoardWidget> BoardWidget;

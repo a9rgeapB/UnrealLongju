@@ -159,6 +159,10 @@ public:
 
 	UFUNCTION(Server, Reliable, Category = "Inventory")
 	void ServerApplyMetinStone(int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped);
+
+	UFUNCTION(Server, Reliable, Category = "Inventory")
+	void ServerApplyMetinSocketItem(int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped,
+		const FMT2ItemSlot& ExpectedSource, const FMT2ItemSlot& ExpectedTarget);
 	uint32 NewAccessoryConfirmationId() { return ++AccessoryConfirmationCounter; }
 	UFUNCTION(Server, Reliable, Category = "Inventory")
 	void ServerApplyAccessoryMaterial(uint32 ConfirmationId, int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped,
@@ -168,6 +172,9 @@ public:
 
 	UFUNCTION(Client, Reliable, Category = "Inventory")
 	void ClientNotifyMetinSocketResult(EMT2MetinSocketApplyResult Result);
+
+	UFUNCTION(Client, Reliable, Category = "Inventory")
+	void ClientNotifyMetinSocketItemResult(EMT2MetinSocketItemResult Result);
 
 	UFUNCTION(Server, Reliable, Category = "Inventory")
 	void ServerOpenInventoryLootCrate(int32 CrateSlot, int32 KeySlot);

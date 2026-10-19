@@ -8,6 +8,9 @@
 */
 
 #include "UI/MT2ItemDropDialogWidget.h"
+#include "Config/MT2GameplaySettings.h"
+#include "Items/Templates/MT2ItemMetinRemovalTemplate.h"
+#include "Items/Templates/MT2ItemSocketCleanerTemplate.h"
 #include "Items/Templates/MT2ItemUseTemplate.h"
 
 #include "Items/MT2AccessorySocketRules.h"
@@ -35,6 +38,7 @@ void UMT2ItemDropDialogWidget::OpenDropDialog(
 	PendingAccessoryConfirmation = 0;
 	SetDialogHeight(105);
 	bPendingMetinAttach = false;
+	bPendingMetinSocketItem = false;
 	bPendingTargetEquipped = false;
 	PendingTargetSlot = INDEX_NONE;
 	PendingInventorySlot = InventorySlot;
@@ -56,6 +60,7 @@ void UMT2ItemDropDialogWidget::OpenMetinAttachDialog(
 	PendingAccessoryConfirmation = 0;
 	SetDialogHeight(105);
 	bPendingMetinAttach = true;
+	bPendingMetinSocketItem = false;
 	bPendingTargetEquipped = bTargetEquipped;
 	PendingInventorySlot = StoneSlot;
 	PendingTargetSlot = TargetSlot;
@@ -65,6 +70,64 @@ void UMT2ItemDropDialogWidget::OpenMetinAttachDialog(
 		NSLOCTEXT("MT2", "AttachMetinQuestion",
 			"Attach {0} to {1}?\nThe stone is consumed even if attachment fails."),
 		StoneName, TargetName));
+	SetVisibility(ESlateVisibility::Visible);
+}
+
+void UMT2ItemDropDialogWidget::OpenMetinSocketItemDialog(
+	int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped,
+	const FMT2ItemSlot& Source, const FMT2ItemSlot& Target)
+{
+	const UMT2ItemUseTemplate* UseItem = Cast<UMT2ItemUseTemplate>(
+		MT2ItemUtils::ResolveTemplate(this, Source.Vnum));
+	const UMT2ItemTemplate* TargetTemplate =
+		MT2ItemUtils::ResolveTemplate(this, Target.Vnum);
+	if (!UseItem || !TargetTemplate)
+	{
+		return;
+	}
+
+	const UMT2ItemMetinRemovalTemplate* Removal = Cast<UMT2ItemMetinRemovalTemplate>(UseItem);
+	const bool bSingleRemoval =
+		UMT2GameplaySettings::Get().SingleMetinRemovalItemTemplate.LoadSynchronous() == UseItem->GetClass() ||
+		(Removal && Removal->RemovalMode == EMT2MetinRemovalMode::SingleStone);
+	const bool bRemoveAll = !bSingleRemoval && (Removal ||
+		UseItem->UseSubType == EMT2UseSubType::Detachment);
+	const bool bClean = Cast<UMT2ItemSocketCleanerTemplate>(UseItem) ||
+		UseItem->UseSubType == EMT2UseSubType::CleanSocket;
+	const FText SourceName = MT2ItemUtils::GetDisplayName(UseItem, Source.Vnum);
+	const FText TargetName = MT2ItemUtils::GetDisplayName(TargetTemplate, Target.Vnum);
+	FText Message;
+	if (bClean)
+	{
+		Message = FText::Format(NSLOCTEXT("MT2", "CleanMetinSocketsQuestion",
+			"Use {0} on {1}? Broken sockets will be removed, and existing stones preserved. The cleaner is consumed."),
+			SourceName, TargetName);
+	}
+	else if (bRemoveAll)
+	{
+		Message = FText::Format(NSLOCTEXT("MT2", "RemoveAllMetinStonesQuestion",
+			"Use {0} on {1}? All inserted stones will be returned, but their sockets will be broken. The scroll is consumed."),
+			SourceName, TargetName);
+	}
+	else
+	{
+		Message = FText::Format(NSLOCTEXT("MT2", "RemoveOneMetinStoneQuestion",
+			"Use {0} on {1}? The last inserted stone will be returned and its socket reopened. The scroll is consumed."),
+			SourceName, TargetName);
+	}
+
+	PendingAccessoryConfirmation = 0;
+	SetDialogHeight(150);
+	bPendingMetinAttach = false;
+	bPendingMetinSocketItem = true;
+	bPendingTargetEquipped = bTargetEquipped;
+	PendingInventorySlot = SourceSlot;
+	PendingTargetSlot = TargetSlot;
+	PendingVnum = 0;
+	PendingCount = 1;
+	PendingMetinSocketSource = Source;
+	PendingMetinSocketTarget = Target;
+	MessageText->SetText(Message);
 	SetVisibility(ESlateVisibility::Visible);
 }
 
@@ -94,6 +157,7 @@ void UMT2ItemDropDialogWidget::OpenAccessoryDialog(int32 SourceSlot, int32 Targe
 	PendingAccessoryConfirmation = Player ? Player->NewAccessoryConfirmationId() : 0;
 	PendingInventorySlot = SourceSlot; PendingTargetSlot = TargetSlot; bPendingTargetEquipped = bTargetEquipped;
 	PendingAccessorySource = Source; PendingAccessoryTarget = Target; bPendingMetinAttach = false;
+	bPendingMetinSocketItem = false;
 	FString Text;
 	if (!bValid) { Text = TEXT("This material is incompatible, or the accessory has no available socket. Nothing will be consumed."); }
 	else
@@ -128,6 +192,22 @@ void UMT2ItemDropDialogWidget::HandleConfirmClicked()
 		if (Character) { Character->ServerApplyAccessoryMaterial(Id,SourceSlot,TargetSlot,bEquipped,Source,Target); }
 		return;
 	}
+	if (bPendingMetinSocketItem)
+	{
+		AMT2PlayerCharacter* Character = Cast<AMT2PlayerCharacter>(GetOwningPlayerPawn());
+		const int32 SourceSlot = PendingInventorySlot;
+		const int32 TargetSlot = PendingTargetSlot;
+		const bool bEquipped = bPendingTargetEquipped;
+		const FMT2ItemSlot Source = PendingMetinSocketSource;
+		const FMT2ItemSlot Target = PendingMetinSocketTarget;
+		CloseDialog();
+		if (Character)
+		{
+			Character->ServerApplyMetinSocketItem(
+				SourceSlot, TargetSlot, bEquipped, Source, Target);
+		}
+		return;
+	}
 	if (AMT2PlayerCharacter* Character = Cast<AMT2PlayerCharacter>(GetOwningPlayerPawn()))
 	{
 		if (bPendingMetinAttach)
@@ -152,12 +232,14 @@ void UMT2ItemDropDialogWidget::CloseDialog()
 {
 	PendingAccessoryConfirmation = 0;
 	PendingAccessorySource = {}; PendingAccessoryTarget = {};
+	PendingMetinSocketSource = {}; PendingMetinSocketTarget = {};
 	ConfirmButton->SetIsEnabled(true);
 	PendingInventorySlot = INDEX_NONE;
 	PendingVnum = 0;
 	PendingCount = 0;
 	PendingTargetSlot = INDEX_NONE;
 	bPendingMetinAttach = false;
+	bPendingMetinSocketItem = false;
 	bPendingTargetEquipped = false;
 	RemoveFromParent();
 }

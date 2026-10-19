@@ -21,7 +21,10 @@
 #include "Items/Templates/MT2ItemWeaponTemplate.h"
 
 #include "Items/MT2AccessorySocketRules.h"
+#include "Items/Templates/MT2ItemMetinRemovalTemplate.h"
+#include "Items/Templates/MT2ItemSocketCleanerTemplate.h"
 #include "Config/MT2PathSettings.h"
+#include "Config/MT2GameplaySettings.h"
 #include "Audio/MT2SoundPlaybackSubsystem.h"
 
 #include "Characters/MT2PlayerCharacter.h"
@@ -45,6 +48,27 @@
 #include "UI/MT2InventoryGridWidget.h"
 #include "UI/MT2ItemDropDialogWidget.h"
 #include "UI/MT2TitleBarWidget.h"
+
+namespace
+{
+	bool IsMetinSocketActionItem(const UMT2ItemTemplate* Template)
+	{
+		const UMT2ItemUseTemplate* UseItem = Cast<UMT2ItemUseTemplate>(Template);
+		if (!UseItem)
+		{
+			return false;
+		}
+		if (Cast<UMT2ItemMetinRemovalTemplate>(UseItem) ||
+			Cast<UMT2ItemSocketCleanerTemplate>(UseItem) ||
+			UseItem->UseSubType == EMT2UseSubType::Detachment ||
+			UseItem->UseSubType == EMT2UseSubType::CleanSocket)
+		{
+			return true;
+		}
+		return UMT2GameplaySettings::Get().SingleMetinRemovalItemTemplate.LoadSynchronous() ==
+			UseItem->GetClass();
+	}
+}
 
 UMT2InventoryWidget::UMT2InventoryWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -452,6 +476,8 @@ void UMT2InventoryWidget::HandleSlotDropped(int32 SourceSlotIndex, EMT2Inventory
 		const bool bOccupiedTarget = Inventory &&
 			Inventory->GetSlots().IsValidIndex(TargetSlotIndex) &&
 			!Inventory->GetSlots()[TargetSlotIndex].IsEmpty();
+		const bool bMetinSocketAction = IsMetinSocketActionItem(
+			ResolveItemTemplateByVnum(SourceVnum));
 		const bool bMetinStone =
 			Cast<UMT2ItemMetinStoneTemplate>(
 				ResolveItemTemplateByVnum(SourceVnum)) != nullptr ||
@@ -463,7 +489,11 @@ void UMT2InventoryWidget::HandleSlotDropped(int32 SourceSlotIndex, EMT2Inventory
 			? Cast<UMT2ItemLootCrateTemplate>(
 				ResolveItemTemplate(TargetSlotIndex, EMT2InventorySlotKind::Item))
 			: nullptr;
-		if (bRefinementScroll && bOccupiedTarget)
+		if (bMetinSocketAction && bOccupiedTarget)
+		{
+			OpenMetinSocketItemDialog(SourceSlotIndex, TargetSlotIndex, false);
+		}
+		else if (bRefinementScroll && bOccupiedTarget)
 		{
 			Player->OpenRefinementDialogLocal(
 				TargetSlotIndex, SourceSlotIndex, nullptr);
@@ -501,7 +531,19 @@ void UMT2InventoryWidget::HandleSlotDropped(int32 SourceSlotIndex, EMT2Inventory
 			Cast<UMT2ItemMetinStoneTemplate>(
 				ResolveItemTemplateByVnum(SourceVnum)) != nullptr ||
 			MT2AccessorySockets::IsMaterial(ResolveItemTemplateByVnum(SourceVnum));
-		if (bMetinStone)
+		const bool bMetinSocketAction = IsMetinSocketActionItem(
+			ResolveItemTemplateByVnum(SourceVnum));
+		const bool bOccupiedTarget = Inventory &&
+			Inventory->GetEquipment().IsValidIndex(TargetSlotIndex) &&
+			!Inventory->GetEquipment()[TargetSlotIndex].IsEmpty();
+		if (bMetinSocketAction)
+		{
+			if (bOccupiedTarget)
+			{
+				OpenMetinSocketItemDialog(SourceSlotIndex, TargetSlotIndex, true);
+			}
+		}
+		else if (bMetinStone)
 		{
 			OpenMetinAttachDialog(SourceSlotIndex, TargetSlotIndex, true);
 		}
@@ -616,6 +658,50 @@ void UMT2InventoryWidget::OpenMetinAttachDialog(
 	DropDialogWidget->OpenMetinAttachDialog(
 		StoneSlot, TargetSlot, bTargetEquipped,
 		DisplayName(Stone), DisplayName(Target));
+}
+
+void UMT2InventoryWidget::OpenMetinSocketItemDialog(
+	int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped)
+{
+	UMT2InventoryComponent* Inventory = ResolveInventoryComponent();
+	APlayerController* PlayerController = GetOwningPlayer();
+	if (!Inventory || !PlayerController || !Inventory->GetSlots().IsValidIndex(SourceSlot))
+	{
+		return;
+	}
+	const TArray<FMT2ItemSlot>& Targets = bTargetEquipped
+		? Inventory->GetEquipment() : Inventory->GetSlots();
+	if (!Targets.IsValidIndex(TargetSlot) || Inventory->GetSlots()[SourceSlot].IsEmpty() ||
+		Targets[TargetSlot].IsEmpty())
+	{
+		return;
+	}
+	const FMT2ItemSlot& Source = Inventory->GetSlots()[SourceSlot];
+	const FMT2ItemSlot& Target = Targets[TargetSlot];
+	if (!IsMetinSocketActionItem(ResolveItemTemplateByVnum(Source.Vnum)))
+	{
+		return;
+	}
+
+	if (!DropDialogWidget)
+	{
+		UClass* DialogClass = LoadClass<UMT2ItemDropDialogWidget>(
+			nullptr, UMT2PathSettings::Path(TEXT("UI_MT2ItemDropDialog")));
+		if (!DialogClass)
+		{
+			UE_LOG(LogTemp, Error,
+				TEXT("Required UI asset /Game/UI/MT2ItemDropDialog is missing or invalid."));
+			return;
+		}
+		DropDialogWidget = CreateWidget<UMT2ItemDropDialogWidget>(
+			PlayerController, DialogClass);
+	}
+	if (!DropDialogWidget->IsInViewport())
+	{
+		DropDialogWidget->AddToViewport(100);
+	}
+	DropDialogWidget->OpenMetinSocketItemDialog(
+		SourceSlot, TargetSlot, bTargetEquipped, Source, Target);
 }
 
 const UMT2ItemTemplate* UMT2InventoryWidget::ResolveItemTemplate(

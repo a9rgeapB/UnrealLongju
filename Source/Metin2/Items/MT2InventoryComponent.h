@@ -79,6 +79,12 @@ public:
 	EMT2MetinSocketApplyResult ApplyMetinStone(
 		int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped = false);
 
+	// Server-only. Applies the typed removal or cleaner item to a weapon/armor Metin socket set.
+	// The snapshots make confirmation safe if either item moves or changes before the RPC arrives.
+	EMT2MetinSocketItemResult ApplyMetinSocketItem(int32 SourceSlot, int32 TargetSlot,
+		bool bTargetEquipped, const FMT2ItemSlot& ExpectedSource,
+		const FMT2ItemSlot& ExpectedTarget);
+
 	// Server-only atomic refinement. ScrollSlot is INDEX_NONE for blacksmith refinement.
 	EMT2RefinementResult RefineItem(int32 TargetSlot, int32 ScrollSlot = INDEX_NONE, bool bMoneyOnly = false);
 

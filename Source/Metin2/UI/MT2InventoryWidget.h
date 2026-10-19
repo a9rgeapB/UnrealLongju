@@ -64,6 +64,8 @@ public:
 	void OpenDropDialogForSlot(int32 SlotIndex);
 	void OpenMetinAttachDialog(
 		int32 StoneSlot, int32 TargetSlot, bool bTargetEquipped);
+	void OpenMetinSocketItemDialog(
+		int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped);
 
 private:
 	UFUNCTION() void HandleSlotDropped(int32 SourceSlotIndex, EMT2InventorySlotKind SourceKind, int32 TargetSlotIndex, EMT2InventorySlotKind TargetKind);

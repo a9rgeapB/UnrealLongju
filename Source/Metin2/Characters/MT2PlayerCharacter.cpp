@@ -2399,6 +2399,26 @@ void AMT2PlayerCharacter::ServerApplyMetinStone_Implementation(
 	ClientNotifyMetinSocketResult(Result);
 }
 
+void AMT2PlayerCharacter::ServerApplyMetinSocketItem_Implementation(
+	int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped,
+	const FMT2ItemSlot& ExpectedSource, const FMT2ItemSlot& ExpectedTarget)
+{
+	UMT2InventoryComponent* Inventory = GetInventoryComponent();
+	if (!Inventory)
+	{
+		ClientNotifyMetinSocketItemResult(EMT2MetinSocketItemResult::Invalid);
+		return;
+	}
+
+	const EMT2MetinSocketItemResult Result = Inventory->ApplyMetinSocketItem(
+		SourceSlot, TargetSlot, bTargetEquipped, ExpectedSource, ExpectedTarget);
+	if (Result == EMT2MetinSocketItemResult::Success)
+	{
+		ClientConfirmInventoryAction(ExpectedSource.Vnum, true);
+	}
+	ClientNotifyMetinSocketItemResult(Result);
+}
+
 void AMT2PlayerCharacter::ServerApplyAccessoryMaterial_Implementation(uint32 ConfirmationId, int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped,
 	const FMT2ItemSlot& ExpectedSource, const FMT2ItemSlot& ExpectedTarget)
 {
@@ -2457,6 +2477,33 @@ void AMT2PlayerCharacter::ClientNotifyMetinSocketResult_Implementation(
 		PlayRefinementOutcomeSound(
 			this,
 			Result == EMT2MetinSocketApplyResult::Success);
+	}
+}
+
+void AMT2PlayerCharacter::ClientNotifyMetinSocketItemResult_Implementation(
+	EMT2MetinSocketItemResult Result)
+{
+	const TCHAR* Message = nullptr;
+	switch (Result)
+	{
+	case EMT2MetinSocketItemResult::Success:
+		Message = TEXT("The Metin socket item was used successfully."); break;
+	case EMT2MetinSocketItemResult::Incompatible:
+		Message = TEXT("This item cannot be used on that equipment."); break;
+	case EMT2MetinSocketItemResult::NoRemovableStones:
+		Message = TEXT("There are no removable Metin stones in that equipment."); break;
+	case EMT2MetinSocketItemResult::NoBrokenSockets:
+		Message = TEXT("That equipment has no broken sockets to clean."); break;
+	case EMT2MetinSocketItemResult::MissingBrokenStoneTemplate:
+		Message = TEXT("The broken Metin stone item is not configured."); break;
+	case EMT2MetinSocketItemResult::CannotReturnStone:
+		Message = TEXT("The removed Metin stone could not be returned."); break;
+	default:
+		Message = TEXT("The Metin socket item could not be used. Nothing was consumed."); break;
+	}
+	if (AMT2PlayerController* PlayerController = Cast<AMT2PlayerController>(Controller))
+	{
+		PlayerController->AddInfoChatLine(Message);
 	}
 }
 
