@@ -30,7 +30,7 @@ EMT2ItemBonusApplyResult UMT2ItemUseChangeAttributeTemplate::ApplyToEquipment(
 	while (MT2ItemBonusUtils::CountBonuses(StagedTarget, EMT2ItemBonusKind::Normal) < NormalCount)
 	{
 		if (!MT2ItemBonusUtils::AddRandomBonus(StagedTarget, Settings.NormalBonuses,
-			Settings.ChangeNormalValueLevelWeights, TargetType, EMT2ItemBonusKind::Normal))
+			Settings.ChangeNormalValueLevelWeights, TargetType, EMT2ItemBonusKind::Normal, &TargetTemplate))
 		{
 			break;
 		}

@@ -73,27 +73,30 @@ bool UMT2LoadTestSubsystem::SpawnPlayer(const FRequest& Request)
 	UClass* PawnClass = GameMode ? GameMode->DefaultPawnClass.Get() : AMT2PlayerCharacter::StaticClass();
 	if (!PawnClass || !PawnClass->IsChildOf(AMT2PlayerCharacter::StaticClass())) { Controller->Destroy(); return false; }
 	const auto* Capsule = PawnClass->GetDefaultObject<AMT2PlayerCharacter>()->GetCapsuleComponent();
-	FVector Location; bool bFound = false;
+	AMT2PlayerCharacter* Character = nullptr;
+	FActorSpawnParameters SpawnParams; SpawnParams.Owner = Controller; SpawnParams.ObjectFlags |= RF_Transient;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::DontSpawnIfColliding;
+	const FCollisionResponseParams CapsuleResponses(Capsule->GetCollisionResponseToChannels());
 	for (int32 Attempt = 0; Attempt < 12; ++Attempt)
 	{
 		const float Angle = FMath::FRand() * 2.f * UE_PI;
 		const float Distance = FMath::Sqrt(FMath::FRand()) * Request.Radius;
 		const FVector XY = Request.Origin + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * Distance;
 		FHitResult Ground;
-		FCollisionQueryParams Params(SCENE_QUERY_STAT(MT2FakePlayerSpawn), false, Request.Requester.Get());
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(MT2FakePlayerSpawn), false);
 		if (!GetWorld()->LineTraceSingleByObjectType(Ground, XY + FVector(0,0,5000), XY - FVector(0,0,5000),
 			FCollisionObjectQueryParams(ECC_WorldStatic), Params)) continue;
-		Location = Ground.ImpactPoint + FVector(0,0,Capsule->GetScaledCapsuleHalfHeight() + 2.f);
+		const FVector Location = Ground.ImpactPoint + FVector(0,0,Capsule->GetScaledCapsuleHalfHeight() + 2.f);
 		const auto* Attributes = GetWorld()->GetSubsystem<UMT2MapAttributeSubsystem>();
 		if (Attributes && Attributes->IsBlocked(Location)) continue;
-		if (GetWorld()->OverlapBlockingTestByProfile(Location, FQuat::Identity, Capsule->GetCollisionProfileName(),
-			FCollisionShape::MakeCapsule(Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleHalfHeight()), Params)) continue;
-		bFound = true; break;
+		// Player capsules customize their responses, so their profile name can be "Custom"
+		// rather than a registered profile. Include the requester in the blocking test too.
+		if (GetWorld()->OverlapBlockingTestByChannel(Location, FQuat::Identity, Capsule->GetCollisionObjectType(),
+			FCollisionShape::MakeCapsule(Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleHalfHeight()), Params, CapsuleResponses)) continue;
+		Character = GetWorld()->SpawnActor<AMT2PlayerCharacter>(PawnClass, Location, FRotator::ZeroRotator, SpawnParams);
+		if (Character) break;
+		// The spawned class may have other blocking components; try another sampled position.
 	}
-	if (!bFound) { Controller->Destroy(); return false; }
-	FActorSpawnParameters Params; Params.Owner = Controller; Params.ObjectFlags |= RF_Transient;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::DontSpawnIfColliding;
-	auto* Character = GetWorld()->SpawnActor<AMT2PlayerCharacter>(PawnClass, Location, FRotator::ZeroRotator, Params);
 	if (!Character) { Controller->Destroy(); return false; }
 	Controller->Possess(Character);
 	Controller->InitializeBehavior(Request.Origin, Request.Radius);

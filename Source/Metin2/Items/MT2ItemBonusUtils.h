@@ -24,6 +24,7 @@ namespace MT2ItemBonusUtils
 		const TArray<FMT2ItemBonus>& Bonuses, int32 Type, EMT2ItemBonusKind Kind);
 	METIN2_API bool AddRandomBonus(
 		FMT2ItemSlot& Item, const TArray<FMT2ItemBonusDefinition>& Definitions,
-		const TArray<int32>& LevelWeights, EMT2ItemBonusTarget Target, EMT2ItemBonusKind Kind);
+		const TArray<int32>& LevelWeights, EMT2ItemBonusTarget Target, EMT2ItemBonusKind Kind,
+		const UMT2ItemTemplate* TargetTemplate = nullptr);
 	METIN2_API void AddDamageAddon(FMT2ItemSlot& Item, const FMT2DamageAddonFormula& Formula);
 }

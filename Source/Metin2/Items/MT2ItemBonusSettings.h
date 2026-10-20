@@ -67,6 +67,29 @@ struct METIN2_API FMT2ItemBonusDefinition
 };
 
 USTRUCT(BlueprintType)
+struct METIN2_API FMT2NormalBonusAdditionChances
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Addition Chances", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 FirstAttributeSuccessPercent = 100;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Addition Chances", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 SecondAttributeSuccessPercent = 80;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Addition Chances", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 ThirdAttributeSuccessPercent = 60;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Addition Chances", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 FourthAttributeSuccessPercent = 50;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Addition Chances", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 FifthAttributeSuccessPercent = 30;
+
+	int32 GetSuccessPercent(int32 ExistingNormalAttributeCount) const;
+};
+
+USTRUCT(BlueprintType)
 struct METIN2_API FMT2DamageAddonFormula
 {
 	GENERATED_BODY()
@@ -116,8 +139,8 @@ public:
 	const FMT2ItemBonusDefinition* FindDefinition(int32 ApplyType, EMT2ItemBonusKind Kind) const;
 	FString FormatBonus(int32 ApplyType, int32 Value) const;
 
-	UPROPERTY(EditAnywhere, Config, BlueprintReadOnly, Category = "Rules", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-	float AddNormalBonusSuccessChance = 0.5f;
+	UPROPERTY(EditAnywhere, Config, BlueprintReadOnly, Category = "Rules|Normal Bonus Addition", meta = (ShowOnlyInnerProperties))
+	FMT2NormalBonusAdditionChances NormalBonusAdditionChances;
 
 	UPROPERTY(EditAnywhere, Config, BlueprintReadOnly, Category = "Rules", meta = (ClampMin = "1", ClampMax = "5"))
 	int32 NormalBonusAddLimit = 4;

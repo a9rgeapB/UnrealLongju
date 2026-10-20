@@ -16,9 +16,17 @@ EMT2ItemBonusApplyResult UMT2ItemUseAddAttribute2Template::ApplyToEquipment(
 		return EMT2ItemBonusApplyResult::Invalid;
 	}
 
-	return MT2ItemBonusUtils::AddRandomBonus(StagedTarget, Settings.NormalBonuses,
-		Settings.AddNormalValueLevelWeights, TargetType, EMT2ItemBonusKind::Normal)
-		? EMT2ItemBonusApplyResult::Success
-		: EMT2ItemBonusApplyResult::Invalid;
+	FMT2ItemSlot Candidate = StagedTarget;
+	if (!MT2ItemBonusUtils::AddRandomBonus(Candidate, Settings.NormalBonuses,
+		Settings.AddNormalValueLevelWeights, TargetType, EMT2ItemBonusKind::Normal, &TargetTemplate))
+	{
+		return EMT2ItemBonusApplyResult::Invalid;
+	}
+	if (FMath::RandRange(1, 100) > Settings.NormalBonusAdditionChances.GetSuccessPercent(NormalCount))
+	{
+		return EMT2ItemBonusApplyResult::Failed;
+	}
+	StagedTarget = MoveTemp(Candidate);
+	return EMT2ItemBonusApplyResult::Success;
 }
 

@@ -83,16 +83,25 @@ bool MT2ItemBonusUtils::HasBonusType(
 
 bool MT2ItemBonusUtils::AddRandomBonus(
 	FMT2ItemSlot& Item, const TArray<FMT2ItemBonusDefinition>& Definitions,
-	const TArray<int32>& LevelWeights, EMT2ItemBonusTarget Target, EMT2ItemBonusKind Kind)
+	const TArray<int32>& LevelWeights, EMT2ItemBonusTarget Target, EMT2ItemBonusKind Kind,
+	const UMT2ItemTemplate* TargetTemplate)
 {
 	TArray<const FMT2ItemBonusDefinition*> Available;
 	TArray<int32> DefinitionWeights;
 	for (const FMT2ItemBonusDefinition& Definition : Definitions)
 	{
 		const int32* MaximumLevel = Definition.MaxLevelByItemType.Find(Target);
+		// Legacy HasAttr also checks the item's immutable prototype applies. Rare attributes
+		// deliberately use a separate duplicate set and may match a prototype/normal apply.
+		const bool bIntrinsicNormalBonus = Kind == EMT2ItemBonusKind::Normal && TargetTemplate &&
+			TargetTemplate->Applies.ContainsByPredicate([&Definition](const FMT2ItemApply& Apply)
+			{
+				return Apply.Type == Definition.ApplyType;
+			});
 		if (Definition.ApplyType == EMT2ItemBonusType::None || Definition.SelectionWeight <= 0 ||
 			!MaximumLevel || *MaximumLevel <= 0 ||
 			(Definition.EligibleItemFlags & static_cast<int32>(Target)) == 0 ||
+			bIntrinsicNormalBonus ||
 			HasBonusType(Item.GetBonuses(), static_cast<int32>(Definition.ApplyType), Kind))
 		{
 			continue;
@@ -108,6 +117,10 @@ bool MT2ItemBonusUtils::AddRandomBonus(
 
 	const FMT2ItemBonusDefinition& Definition = *Available[DefinitionIndex];
 	const int32 RolledLevel = RollWeightedIndex(LevelWeights);
+	if (RolledLevel == INDEX_NONE)
+	{
+		return false;
+	}
 	const int32 MaxLevel = FMath::Clamp(
 		Definition.MaxLevelByItemType.FindRef(Target), 1, 5);
 	const int32 LevelIndex = FMath::Clamp(RolledLevel, 0, MaxLevel - 1);

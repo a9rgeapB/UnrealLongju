@@ -72,5 +72,3 @@ bool FMT2ItemImporter::ParseFishTable(const FString& Text,
 	OutDefinitions = MoveTemp(Candidate);
 	return true;
 }
-
-#include "Tests/MT2FishImporterTests.h"

@@ -13,11 +13,20 @@
 
 #include "Items/MT2ItemBonusSettings.h"
 #include "Items/MT2ItemTemplate.h"
+#include "Characters/MT2PlayerCharacter.h"
+#include "Components/MT2HealthComponent.h"
+#include "Player/MT2PlayerState.h"
+#include "Trade/MT2TradeComponent.h"
 
 EMT2ItemBonusApplyResult UMT2InventoryComponent::ApplyBonusConsumable(
 	int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped)
 {
-	if (!GetOwner() || !GetOwner()->HasAuthority() || (!bTargetEquipped && SourceSlot == TargetSlot) ||
+	const AMT2PlayerCharacter* Character = Cast<AMT2PlayerCharacter>(GetOwner());
+	const UMT2HealthComponent* Health = Character ? Character->GetHealthComponent() : nullptr;
+	const AMT2PlayerState* State = Character ? Character->GetPlayerState<AMT2PlayerState>() : nullptr;
+	if (!Character || !Character->HasAuthority() || !Health || Health->IsDead() ||
+		(State && State->GetTradeComponent() && State->GetTradeComponent()->IsTrading()) ||
+		(!bTargetEquipped && SourceSlot == TargetSlot) ||
 		!Slots.IsValidIndex(SourceSlot) || Slots[SourceSlot].IsEmpty())
 	{
 		return EMT2ItemBonusApplyResult::Invalid;

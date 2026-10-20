@@ -90,5 +90,3 @@ bool FMT2ItemImporter::ParseBlendTable(const FString& Text,
 	OutDefinitions = MoveTemp(Parsed);
 	return true;
 }
-
-#include "Tests/MT2BlendImporterTests.h"

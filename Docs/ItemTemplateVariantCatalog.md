@@ -1,6 +1,8 @@
 # Legacy item-template variant catalog
 
-The importer selects a native Unreal item-template class from each supported legacy ITEM_TYPE and ITEM_SUBTYPE pair. Each concrete subtype class derives directly from its existing item-family template and has its own header and implementation.
+Task dependencies, ownership cleanup, validation criteria and the per-class completion checklist are tracked in the [Item Classes Implementation Plan and TODO Tracker](superpowers/plans/2026-10-20-item-implementation-todo.md).
+
+The importer selects a native Unreal item-template class from each supported legacy ITEM_TYPE and ITEM_SUBTYPE pair. Each concrete subtype class has its own header and implementation. Specialized behavior families, such as bonus consumables and item actions, provide intermediate bases where needed; the catalog test checks the actual immediate parent.
 
 This catalog is based on the legacy server common/enums.h and db/src/ProtoReader.cpp subtype-name tables. The importer uses parsed numeric subtype ordinals, retaining source-table aliases. Enum sentinels such as ARMOR_NUM_TYPES are not behavior variants. Item types with no legacy subtype table use their existing family template directly.
 
@@ -98,10 +100,10 @@ The classes below establish import and authoring identity; their individual head
 | UMT2ItemUsePotionContinueTemplate | Use | USE_POTION_CONTINUE | 16 | Placeholder; behavior TODO |
 | UMT2ItemUseCleanSocketTemplate | Use | USE_CLEAN_SOCKET | 17 | Placeholder; behavior TODO |
 | UMT2ItemUseChangeAttributeTemplate | Use | USE_CHANGE_ATTRIBUTE | 18 | Placeholder; behavior TODO |
-| UMT2ItemUseAddAttributeTemplate | Use | USE_ADD_ATTRIBUTE | 19 | Placeholder; behavior TODO |
+| UMT2ItemUseAddAttributeTemplate | Use | USE_ADD_ATTRIBUTE | 19 | Class-owned addition policy; standard item 71085 tested. Per-slot chances, prototype-apply exclusion and failure consumption implemented. Special low-level variants and zero-value addon slot accounting remain pending (OWN-01). |
 | UMT2ItemUseAddAccessorySocketTemplate | Use | USE_ADD_ACCESSORY_SOCKET | 20 | Placeholder; behavior TODO |
 | UMT2ItemUsePutIntoAccessorySocketTemplate | Use | USE_PUT_INTO_ACCESSORY_SOCKET | 21 | Placeholder; behavior TODO |
-| UMT2ItemUseAddAttribute2Template | Use | USE_ADD_ATTRIBUTE2 | 22 | Placeholder; behavior TODO |
+| UMT2ItemUseAddAttribute2Template | Use | USE_ADD_ATTRIBUTE2 | 22 | Class-owned fifth-attribute policy; item 70024 tested. Requires four normal attributes by default; configured fifth-slot chance and consume-on-failure implemented. Zero-value addon slot accounting remains pending (OWN-01). |
 | UMT2ItemUseRecipeTemplate | Use | USE_RECIPE | 23 | Atomic legacy transaction using typed ingredient, bottle and result references; failed rolls consume ingredients and bottle, recipe item remains. |
 | UMT2ItemUseChangeAttribute2Template | Use | USE_CHANGE_ATTRIBUTE2 | 24 | Placeholder; behavior TODO |
 | UMT2ItemUseBindTemplate | Use | USE_BIND | 25 | Placeholder; behavior TODO |

@@ -11,6 +11,11 @@ Development builds provide the admin-only `/fakeplayers` command. Fake players a
 
 Arguments are count, optional radius in centimetres and optional level. Defaults are a 3000 cm radius and level 1. Creation is staggered; the command reports queued count and a completion summary, including failures to find usable ground or equip the sword. The default limit is 200, including queued requests. Clear removes only fake players and cancels pending spawns in the current world.
 
+Spawn placement uses the pawn capsule's actual collision channel and responses, including custom
+responses, and treats the requesting player as a blocker. Each player gets up to 12 sampled
+positions; a collision rejected by actor spawning retries another position within that bound.
+Exhausted placement attempts still report a failed spawn rather than forcing overlapping actors.
+
 Configure **Project Settings > Game > Server Load Testing**, or `[/Script/Metin2.MT2LoadTestSettings]` in `Config/DefaultGame.ini`. Limits, spawn batching, radius, level, target-search radius, decision interval and respawn delay are configurable. Warrior appearance and weapon VNUM 19 are fixed.
 
 Fake players have no account/persistence identity and do not acquire admin rights. They do not exercise login, character loading or database saves. Their pawns are included in the player spatial grid, so they activate mobs and can be selected by monster AI. Characters and PlayerStates replicate normally to real clients observing them. Controller decisions have the `MT2.LoadTest.BotDecision` FramePro scope; the harness has `MT2.LoadTest.Tick`.
@@ -46,7 +51,11 @@ Player capsules use query-only collision: terrain sweeps, targeting and portal o
 
 Existing combat/engagement diagnostics can add logging overhead. For comparable CPU captures, set the same log verbosity in every run; for example `-LogCmds="LogMT2Combat Error,LogMT2Targeting Error"`. Restore diagnostic verbosity when investigating a failure.
 
-Automation coverage is under `Metin2.Server.FakePlayers`. A successful fixture is not a live 100-client test.
+The bot-spawn regression and the full 190-test Metin2 suite passed before the requested removal
+of `Source/Metin2/Tests`. Verified test sources are backed up under
+`Saved/RemovedTests/20261020-BotSpawnFix/Tests`; reports are under
+`Saved/Automation/ItemImplementation/FakePlayers-FullGreen`. These fixtures are not a live
+100-client test and are no longer compiled into the runtime module.
 
 Dedicated servers disable character skeletal ticks, clear cosmetic mesh/AnimBP resources and detach hair/weapon socket attachments. Combat still reads imported animation metadata; movement and knockback remain authoritative. PlayerState polling defaults to 2 Hz via `PlayerStateReplicationRate` in Metin2 Gameplay settings. Progression, appearance, vitals, primary stats, skill levels and gameplay-tag changes request immediate replication. The baseline remains a fallback for other subobject updates; PlayerState layout and actor relevancy are unchanged. Equipment uses the owner/observer split described above. Compare client-visible state under latency when changing this rate.
 

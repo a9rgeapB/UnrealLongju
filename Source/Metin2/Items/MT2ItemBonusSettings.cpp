@@ -117,6 +117,21 @@ constexpr FBonusDisplay BonusDisplays[] = {
 static_assert(UE_ARRAY_COUNT(BonusDisplays) == static_cast<int32>(EMT2ItemBonusType::AntiPenetratingChance) + 1);
 }
 
+int32 FMT2NormalBonusAdditionChances::GetSuccessPercent(int32 ExistingNormalAttributeCount) const
+{
+	int32 Percent = 0;
+	switch (ExistingNormalAttributeCount)
+	{
+	case 0: Percent = FirstAttributeSuccessPercent; break;
+	case 1: Percent = SecondAttributeSuccessPercent; break;
+	case 2: Percent = ThirdAttributeSuccessPercent; break;
+	case 3: Percent = FourthAttributeSuccessPercent; break;
+	case 4: Percent = FifthAttributeSuccessPercent; break;
+	default: return 0;
+	}
+	return FMath::Clamp(Percent, 0, 100);
+}
+
 const FMT2ItemBonusDefinition* UMT2ItemBonusSettings::FindDefinition(
 	int32 ApplyType, EMT2ItemBonusKind Kind) const
 {

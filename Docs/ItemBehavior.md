@@ -25,7 +25,7 @@ generic consume action would break parity.
 | Fishing rods, bait, fish, pickaxes, raw/refined ores | Fishing/mining/refining/accessory foundations exist. `USE_BAIT` imports legacy `Value0` as the bait item's own `BaitPower`; server use requires an equipped rod and an idle fishing attempt, replaces the rod's current bait, and consumes exactly one bait. Live fish have table-driven opening outcomes; live/dead fish can be given to a campfire to roast the entire stack. |
 | Gift boxes, treasure boxes/keys | Native reward/crate/key transactions exist. Audit special non-item crate rewards and content groups. |
 | Blend items | `blend.txt` supplies independent weighted magnitude/duration rolls. Instance sockets persist and appear in tooltips. Duplicate APPLY affects are rejected. Energy amplifies random equipment attributes, with separate eligible slots for energy and costume-attribute effects. |
-| Polymorph balls and practice books | Need a transformation system: authoritative race/state, mob motion and attack data, equipment/skill/riding restrictions, duration, restoration, and observer/late-join presentation. Balls and books have different consumption, level and success rules. |
+| Polymorph balls and practice books | Dedicated item handlers and a transformation system exist, including mob presentation and configured combat scaling. Balls and books retain separate use policies. Complete eligibility, consumption, persistence and network parity audits remain tracked in the item implementation plan. |
 | Skill-forget items | Legacy skill-level downgrade is implemented with per-item selected skills, eligibility rules and separate combat/sub-skill/horse refund pools. |
 | Talisman/recall items | Need persistent destination sockets, delayed/cancellable travel and existing map-server transfer validation. |
 | Binding/unbinding items | Need persistent binding state enforced by drop, trade, sell, refinement and equipment operations, including delayed unbinding. |
@@ -39,10 +39,33 @@ generic consume action would break parity.
 ## Implementation order
 
 1. Audit recipe and create-stone edge cases against the complete imported proto set; implement remaining targeted-item transactions.
-2. Implement transformation, item binding and recall systems, each with its dependent item actions.
+2. Audit the implemented transformation system; implement item binding and recall with their dependent item actions.
 3. Implement Dragon Soul inventory/decks, attributes/timers, refinement, extraction and charging.
 4. Finish the equipment expiry/belt inventory audit and per-item quest/content checks. Keep
    unavailable/unused content explicit.
+
+## Normal bonus-addition items
+
+Standard addition item 71085 and fifth-attribute item 70024 own their policies in
+`UMT2ItemUseAddAttributeTemplate` and `UMT2ItemUseAddAttribute2Template`. Inventory performs
+the authoritative staged transaction and notifications. By default, the first item adds up to
+four normal attributes; the second requires four and attempts the fifth. Success chances by
+destination slot are 100%, 80%, 60%, 50%, 30%, matching legacy `aiItemAttributeAddPercent`.
+Edit the five named percentages under Project Settings → Game → MT2 Item Bonuses → Rules →
+Normal Bonus Addition. The settings use `NormalBonusAdditionChances` with separate
+`FirstAttributeSuccessPercent` through `FifthAttributeSuccessPercent` fields; custom config
+overrides must use these named fields.
+
+A valid attempted addition consumes one source item on success or failure. Failure leaves the
+target unchanged. Ineligible targets, missing eligible definitions, empty value distributions,
+death and trading reject without consumption. Normal attributes cannot duplicate prototype
+applies or another normal attribute; rare attributes retain their independent duplicate set.
+Normal and rare value-level weight arrays are ordered: repeated entries, including zeroes,
+must use Unreal config's `.` array-add syntax after an explicit clear, not unique-add `+`.
+
+This is a bounded parity pass, not completion of every bonus item: low-level special variants,
+reroll cooldowns/distributions, rare-region rules and zero-value addon slot accounting still
+require the checks in OWN-01 of the implementation tracker.
 
 ## Instance sockets and equipment amplification
 
