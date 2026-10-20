@@ -8,6 +8,8 @@
 #include "Components/MT2HealthComponent.h"
 #include "Items/MT2InventoryComponent.h"
 #include "Items/MT2ItemTemplate.h"
+#include "Items/Templates/MT2ItemUseBaitTemplate.h"
+#include "Items/Use/MT2ItemActionTemplate.h"
 #include "Items/MT2ItemUtils.h"
 #include "Core/MT2VnumRegistrySubsystem.h"
 #include "World/MT2MapPresentationActor.h"
@@ -114,6 +116,26 @@ bool FMT2FishingAuthorityTest::RunTest(const FString&)
 	auto* Registry=GI->GetSubsystem<UMT2VnumRegistrySubsystem>();
 	const auto* Rod=Cast<UMT2ItemRodTemplate>(Registry->ResolveItemTemplateClass(27400).GetDefaultObject());
 	if (!TestNotNull(TEXT("Imported rod"),Rod)) { return false; }
+	const UMT2ItemUseBaitTemplate* Bait = Cast<UMT2ItemUseBaitTemplate>(
+		Registry->ResolveItemTemplateClass(27802).GetDefaultObject());
+	UClass* BaitClass = Bait ? Bait->GetClass() : nullptr;
+	TestTrue(TEXT("Bait owns a native item action"), BaitClass && BaitClass->IsChildOf(UMT2ItemActionTemplate::StaticClass()));
+	const FIntProperty* BaitPowerProperty = BaitClass
+		? FindFProperty<FIntProperty>(BaitClass, TEXT("BaitPower")) : nullptr;
+	TestNotNull(TEXT("Bait power is a subtype-owned field"), BaitPowerProperty);
+	TestNotNull(TEXT("Imported bait template"), Bait);
+	for (const TPair<int32, int32>& ExpectedBait : {TPair<int32, int32>(27800, 10),
+		TPair<int32, int32>(27801, 20), TPair<int32, int32>(27802, 40)})
+	{
+		const UMT2ItemUseBaitTemplate* ImportedBait = Cast<UMT2ItemUseBaitTemplate>(
+			Registry->ResolveItemTemplateClass(ExpectedBait.Key).GetDefaultObject());
+		TestNotNull(FString::Printf(TEXT("Imported bait %d uses its concrete subtype"), ExpectedBait.Key), ImportedBait);
+		if (ImportedBait && BaitPowerProperty)
+		{
+			TestEqual(FString::Printf(TEXT("Bait %d Value0 maps to BaitPower"), ExpectedBait.Key),
+				BaitPowerProperty->GetPropertyValue_InContainer(ImportedBait), ExpectedBait.Value);
+		}
+	}
 	TestTrue(TEXT("Rod practice imported"),Rod->PracticeChanceDenominator>0);
 	auto* Player=World->SpawnActor<AMT2PlayerCharacter>(); auto* PS=World->SpawnActor<AMT2PlayerState>(); Player->SetPlayerState(PS);
 	auto* ASC=PS->GetAbilitySystemComponent(); ASC->AddAttributeSetSubobject(PS->GetCoreAttributes()); ASC->InitAbilityActorInfo(PS,Player);
@@ -121,7 +143,17 @@ bool FMT2FishingAuthorityTest::RunTest(const FString&)
 	Player->GetHealthComponent()->InitializeWithAbilitySystem(ASC);
 	Player->SetActorLocation(FVector(-1000,-1000,0)); Player->SetActorRotation(FRotator::ZeroRotator); Player->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 	auto* Inventory=Player->GetInventoryComponent(); TArray<FMT2ItemSlot> Slots,Worn; Slots.SetNum(180); Worn.SetNum(32);
-	Worn[4]=FMT2ItemSlot(27400,Rod->MakeInstanceData(1)); Worn[4].EditRodState().BaitPower=40; Inventory->RestoreItems(Slots,Worn);
+	Worn[4]=FMT2ItemSlot(27400,Rod->MakeInstanceData(1)); Worn[4].EditRodState().BaitPower=40;
+	if (Bait)
+	{
+		Slots[0] = FMT2ItemSlot(27802, Bait->MakeInstanceData(1));
+		Inventory->RestoreItems(Slots, Worn);
+		TestTrue(TEXT("Using the typed bait template is accepted"), Inventory->UseItem(0));
+		TestEqual(TEXT("Bait replaces the equipped rod's bait power"), Inventory->GetEquipment()[4].GetRodState().BaitPower, 40);
+		TestTrue(TEXT("Successful bait use consumes exactly one bait"), Inventory->GetSlots()[0].IsEmpty());
+		Slots[0] = FMT2ItemSlot();
+	}
+	Inventory->RestoreItems(Slots,Worn);
 	auto* Map=World->SpawnActor<AMT2MapPresentationActor>(); Map->MapIndex=1; Map->WorldMin=FVector2D(-2000,-2000); Map->WorldMax=FVector2D::ZeroVector;
 	Map->Attributes.Size=FIntPoint(20,20); Map->Attributes.Flags.SetNumZeroed(400); World->GetSubsystem<UMT2MapAttributeSubsystem>()->RegisterMap(Map);
 	auto* Fishing=Player->GetFishingComponent();

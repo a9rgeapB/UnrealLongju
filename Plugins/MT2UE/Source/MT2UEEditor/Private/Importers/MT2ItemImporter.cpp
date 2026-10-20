@@ -46,6 +46,9 @@
 #include "Items/Templates/MT2ItemTreasureBoxTemplate.h"
 #include "Items/Templates/MT2ItemTreasureKeyTemplate.h"
 #include "Items/Templates/MT2ItemUniqueTemplate.h"
+#include "Items/Templates/MT2ItemUseBaitTemplate.h"
+#include "Items/Templates/MT2ItemUseRecipeTemplate.h"
+#include "Items/Templates/MT2ItemUseCreateStoneTemplate.h"
 #include "Items/Templates/MT2ItemUseTemplate.h"
 #include "Items/Templates/MT2ItemWeaponTemplate.h"
 #include "Items/MT2ItemTemplateResolver.h"
@@ -1242,10 +1245,26 @@ namespace
 				}
 				Use->AffectType = FMT2AffectIdentifier();
 				Use->BuffDurationSeconds = 0;
+				if (UMT2ItemUseRecipeTemplate* Recipe = Cast<UMT2ItemUseRecipeTemplate>(Use))
+				{
+					Recipe->Recipe = FMT2ItemRecipeDefinition();
+				}
+				if (UMT2ItemUseCreateStoneTemplate* CreateStone = Cast<UMT2ItemUseCreateStoneTemplate>(Use))
+				{
+					CreateStone->StoneResults.Reset();
+				}
 				Use->HealthRecovery = Definition.Values.IsValidIndex(0) ? Definition.Values[0] : 0;
 				Use->ManaRecovery = Definition.Values.IsValidIndex(1) ? Definition.Values[1] : 0;
 				Use->HealthRecoveryPercent = Definition.Values.IsValidIndex(3) ? Definition.Values[3] : 0;
 				Use->ManaRecoveryPercent = Definition.Values.IsValidIndex(4) ? Definition.Values[4] : 0;
+				if (UMT2ItemUseBaitTemplate* Bait = Cast<UMT2ItemUseBaitTemplate>(Use))
+				{
+					Bait->BaitPower = Definition.Values.IsValidIndex(0) ? Definition.Values[0] : 0;
+					Use->HealthRecovery = 0;
+					Use->ManaRecovery = 0;
+					Use->HealthRecoveryPercent = 0;
+					Use->ManaRecoveryPercent = 0;
+				}
 				if (Use->UseSubType == EMT2UseSubType::PotionContinue)
 				{
 					Use->BuffDurationSeconds = Definition.Values.IsValidIndex(2) ? Definition.Values[2] : 0;
@@ -1874,6 +1893,153 @@ bool FMT2ItemImporter::Import(
 		FKismetEditorUtilities::CompileBlueprint(CrateBlueprint);
 		CrateBlueprint->MarkPackageDirty();
 		PackagesToSave.AddUnique(CrateBlueprint->GetOutermost());
+	}
+
+	// Legacy USE_CREATE_STONE grants a uniform result from 28000..28013. Keep the authored template
+	// free of numeric item references and resolve all result classes after every item Blueprint exists.
+	for (const FMT2ItemImportRecord& Record : Records)
+	{
+		if (Record.Definition.ItemType != EMT2ItemType::Use ||
+			Record.Definition.SubType.ToLegacy() != static_cast<int32>(EMT2UseSubType::CreateStone))
+		{
+			continue;
+		}
+		UBlueprint* SourceBlueprint = LoadObject<UBlueprint>(
+			nullptr, *BuildBlueprintObjectPath(DestinationRoot, Record.Definition));
+		UMT2ItemUseCreateStoneTemplate* CreateStoneDefaults = SourceBlueprint && SourceBlueprint->GeneratedClass
+			? Cast<UMT2ItemUseCreateStoneTemplate>(SourceBlueprint->GeneratedClass->GetDefaultObject()) : nullptr;
+		if (!CreateStoneDefaults)
+		{
+			OutResult.Errors.Add(FString::Printf(
+				TEXT("%d: create-stone Blueprint is not based on UMT2ItemUseCreateStoneTemplate."),
+				Record.Definition.Vnum));
+			continue;
+		}
+
+		TArray<FMT2ItemCreateStoneResult> Results;
+		bool bResolvedAll = true;
+		for (int32 ResultVnum = 28000; ResultVnum <= 28013; ++ResultVnum)
+		{
+			UBlueprint* ResultBlueprint = ResolveRewardBlueprint(ResultVnum);
+			if (!ResultBlueprint || !ResultBlueprint->GeneratedClass ||
+				!ResultBlueprint->GeneratedClass->IsChildOf(UMT2ItemTemplate::StaticClass()))
+			{
+				OutResult.Errors.Add(FString::Printf(
+					TEXT("%d: legacy create-stone result item %d has no imported Blueprint."),
+					Record.Definition.Vnum, ResultVnum));
+				bResolvedAll = false;
+				continue;
+			}
+			const UMT2ItemTemplate* ResultDefaults =
+				ResultBlueprint->GeneratedClass->GetDefaultObject<UMT2ItemTemplate>();
+			const int32 VnumRangeOffset = ResultVnum - ResultDefaults->Vnum;
+			if (VnumRangeOffset < 0 || VnumRangeOffset > ResultDefaults->VnumRange)
+			{
+				OutResult.Errors.Add(FString::Printf(
+					TEXT("%d: create-stone result %d is not covered by its imported item-template range."),
+					Record.Definition.Vnum, ResultVnum));
+				bResolvedAll = false;
+				continue;
+			}
+			FMT2ItemCreateStoneResult& Result = Results.AddDefaulted_GetRef();
+			Result.ItemTemplate = TSubclassOf<UMT2ItemTemplate>(ResultBlueprint->GeneratedClass);
+			Result.VnumRangeOffset = VnumRangeOffset;
+		}
+		if (!bResolvedAll || Results.Num() != 14)
+		{
+			OutResult.Errors.Add(FString::Printf(
+				TEXT("%d: create-stone results are incomplete; the legacy uniform selection was not configured."),
+				Record.Definition.Vnum));
+			continue;
+		}
+
+		CreateStoneDefaults->Modify();
+		CreateStoneDefaults->StoneResults = MoveTemp(Results);
+		FKismetEditorUtilities::CompileBlueprint(SourceBlueprint);
+		SourceBlueprint->MarkPackageDirty();
+		PackagesToSave.AddUnique(SourceBlueprint->GetOutermost());
+	}
+
+	// Legacy USE_RECIPE stores item vnums in Value0..5. Resolve them to typed Blueprint classes
+	// after all item Blueprints exist so source row ordering cannot break the references.
+	for (const FMT2ItemImportRecord& Record : Records)
+	{
+		if (Record.Definition.ItemType != EMT2ItemType::Use ||
+			Record.Definition.SubType.ToLegacy() != static_cast<int32>(EMT2UseSubType::Recipe))
+		{
+			continue;
+		}
+		UBlueprint* RecipeBlueprint = LoadObject<UBlueprint>(
+			nullptr, *BuildBlueprintObjectPath(DestinationRoot, Record.Definition));
+		UMT2ItemUseRecipeTemplate* RecipeDefaults = RecipeBlueprint && RecipeBlueprint->GeneratedClass
+			? Cast<UMT2ItemUseRecipeTemplate>(RecipeBlueprint->GeneratedClass->GetDefaultObject()) : nullptr;
+		if (!RecipeDefaults)
+		{
+			OutResult.Errors.Add(FString::Printf(
+				TEXT("%d: recipe Blueprint is not based on UMT2ItemUseRecipeTemplate."), Record.Definition.Vnum));
+			continue;
+		}
+
+		const auto ReadValue = [&Record](int32 Index) -> int32
+		{
+			return Record.Definition.Values.IsValidIndex(Index) ? Record.Definition.Values[Index] : 0;
+		};
+		FMT2ItemRecipeDefinition ImportedRecipe;
+		ImportedRecipe.FirstIngredientCount = ReadValue(2);
+		ImportedRecipe.SecondIngredientCount = ReadValue(4);
+		ImportedRecipe.SuccessPercent = ReadValue(5);
+		const int32 FirstIngredientVnum = ReadValue(1);
+		const int32 SecondIngredientVnum = ReadValue(3);
+		const int32 ResultVnum = ReadValue(0);
+		bool bResolved = ImportedRecipe.FirstIngredientCount >= 0 &&
+			ImportedRecipe.SecondIngredientCount >= 0 && ResultVnum > 0 &&
+			ImportedRecipe.SuccessPercent >= 0 && ImportedRecipe.SuccessPercent <= 100;
+		const auto ResolveTemplateClass = [&](int32 Vnum, const TCHAR* Role) -> TSubclassOf<UMT2ItemTemplate>
+		{
+			if (Vnum <= 0)
+			{
+				OutResult.Errors.Add(FString::Printf(
+					TEXT("%d: recipe %s vnum %d is invalid."), Record.Definition.Vnum, Role, Vnum));
+				return nullptr;
+			}
+			UBlueprint* ReferencedBlueprint = ResolveRewardBlueprint(Vnum);
+			if (!ReferencedBlueprint || !ReferencedBlueprint->GeneratedClass ||
+				!ReferencedBlueprint->GeneratedClass->IsChildOf(UMT2ItemTemplate::StaticClass()))
+			{
+				OutResult.Errors.Add(FString::Printf(
+					TEXT("%d: recipe %s item %d has no imported Blueprint or matching VNUM range."),
+					Record.Definition.Vnum, Role, Vnum));
+				return nullptr;
+			}
+			return TSubclassOf<UMT2ItemTemplate>(ReferencedBlueprint->GeneratedClass);
+		};
+		if (ImportedRecipe.FirstIngredientCount > 0)
+		{
+			ImportedRecipe.FirstIngredientTemplate = ResolveTemplateClass(FirstIngredientVnum, TEXT("first ingredient"));
+			bResolved &= ImportedRecipe.FirstIngredientTemplate != nullptr;
+		}
+		if (ImportedRecipe.SecondIngredientCount > 0)
+		{
+			ImportedRecipe.SecondIngredientTemplate = ResolveTemplateClass(SecondIngredientVnum, TEXT("second ingredient"));
+			bResolved &= ImportedRecipe.SecondIngredientTemplate != nullptr;
+		}
+		ImportedRecipe.RequiredBottleTemplate = ResolveTemplateClass(50901, TEXT("required bottle"));
+		ImportedRecipe.ResultItemTemplate = ResolveTemplateClass(ResultVnum, TEXT("result"));
+		bResolved &= ImportedRecipe.RequiredBottleTemplate != nullptr &&
+			ImportedRecipe.ResultItemTemplate != nullptr;
+		if (!bResolved)
+		{
+			OutResult.Errors.Add(FString::Printf(
+				TEXT("%d: recipe counts, success chance or item references are invalid; recipe data was not applied."),
+				Record.Definition.Vnum));
+			continue;
+		}
+
+		RecipeDefaults->Modify();
+		RecipeDefaults->Recipe = MoveTemp(ImportedRecipe);
+		FKismetEditorUtilities::CompileBlueprint(RecipeBlueprint);
+		RecipeBlueprint->MarkPackageDirty();
+		PackagesToSave.AddUnique(RecipeBlueprint->GetOutermost());
 	}
 
 	for (const FMT2ItemImportRecord& Record : Records)

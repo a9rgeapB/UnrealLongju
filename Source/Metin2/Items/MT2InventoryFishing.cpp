@@ -1,5 +1,5 @@
 #include "Items/Templates/MT2ItemRodTemplate.h"
-#include "Items/Templates/MT2ItemUseTemplate.h"
+#include "Items/Templates/MT2ItemUseBaitTemplate.h"
 #include "Items/MT2InventoryComponent.h"
 #include "Items/MT2ItemTemplate.h"
 #include "Characters/MT2PlayerCharacter.h"
@@ -7,15 +7,16 @@
 #include "Fishing/MT2FishingComponent.h"
 #include "Player/MT2PlayerController.h"
 
-bool UMT2InventoryComponent::ApplyFishingBait(int32 InventorySlot)
+bool UMT2InventoryComponent::ApplyFishingBait(int32 InventorySlot, const UMT2ItemUseBaitTemplate& Bait)
 {
 	auto* Player = Cast<AMT2PlayerCharacter>(GetOwner());
-	if (!Player || !Player->HasAuthority() || Player->GetHealthComponent()->IsDead() || Player->GetFishingComponent()->IsFishing() ||
+	if (!Player || !Player->HasAuthority() || !Player->GetHealthComponent() || Player->GetHealthComponent()->IsDead() ||
+		!Player->GetFishingComponent() || Player->GetFishingComponent()->IsFishing() ||
 		!Slots.IsValidIndex(InventorySlot) || Slots[InventorySlot].IsEmpty() || !Equipment.IsValidIndex(4)) { return false; }
-	const auto* Bait = Cast<UMT2ItemUseTemplate>(ResolveTemplate(Slots[InventorySlot].Vnum));
-	if (!Bait || Bait->UseSubType != EMT2UseSubType::Bait || Bait->HealthRecovery <= 0 || !Cast<UMT2ItemRodTemplate>(ResolveTemplate(Equipment[4].Vnum))) { return false; }
-	// USE_BAIT's Value0 was already imported into HealthRecovery; retain existing bait assets.
-	Equipment[4].EditRodState().BaitPower = Bait->HealthRecovery;
+	const auto* ItemBait = Cast<UMT2ItemUseBaitTemplate>(ResolveTemplate(Slots[InventorySlot].Vnum));
+	if (!ItemBait || ItemBait->GetClass() != Bait.GetClass() || ItemBait->BaitPower <= 0 ||
+		!Cast<UMT2ItemRodTemplate>(ResolveTemplate(Equipment[4].Vnum))) { return false; }
+	Equipment[4].EditRodState().BaitPower = ItemBait->BaitPower;
 	if (--Slots[InventorySlot].Count == 0) { Slots[InventorySlot] = FMT2ItemSlot(); }
 	OnInventoryChanged.Broadcast(); OnEquipmentChanged.Broadcast(); return true;
 }

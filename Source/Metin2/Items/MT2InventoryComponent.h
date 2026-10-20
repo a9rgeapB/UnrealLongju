@@ -18,6 +18,8 @@
 class UMT2ItemTemplate;
 class UMT2ItemAutoRecoveryTemplate;
 class UMT2Item;
+class UMT2ItemUseRecipeTemplate;
+class UMT2ItemUseBaitTemplate;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMT2InventoryChangedSignature);
 
@@ -105,6 +107,9 @@ public:
 	int32 RemoveItemByVnum(int32 Vnum, int32 Count);
 	// Server-only, atomic conversion: validates all output space before consuming the source.
 	bool ExchangeItemAtSlot(int32 InventorySlot, int32 ConsumeCount, int32 ResultVnum, int32 ResultCount);
+	// Executes the legacy USE_RECIPE transaction. The recipe scroll is retained; ingredients and
+	// the required bottle are consumed on either roll outcome, while a successful output is granted.
+	bool ExecuteItemRecipe(int32 RecipeSlot, const UMT2ItemUseRecipeTemplate& Recipe);
 
 	// Server-only. Writes the scripted numeric value of a socket on an inventory item (old
 	// item.set_socket). Grows the socket array if the item has fewer sockets than the index asks for.
@@ -142,7 +147,7 @@ public:
 	// subtypes remain available for their dedicated gameplay implementations.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
 	bool UseItem(int32 InventorySlot);
-	bool ApplyFishingBait(int32 InventorySlot);
+	bool ApplyFishingBait(int32 InventorySlot, const UMT2ItemUseBaitTemplate& Bait);
 	bool FinishFishingAttempt(bool bPractice);
 	bool FinishMiningAttempt();
 	EMT2AccessorySocketApplyResult ApplyAccessoryMaterial(int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped,

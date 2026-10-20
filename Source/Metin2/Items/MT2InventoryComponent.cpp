@@ -706,8 +706,6 @@ bool UMT2InventoryComponent::UseItem(int32 InventorySlot)
 	}
 	else switch (UseTemplate->UseSubType)
 	{
-	case EMT2UseSubType::Bait: // USE_BAIT
-		return ApplyFishingBait(InventorySlot);
 	case EMT2UseSubType::Clear:
 		if (!Character->GetStatusEffectComponent()) return false;
 		Character->GetStatusEffectComponent()->RemoveBadEffects();

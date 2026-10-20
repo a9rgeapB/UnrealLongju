@@ -22,7 +22,7 @@ generic consume action would break parity.
 | Recovery potions, speed potions, timed affects, auto recovery | Ability-up supports the nine legacy stat applies with refresh semantics. Continuous HP/SP recovery uses fixed per-second amounts for the full duration, including time spent at full resources. Cleansing removes poison, fire, stun, slow and configured skill debuffs. |
 | Quest items and quest-specific special items | Quest item-use/give/socket dispatch exists. Check individual imported scripts rather than implementing a second competing handler. |
 | Skill books, horse books, horse care, mount items, hair looks, mob lure | Dedicated runtime handlers exist. Verify item-specific conditions against legacy content. |
-| Fishing rods, fish, pickaxes, raw/refined ores | Fishing/mining/refining/accessory foundations exist. Live fish have table-driven opening outcomes; live/dead fish can be given to a campfire to roast the entire stack. |
+| Fishing rods, bait, fish, pickaxes, raw/refined ores | Fishing/mining/refining/accessory foundations exist. `USE_BAIT` imports legacy `Value0` as the bait item's own `BaitPower`; server use requires an equipped rod and an idle fishing attempt, replaces the rod's current bait, and consumes exactly one bait. Live fish have table-driven opening outcomes; live/dead fish can be given to a campfire to roast the entire stack. |
 | Gift boxes, treasure boxes/keys | Native reward/crate/key transactions exist. Audit special non-item crate rewards and content groups. |
 | Blend items | `blend.txt` supplies independent weighted magnitude/duration rolls. Instance sockets persist and appear in tooltips. Duplicate APPLY affects are rejected. Energy amplifies random equipment attributes, with separate eligible slots for energy and costume-attribute effects. |
 | Polymorph balls and practice books | Need a transformation system: authoritative race/state, mob motion and attack data, equipment/skill/riding restrictions, duration, restoration, and observer/late-join presentation. Balls and books have different consumption, level and success rules. |
@@ -31,13 +31,14 @@ generic consume action would break parity.
 | Binding/unbinding items | Need persistent binding state enforced by drop, trade, sell, refinement and equipment operations, including delayed unbinding. |
 | Dragon Soul and special Dragon Soul | Need qualified character state, dedicated inventory and two equipment decks, activation/wear timers, generated attributes, table-driven refinement and UI. |
 | Extract / time-charge items and Dragon Soul refining materials | Depend on the Dragon Soul system; implement after its inventory/state/transaction layer. |
-| Recipe / create-stone / remaining special-use items | Need explicit template parameters and complete transactions; retain legacy no-op entries where the original server has no behavior. |
+| Recipe items | Implemented from the legacy `USE_RECIPE` values: ingredient and bottle requirements, result, and success chance are imported as named fields with typed item-class references. The server atomically validates and consumes required inputs; failed rolls still consume ingredients and one bottle, successful rolls grant one result, and the recipe item itself is retained. Missing inputs or no result capacity leave inventory unchanged. |
+| Create-stone / remaining special-use items | `USE_CREATE_STONE` now grants one uniformly selected item from the legacy result range using typed item-class references, and consumes the source only when the server can atomically place the result. Other special-use variants still need explicit parameters and complete transactions where legacy behavior exists; retain legacy no-op entries where the original server has no behavior. |
 | Yang, secondary coins | Currency acquisition and shop/payment behavior; no arbitrary right-click conversion. |
 | None, container, material, resource, special, tool, lottery, auto-use | Preserve family identity. Resolve actual per-item behavior through the content's supported system/quest; unused enum names are not missing consumable actions. |
 
 ## Implementation order
 
-1. Complete remaining recipe transactions and targeted-item edge cases.
+1. Audit recipe and create-stone edge cases against the complete imported proto set; implement remaining targeted-item transactions.
 2. Implement transformation, item binding and recall systems, each with its dependent item actions.
 3. Implement Dragon Soul inventory/decks, attributes/timers, refinement, extraction and charging.
 4. Finish the equipment expiry/belt inventory audit and per-item quest/content checks. Keep

@@ -85,10 +85,10 @@ The classes below establish import and authoring identity; their individual head
 | UMT2ItemUseMoveTemplate | Use | USE_MOVE | 3 | Placeholder; behavior TODO |
 | UMT2ItemUseTreasureBoxTemplate | Use | USE_TREASURE_BOX | 4 | Placeholder; behavior TODO |
 | UMT2ItemUseMoneybagTemplate | Use | USE_MONEYBAG | 5 | Placeholder; behavior TODO |
-| UMT2ItemUseBaitTemplate | Use | USE_BAIT | 6 | Placeholder; behavior TODO |
+| UMT2ItemUseBaitTemplate | Use | USE_BAIT | 6 | Implemented as a native item action; imports Value0 into subtype-owned BaitPower, requires an equipped rod and no active fishing attempt, replaces rod bait, and consumes one bait. |
 | UMT2ItemUseAbilityUpTemplate | Use | USE_ABILITY_UP | 7 | Placeholder; behavior TODO |
 | UMT2ItemUseAffectTemplate | Use | USE_AFFECT | 8 | Placeholder; behavior TODO |
-| UMT2ItemUseCreateStoneTemplate | Use | USE_CREATE_STONE | 9 | Placeholder; behavior TODO |
+| UMT2ItemUseCreateStoneTemplate | Use | USE_CREATE_STONE | 9 | Uniformly selects one imported stone variant through typed template references; legacy VNUM-range offsets are explicit; source is consumed only when result delivery succeeds. |
 | UMT2ItemUseSpecialTemplate | Use | USE_SPECIAL | 10 | Placeholder; behavior TODO |
 | UMT2ItemUsePotionNoDelayTemplate | Use | USE_POTION_NODELAY | 11 | Placeholder; behavior TODO |
 | UMT2ItemUseClearTemplate | Use | USE_CLEAR | 12 | Placeholder; behavior TODO |
@@ -102,7 +102,7 @@ The classes below establish import and authoring identity; their individual head
 | UMT2ItemUseAddAccessorySocketTemplate | Use | USE_ADD_ACCESSORY_SOCKET | 20 | Placeholder; behavior TODO |
 | UMT2ItemUsePutIntoAccessorySocketTemplate | Use | USE_PUT_INTO_ACCESSORY_SOCKET | 21 | Placeholder; behavior TODO |
 | UMT2ItemUseAddAttribute2Template | Use | USE_ADD_ATTRIBUTE2 | 22 | Placeholder; behavior TODO |
-| UMT2ItemUseRecipeTemplate | Use | USE_RECIPE | 23 | Placeholder; behavior TODO |
+| UMT2ItemUseRecipeTemplate | Use | USE_RECIPE | 23 | Atomic legacy transaction using typed ingredient, bottle and result references; failed rolls consume ingredients and bottle, recipe item remains. |
 | UMT2ItemUseChangeAttribute2Template | Use | USE_CHANGE_ATTRIBUTE2 | 24 | Placeholder; behavior TODO |
 | UMT2ItemUseBindTemplate | Use | USE_BIND | 25 | Placeholder; behavior TODO |
 | UMT2ItemUseUnbindTemplate | Use | USE_UNBIND | 26 | Placeholder; behavior TODO |
