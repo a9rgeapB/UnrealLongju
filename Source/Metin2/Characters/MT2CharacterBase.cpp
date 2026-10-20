@@ -8,6 +8,7 @@
 */
 
 #include "Characters/MT2CharacterBase.h"
+#include "Characters/MT2PlayerCharacter.h"
 #include "Mobs/MT2MobMovementComponent.h"
 #include "Combat/MT2KnockbackRootMotion.h"
 #include "Characters/MT2CharacterMovementComponent.h"
@@ -188,12 +189,25 @@ void AMT2CharacterBase::PlayReplicatedAnimationAction(
 	const FName SetName = AnimationSetOverride.IsNone() ? AnimationSet : AnimationSetOverride;
 	MulticastPlayAnimationAction(
 		SetName, Action, VariantIndex, FMath::Max(PlayRate, 0.01f),
-		FMath::Max(MovementLockDuration, 0.0f), bOwnerPredicted);
+		FMath::Max(MovementLockDuration, 0.0f), bOwnerPredicted, nullptr);
+}
+
+void AMT2CharacterBase::PlayReplicatedPolymorphAttack(
+	int32 VariantIndex, float PlayRate, float MovementLockDuration,
+	TSubclassOf<AMT2Mob> MotionMobClass)
+{
+	if (!HasAuthority() || !MotionMobClass)
+	{
+		return;
+	}
+	MulticastPlayAnimationAction(
+		NAME_None, TEXT("polymorph_attack"), VariantIndex,
+		FMath::Max(PlayRate, 0.01f), FMath::Max(MovementLockDuration, 0.0f), true, MotionMobClass);
 }
 
 void AMT2CharacterBase::MulticastPlayAnimationAction_Implementation(
 	FName AnimationSetName, FName Action, int32 VariantIndex, float PlayRate,
-	float MovementLockDuration, bool bOwnerPredicted)
+	float MovementLockDuration, bool bOwnerPredicted, TSubclassOf<AMT2Mob> MotionMobClass)
 {
 	// A predicted autonomous proxy already started this montage immediately when input occurred.
 	if (bOwnerPredicted && GetNetMode() == NM_Client && IsLocallyControlled())
@@ -210,9 +224,20 @@ void AMT2CharacterBase::MulticastPlayAnimationAction_Implementation(
 	{
 		return;
 	}
-	UAnimSequence* Sequence = Action == TEXT("combo")
-		? AnimInstance->GetComboAnimation(AnimationSetName, VariantIndex)
-		: AnimInstance->GetAnimation(AnimationSetName, Action, VariantIndex);
+	UAnimSequence* Sequence = nullptr;
+	if (Action == TEXT("polymorph_attack"))
+	{
+		if (const AMT2PlayerCharacter* Player = Cast<AMT2PlayerCharacter>(this))
+		{
+			Sequence = Player->ResolvePolymorphAttackAnimation(VariantIndex, MotionMobClass);
+		}
+	}
+	else
+	{
+		Sequence = Action == TEXT("combo")
+			? AnimInstance->GetComboAnimation(AnimationSetName, VariantIndex)
+			: AnimInstance->GetAnimation(AnimationSetName, Action, VariantIndex);
+	}
 	if (!Sequence)
 	{
 		return;

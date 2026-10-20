@@ -143,6 +143,7 @@ public:
 	void CancelPendingBasicAttackHits();
 	static float MotionKnockbackDistance(float ExternalForce);
 private:
+	friend class FMT2PolymorphAttackMotionTest;
 	friend class FMT2MeleeRoomOcclusionTest;
 	friend class FMT2HeldAttackFallbackTest;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

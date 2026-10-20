@@ -935,6 +935,23 @@ const FMT2MobMotionVariant* AMT2Mob::ChooseMotion(EMT2MobMotion Motion) const
 	return &Variants->Last();
 }
 
+UAnimSequence* AMT2Mob::ResolveMotionAnimation(EMT2MobMotion Motion, int32 VariantIndex) const
+{
+	const FMT2MobMotionVariants* MotionVariants = MotionSet.Motions.Find(Motion);
+	if (!MotionVariants || MotionVariants->Items.IsEmpty())
+	{
+		return nullptr;
+	}
+
+	const int32 VariantCount = MotionVariants->Items.Num();
+	int32 StableIndex = VariantIndex % VariantCount;
+	if (StableIndex < 0)
+	{
+		StableIndex += VariantCount;
+	}
+	return MotionVariants->Items[StableIndex].Animation.LoadSynchronous();
+}
+
 void AMT2Mob::HandleDeath()
 {
 	if (auto* Movement = Cast<UMT2MobMovementComponent>(GetCharacterMovement())) { Movement->FinishExternalKnockback(); }

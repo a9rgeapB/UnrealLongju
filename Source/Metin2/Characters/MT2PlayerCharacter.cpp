@@ -1591,16 +1591,26 @@ void AMT2PlayerCharacter::HandleBasicAttackPerformed(int32 ComboIndex)
 	if (!GetMesh()) return;
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 	UAnimSequence* Sequence = nullptr;
+	const TSubclassOf<AMT2Mob> PolymorphMobClass = ResolvePolymorphMobClass();
+	bool bUsingPolymorphMotion = false;
+	if (PolymorphMobClass)
+	{
+		Sequence = ResolvePolymorphAttackAnimation(ComboIndex, PolymorphMobClass);
+		bUsingPolymorphMotion = Sequence != nullptr;
+	}
 	// Combat metadata must not depend on a rendered/live AnimInstance (absent on headless servers,
 	// and reset asynchronously when equipment/body visuals change).
 	const UMT2CharacterAnimInstance* MotionDefaults = nullptr;
-	if (const auto* State = GetPlayerState<AMT2PlayerState>())
+	if (!Sequence)
 	{
-		const auto& Appearance = State->GetCharacterAppearance();
-		if (const auto* Profile = GetDefault<UMT2CharacterAppearanceSettings>()->FindAnimationProfile(Appearance.Race, Appearance.Sex))
+		if (const auto* State = GetPlayerState<AMT2PlayerState>())
 		{
-			UClass* AnimationClass = Profile->AnimInstanceClass.LoadSynchronous();
-			MotionDefaults = AnimationClass ? Cast<UMT2CharacterAnimInstance>(AnimationClass->GetDefaultObject()) : nullptr;
+			const auto& Appearance = State->GetCharacterAppearance();
+			if (const auto* Profile = GetDefault<UMT2CharacterAppearanceSettings>()->FindAnimationProfile(Appearance.Race, Appearance.Sex))
+			{
+				UClass* AnimationClass = Profile->AnimInstanceClass.LoadSynchronous();
+				MotionDefaults = AnimationClass ? Cast<UMT2CharacterAnimInstance>(AnimationClass->GetDefaultObject()) : nullptr;
+			}
 		}
 	}
 	if (MotionDefaults) { Sequence = MotionDefaults->GetComboAnimation(GetAnimationSet(), ComboIndex); }
@@ -1681,8 +1691,15 @@ void AMT2PlayerCharacter::HandleBasicAttackPerformed(int32 ComboIndex)
 		GetCombatComponent()->NotifyAttackMotion(InputWindow, WorldAdvance);
 		if (HasAuthority())
 		{
-			PlayReplicatedAnimationAction(
-				TEXT("combo"), ComboIndex, PlayRate, GetAnimationSet(), InputWindow, true);
+			if (bUsingPolymorphMotion)
+			{
+				PlayReplicatedPolymorphAttack(ComboIndex, PlayRate, InputWindow, PolymorphMobClass);
+			}
+			else
+			{
+				PlayReplicatedAnimationAction(
+					TEXT("combo"), ComboIndex, PlayRate, GetAnimationSet(), InputWindow, true);
+			}
 		}
 	}
 }
@@ -2770,6 +2787,37 @@ bool AMT2PlayerCharacter::HasPolymorphAppearanceEffect() const
 		{ return Effect.Type == Polymorph && Effect.ApplyType == EMT2ItemBonusType::None && Effect.ApplyValue > 0; });
 }
 
+TSubclassOf<AMT2Mob> AMT2PlayerCharacter::ResolvePolymorphMobClass() const
+{
+	const UMT2StatusEffectComponent* Effects = GetStatusEffectComponent();
+	const FMT2StatusEffect* Transform = Effects
+		? Effects->GetEffects().FindByPredicate(
+			[](const FMT2StatusEffect& Effect)
+			{
+				return Effect.Type == FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Polymorph) &&
+					Effect.ApplyType == EMT2ItemBonusType::None && Effect.ApplyValue > 0;
+			})
+		: nullptr;
+	if (!Transform)
+	{
+		return nullptr;
+	}
+
+	UGameInstance* GameInstance = GetGameInstance();
+	UMT2VnumRegistrySubsystem* Registry = GameInstance
+		? GameInstance->GetSubsystem<UMT2VnumRegistrySubsystem>() : nullptr;
+	return Registry ? Registry->ResolveMobClass(Transform->ApplyValue) : nullptr;
+}
+
+UAnimSequence* AMT2PlayerCharacter::ResolvePolymorphAttackAnimation(
+	int32 ComboIndex, TSubclassOf<AMT2Mob> MobClass) const
+{
+	const AMT2Mob* MobDefaults = MobClass ? MobClass->GetDefaultObject<AMT2Mob>() : nullptr;
+	return MobDefaults
+		? MobDefaults->ResolveMotionAnimation(EMT2MobMotion::NormalAttack, ComboIndex)
+		: nullptr;
+}
+
 void AMT2PlayerCharacter::RefreshPolymorphAppearance()
 {
 	if (GetNetMode() == NM_DedicatedServer || !GetMesh()) return;
@@ -2817,10 +2865,7 @@ void AMT2PlayerCharacter::RefreshPolymorphAppearance()
 		if (AppliedMeshComponent && GetMesh()->GetSkeletalMeshAsset() == AppliedMeshComponent->GetSkeletalMeshAsset()) return;
 	}
 
-	UGameInstance* GameInstance = GetGameInstance();
-	UMT2VnumRegistrySubsystem* Registry = GameInstance
-		? GameInstance->GetSubsystem<UMT2VnumRegistrySubsystem>() : nullptr;
-	const TSubclassOf<AMT2Mob> MobClass = Registry ? Registry->ResolveMobClass(Transform->ApplyValue) : nullptr;
+	const TSubclassOf<AMT2Mob> MobClass = ResolvePolymorphMobClass();
 	AMT2Mob* MobDefaults = MobClass ? MobClass->GetDefaultObject<AMT2Mob>() : nullptr;
 	USkeletalMeshComponent* MobMeshComponent = MobDefaults ? MobDefaults->GetMesh() : nullptr;
 	USkeletalMesh* MobMesh = MobMeshComponent ? MobMeshComponent->GetSkeletalMeshAsset() : nullptr;
@@ -2839,7 +2884,19 @@ void AMT2PlayerCharacter::RefreshPolymorphAppearance()
 	GetMesh()->SetAnimInstanceClass(nullptr);
 	GetMesh()->EmptyOverrideMaterials();
 	GetMesh()->SetSkeletalMesh(MobMesh, true);
-	GetMesh()->SetRelativeTransform(MobMeshComponent->GetRelativeTransform());
+	FTransform PolymorphMeshTransform = MobMeshComponent->GetRelativeTransform();
+	const UCapsuleComponent* MobCapsule = MobDefaults->GetCapsuleComponent();
+	const UCapsuleComponent* PlayerCapsule = GetCapsuleComponent();
+	if (MobCapsule && PlayerCapsule)
+	{
+		// Imported mob mesh offsets are capsule-relative. Keep the mesh feet on the same ground plane
+		// after reusing it on the player's taller/different capsule.
+		FVector RelativeLocation = PolymorphMeshTransform.GetLocation();
+		RelativeLocation.Z += MobCapsule->GetUnscaledCapsuleHalfHeight()
+			- PlayerCapsule->GetUnscaledCapsuleHalfHeight();
+		PolymorphMeshTransform.SetLocation(RelativeLocation);
+	}
+	GetMesh()->SetRelativeTransform(PolymorphMeshTransform);
 	if (UClass* MobAnimClass = MobMeshComponent->GetAnimClass())
 	{
 		GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);

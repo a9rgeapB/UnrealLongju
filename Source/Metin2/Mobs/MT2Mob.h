@@ -61,6 +61,9 @@ public:
 	virtual void ConfigureFromDefinition(const FMT2MobDefinition& Definition);
 
 	void SetMotionSet(const FMT2MobMotionSet& NewMotionSet) { MotionSet = NewMotionSet; }
+	// Resolves a stable attack variant for replicated polymorph swings. Unlike the AI's weighted
+	// random choice, the combo index ensures owner prediction and remote proxies select the same motion.
+	UAnimSequence* ResolveMotionAnimation(EMT2MobMotion Motion, int32 VariantIndex) const;
 
 	UFUNCTION(BlueprintPure, Category = "Mob")
 	int32 GetMobVnum() const { return MobVnum; }

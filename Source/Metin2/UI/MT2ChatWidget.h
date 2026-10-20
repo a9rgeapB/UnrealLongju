@@ -66,6 +66,7 @@ protected:
 	virtual FReply NativeOnPreviewKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 
 private:
+	friend class FMT2PolymorphAutocompleteTest;
 	friend class FMT2NotificationRoutingTest;
 	friend class FMT2DevilTowerMessagesTest;
 	void CloseInput();

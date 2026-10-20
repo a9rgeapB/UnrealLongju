@@ -27,6 +27,7 @@ class UAbilitySystemComponent;
 class AMT2Npc;
 class AMT2Mob;
 class UAnimInstance;
+class UAnimSequence;
 class USkeletalMesh;
 class AMT2PlayerState;
 class AMT2WorldItem;
@@ -308,6 +309,9 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	friend class AMT2CharacterBase;
+	friend class FMT2PolymorphGroundAlignmentTest;
+	friend class FMT2PolymorphAttackMotionTest;
 	friend class FMT2HeldAttackInputTest;
 	friend class FMT2PolymorphBallUseTest;
 	friend class FMT2ObserverReplicationTest;
@@ -402,6 +406,8 @@ private:
 	void HandleStatusEffectsChanged();
 	void RefreshPolymorphAppearance();
 	bool HasPolymorphAppearanceEffect() const;
+	TSubclassOf<AMT2Mob> ResolvePolymorphMobClass() const;
+	UAnimSequence* ResolvePolymorphAttackAnimation(int32 ComboIndex, TSubclassOf<AMT2Mob> MobClass) const;
 
 	UFUNCTION(Server, Reliable)
 	void ServerRequestRespawn(bool bRespawnInTown);

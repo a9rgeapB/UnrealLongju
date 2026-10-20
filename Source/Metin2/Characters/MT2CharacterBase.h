@@ -23,6 +23,7 @@ class UMT2MotionEffectComponent;
 class UMT2StaminaComponent;
 class UMT2MovementSpeedComponent;
 class UMT2NameplateComponent;
+class AMT2Mob;
 class UMT2EquipmentComponent;
 class UMT2StatusEffectComponent;
 class UAbilitySystemComponent;
@@ -120,6 +121,7 @@ public:
 
 	// Authoritative action playback shared by attacks and skills. The action identity is sent instead
 	// of an asset reference so every client resolves it from its race/gender animation profile.
+	// Polymorph attacks use the separate native helper below to resolve the mob's imported motion set.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Animation")
 	void PlayReplicatedAnimationAction(
 		FName Action, int32 VariantIndex = 0, float PlayRate = 1.0f,
@@ -128,6 +130,9 @@ public:
 
 protected:
 	void InitializeAbilityComponents(UAbilitySystemComponent* AbilitySystemComponent);
+	void PlayReplicatedPolymorphAttack(
+		int32 VariantIndex, float PlayRate, float MovementLockDuration,
+		TSubclassOf<AMT2Mob> MotionMobClass);
 
 private:
 	friend class FMT2ServerPresentationTest;
@@ -144,7 +149,7 @@ private:
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastPlayAnimationAction(
 		FName AnimationSetName, FName Action, int32 VariantIndex, float PlayRate,
-		float MovementLockDuration, bool bOwnerPredicted);
+		float MovementLockDuration, bool bOwnerPredicted, TSubclassOf<AMT2Mob> MotionMobClass);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UMT2CombatComponent> CombatComponent;

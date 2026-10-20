@@ -57,6 +57,7 @@ namespace
 		{TEXT("/moblist"), TEXT("/moblist [page]"), TEXT("List registered mob VNUMs and names")},
 		{TEXT("/money"), TEXT("/money <amount>"), TEXT("Grant yang")},
 		{TEXT("/netprofiler"), TEXT("/netprofiler <client|server> <0|1>"), TEXT("Toggle network capture")},
+		{TEXT("/poly"), TEXT("/poly <mob_vnum|0>"), TEXT("Transform into a mob (0 reverts)")},
 		{TEXT("/race"), TEXT("/race <warrior|assassin|sura|shaman>"), TEXT("Change race and reset race equipment and skills")},
 		{TEXT("/gender"), TEXT("/gender <male|female>"), TEXT("Change character gender")},
 		{TEXT("/style"), TEXT("/style <red|blue>"), TEXT("Change character style")},
