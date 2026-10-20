@@ -9,6 +9,7 @@
 
 #include "UI/MT2InventoryWidget.h"
 #include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemBonusConsumableTemplate.h"
 #include "Items/Templates/MT2ItemEquipmentTemplate.h"
 #include "Items/Templates/MT2ItemLootCrateTemplate.h"
 #include "Items/Templates/MT2ItemMetinStoneTemplate.h"
@@ -51,6 +52,11 @@
 
 namespace
 {
+	bool IsBonusConsumableTemplate(const UMT2ItemTemplate* ItemTemplate)
+	{
+		return Cast<UMT2ItemBonusConsumableTemplate>(ItemTemplate) != nullptr;
+	}
+
 	bool IsMetinSocketActionItem(const UMT2ItemTemplate* Template)
 	{
 		const UMT2ItemUseTemplate* UseItem = Cast<UMT2ItemUseTemplate>(Template);
@@ -296,13 +302,8 @@ void UMT2InventoryWidget::HandleSlotClicked(int32 SlotIndex, EMT2InventorySlotKi
 					const int32 SourceSlot = Carry->GetCarryPayload();
 					const int32 SourceVnum = Inventory->GetSlots().IsValidIndex(SourceSlot)
 						? Inventory->GetSlots()[SourceSlot].Vnum : 0;
-					const UMT2ItemBonusSettings* BonusSettings = GetDefault<UMT2ItemBonusSettings>();
-					const bool bBonusConsumable = BonusSettings &&
-						(SourceVnum == BonusSettings->AddNormalBonusItemVnum ||
-						 SourceVnum == BonusSettings->ChangeNormalBonusesItemVnum ||
-						 SourceVnum == BonusSettings->AddFifthBonusItemVnum ||
-						 SourceVnum == BonusSettings->AddRareBonusItemVnum ||
-						 SourceVnum == BonusSettings->ChangeRareBonusesItemVnum);
+					const bool bBonusConsumable = IsBonusConsumableTemplate(
+						ResolveItemTemplateByVnum(SourceVnum));
 					const bool bOccupiedTarget = Inventory->GetSlots().IsValidIndex(SlotIndex) &&
 						!Inventory->GetSlots()[SlotIndex].IsEmpty();
 					const bool bMetinStone =
@@ -343,13 +344,8 @@ void UMT2InventoryWidget::HandleSlotClicked(int32 SlotIndex, EMT2InventorySlotKi
 				const int32 SourceSlot = Carry->GetCarryPayload();
 				const int32 SourceVnum = Inventory->GetSlots().IsValidIndex(SourceSlot)
 					? Inventory->GetSlots()[SourceSlot].Vnum : 0;
-				const UMT2ItemBonusSettings* BonusSettings = GetDefault<UMT2ItemBonusSettings>();
-				const bool bBonusConsumable = BonusSettings &&
-					(SourceVnum == BonusSettings->AddNormalBonusItemVnum ||
-					 SourceVnum == BonusSettings->ChangeNormalBonusesItemVnum ||
-					 SourceVnum == BonusSettings->AddFifthBonusItemVnum ||
-					 SourceVnum == BonusSettings->AddRareBonusItemVnum ||
-					 SourceVnum == BonusSettings->ChangeRareBonusesItemVnum);
+				const bool bBonusConsumable = IsBonusConsumableTemplate(
+					ResolveItemTemplateByVnum(SourceVnum));
 				const bool bMetinStone =
 					Cast<UMT2ItemMetinStoneTemplate>(
 						ResolveItemTemplateByVnum(SourceVnum)) != nullptr ||
@@ -463,16 +459,11 @@ void UMT2InventoryWidget::HandleSlotDropped(int32 SourceSlotIndex, EMT2Inventory
 	}
 	if (SourceKind == EMT2InventorySlotKind::Item && TargetKind == EMT2InventorySlotKind::Item)
 	{
-		const UMT2ItemBonusSettings* BonusSettings = GetDefault<UMT2ItemBonusSettings>();
 		const UMT2InventoryComponent* Inventory = ResolveInventoryComponent();
 		const int32 SourceVnum = Inventory && Inventory->GetSlots().IsValidIndex(SourceSlotIndex)
 			? Inventory->GetSlots()[SourceSlotIndex].Vnum : 0;
-		const bool bBonusConsumable = BonusSettings &&
-			(SourceVnum == BonusSettings->AddNormalBonusItemVnum ||
-			 SourceVnum == BonusSettings->ChangeNormalBonusesItemVnum ||
-			 SourceVnum == BonusSettings->AddFifthBonusItemVnum ||
-			 SourceVnum == BonusSettings->AddRareBonusItemVnum ||
-			 SourceVnum == BonusSettings->ChangeRareBonusesItemVnum);
+		const bool bBonusConsumable = IsBonusConsumableTemplate(
+			ResolveItemTemplateByVnum(SourceVnum));
 		const bool bOccupiedTarget = Inventory &&
 			Inventory->GetSlots().IsValidIndex(TargetSlotIndex) &&
 			!Inventory->GetSlots()[TargetSlotIndex].IsEmpty();
@@ -517,16 +508,11 @@ void UMT2InventoryWidget::HandleSlotDropped(int32 SourceSlotIndex, EMT2Inventory
 	}
 	else if (SourceKind == EMT2InventorySlotKind::Item && TargetKind == EMT2InventorySlotKind::Equipment)
 	{
-		const UMT2ItemBonusSettings* BonusSettings = GetDefault<UMT2ItemBonusSettings>();
 		const UMT2InventoryComponent* Inventory = ResolveInventoryComponent();
 		const int32 SourceVnum = Inventory && Inventory->GetSlots().IsValidIndex(SourceSlotIndex)
 			? Inventory->GetSlots()[SourceSlotIndex].Vnum : 0;
-		const bool bBonusConsumable = BonusSettings &&
-			(SourceVnum == BonusSettings->AddNormalBonusItemVnum ||
-			 SourceVnum == BonusSettings->ChangeNormalBonusesItemVnum ||
-			 SourceVnum == BonusSettings->AddFifthBonusItemVnum ||
-			 SourceVnum == BonusSettings->AddRareBonusItemVnum ||
-			 SourceVnum == BonusSettings->ChangeRareBonusesItemVnum);
+		const bool bBonusConsumable = IsBonusConsumableTemplate(
+			ResolveItemTemplateByVnum(SourceVnum));
 		const bool bMetinStone =
 			Cast<UMT2ItemMetinStoneTemplate>(
 				ResolveItemTemplateByVnum(SourceVnum)) != nullptr ||

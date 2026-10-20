@@ -1,16 +1,20 @@
 #pragma once
 
-#include "Items/Templates/MT2ItemUseTemplate.h"
+#include "Items/Templates/MT2ItemBonusConsumableTemplate.h"
 #include "MT2ItemUseChangeAttributeTemplate.generated.h"
 
 /**
- * Legacy item-proto variant USE_CHANGE_ATTRIBUTE (ordinal 18).
- * TODO: Implement and validate this variant's dedicated legacy behavior. Keep shared family
- * rules in UMT2ItemUseTemplate; this class is the narrow subtype extension point.
+ * Legacy USE_CHANGE_ATTRIBUTE item: rerolls the target's existing normal attributes, preserving
+ * their count and applying the legacy damage-addon pair when configured for that equipment.
  */
 UCLASS(Blueprintable)
-class METIN2_API UMT2ItemUseChangeAttributeTemplate : public UMT2ItemUseTemplate
+class METIN2_API UMT2ItemUseChangeAttributeTemplate : public UMT2ItemBonusConsumableTemplate
 {
 	GENERATED_BODY()
+
+public:
+	virtual EMT2ItemBonusApplyResult ApplyToEquipment(FMT2ItemSlot& StagedTarget,
+		const UMT2ItemTemplate& TargetTemplate, const UMT2ItemBonusSettings& Settings) const override;
+	virtual bool IsBonusRandomizer() const override { return true; }
 };
 

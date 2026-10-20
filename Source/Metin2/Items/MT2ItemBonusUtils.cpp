@@ -62,6 +62,16 @@ int32 MT2ItemBonusUtils::RollWeightedIndex(const TArray<int32>& Weights)
 	return Weights.Num() - 1;
 }
 
+int32 MT2ItemBonusUtils::CountBonuses(const FMT2ItemSlot& Item, EMT2ItemBonusKind Kind)
+{
+	int32 Count = 0;
+	for (const FMT2ItemBonus& Bonus : Item.GetBonuses())
+	{
+		Count += Bonus.IsValid() && Bonus.Kind == Kind ? 1 : 0;
+	}
+	return Count;
+}
+
 bool MT2ItemBonusUtils::HasBonusType(
 	const TArray<FMT2ItemBonus>& Bonuses, int32 Type, EMT2ItemBonusKind Kind)
 {

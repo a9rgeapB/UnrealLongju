@@ -116,21 +116,6 @@ public:
 	const FMT2ItemBonusDefinition* FindDefinition(int32 ApplyType, EMT2ItemBonusKind Kind) const;
 	FString FormatBonus(int32 ApplyType, int32 Value) const;
 
-	UPROPERTY(EditAnywhere, Config, BlueprintReadOnly, Category = "Consumables")
-	int32 AddNormalBonusItemVnum = 71085;
-
-	UPROPERTY(EditAnywhere, Config, BlueprintReadOnly, Category = "Consumables")
-	int32 ChangeNormalBonusesItemVnum = 71084;
-
-	UPROPERTY(EditAnywhere, Config, BlueprintReadOnly, Category = "Consumables")
-	int32 AddFifthBonusItemVnum = 70024;
-
-	UPROPERTY(EditAnywhere, Config, BlueprintReadOnly, Category = "Consumables")
-	int32 AddRareBonusItemVnum = 71051;
-
-	UPROPERTY(EditAnywhere, Config, BlueprintReadOnly, Category = "Consumables")
-	int32 ChangeRareBonusesItemVnum = 71052;
-
 	UPROPERTY(EditAnywhere, Config, BlueprintReadOnly, Category = "Rules", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float AddNormalBonusSuccessChance = 0.5f;
 

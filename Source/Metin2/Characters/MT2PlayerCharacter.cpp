@@ -9,6 +9,7 @@
 
 #include "Characters/MT2PlayerCharacter.h"
 #include "Items/Templates/MT2ItemArmorTemplate.h"
+#include "Items/Templates/MT2ItemBonusConsumableTemplate.h"
 #include "Items/Templates/MT2ItemCostumeTemplate.h"
 #include "Items/Templates/MT2ItemMetinStoneTemplate.h"
 #include "Items/Templates/MT2ItemPickTemplate.h"
@@ -66,7 +67,6 @@
 #include "Items/MT2ItemUtils.h"
 #include "Npcs/MT2Campfire.h"
 #include "Items/MT2Item.h"
-#include "Items/MT2ItemBonusSettings.h"
 #include "Items/MT2ItemTemplate.h"
 #include "Items/MT2WorldItem.h"
 #include "Mounts/MT2MountComponent.h"
@@ -2389,6 +2389,10 @@ void AMT2PlayerCharacter::ServerApplyInventoryBonusItem_Implementation(
 	int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped)
 {
 	UMT2InventoryComponent* Inventory = GetInventoryComponent();
+	if (!Inventory)
+	{
+		return;
+	}
 	const TArray<FMT2ItemSlot>& Slots = Inventory->GetSlots();
 	const int32 Vnum = Slots.IsValidIndex(SourceSlot) ? Slots[SourceSlot].Vnum : 0;
 	if (Vnum <= 0)
@@ -2403,10 +2407,9 @@ void AMT2PlayerCharacter::ServerApplyInventoryBonusItem_Implementation(
 		ClientConfirmInventoryAction(Vnum, true);
 	}
 
-	const UMT2ItemBonusSettings* Settings = GetDefault<UMT2ItemBonusSettings>();
-	const bool bRandomizer = Settings &&
-		(Vnum == Settings->ChangeNormalBonusesItemVnum ||
-		 Vnum == Settings->ChangeRareBonusesItemVnum);
+	const UMT2ItemBonusConsumableTemplate* SourceTemplate = Cast<UMT2ItemBonusConsumableTemplate>(
+		MT2ItemUtils::ResolveTemplate(Inventory, Vnum));
+	const bool bRandomizer = SourceTemplate && SourceTemplate->IsBonusRandomizer();
 	ClientNotifyInventoryBonusResult(
 		bRandomizer, Result == EMT2ItemBonusApplyResult::Success);
 }

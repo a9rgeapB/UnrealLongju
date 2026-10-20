@@ -1,16 +1,19 @@
 #pragma once
 
-#include "Items/Templates/MT2ItemUseTemplate.h"
+#include "Items/Templates/MT2ItemBonusConsumableTemplate.h"
 #include "MT2ItemUseAddAttributeTemplate.generated.h"
 
 /**
- * Legacy item-proto variant USE_ADD_ATTRIBUTE (ordinal 19).
- * TODO: Implement and validate this variant's dedicated legacy behavior. Keep shared family
- * rules in UMT2ItemUseTemplate; this class is the narrow subtype extension point.
+ * Legacy USE_ADD_ATTRIBUTE item: rolls the configured chance and adds one normal equipment
+ * attribute when the target still has room.
  */
 UCLASS(Blueprintable)
-class METIN2_API UMT2ItemUseAddAttributeTemplate : public UMT2ItemUseTemplate
+class METIN2_API UMT2ItemUseAddAttributeTemplate : public UMT2ItemBonusConsumableTemplate
 {
 	GENERATED_BODY()
+
+public:
+	virtual EMT2ItemBonusApplyResult ApplyToEquipment(FMT2ItemSlot& StagedTarget,
+		const UMT2ItemTemplate& TargetTemplate, const UMT2ItemBonusSettings& Settings) const override;
 };
 

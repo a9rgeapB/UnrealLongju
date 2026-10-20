@@ -7,12 +7,11 @@
 
 */
 
-#include "Items/Templates/MT2ItemEquipmentTemplate.h"
+#include "Items/Templates/MT2ItemBonusConsumableTemplate.h"
 
 #include "Items/MT2InventoryComponent.h"
 
 #include "Items/MT2ItemBonusSettings.h"
-#include "Items/MT2ItemBonusUtils.h"
 #include "Items/MT2ItemTemplate.h"
 
 EMT2ItemBonusApplyResult UMT2InventoryComponent::ApplyBonusConsumable(
@@ -30,122 +29,24 @@ EMT2ItemBonusApplyResult UMT2InventoryComponent::ApplyBonusConsumable(
 	}
 
 	const UMT2ItemBonusSettings* Settings = GetDefault<UMT2ItemBonusSettings>();
-	const int32 SourceVnum = Slots[SourceSlot].Vnum;
+	const UMT2ItemBonusConsumableTemplate* SourceTemplate =
+		Cast<UMT2ItemBonusConsumableTemplate>(ResolveTemplate(Slots[SourceSlot].Vnum));
 	const UMT2ItemTemplate* TargetTemplate = ResolveTemplate(TargetContainer[TargetSlot].Vnum);
-	const EMT2ItemBonusTarget TargetType = MT2ItemBonusUtils::ResolveTarget(TargetTemplate);
-	if (!Settings || TargetType == EMT2ItemBonusTarget::None)
+	if (!Settings || !SourceTemplate || !TargetTemplate)
 	{
 		return EMT2ItemBonusApplyResult::Invalid;
 	}
 
-	FMT2ItemSlot& Target = TargetContainer[TargetSlot];
-	const auto CountKind = [&Target](EMT2ItemBonusKind Kind)
+	FMT2ItemSlot StagedTarget = TargetContainer[TargetSlot];
+	const EMT2ItemBonusApplyResult Result = SourceTemplate->ApplyToEquipment(
+		StagedTarget, *TargetTemplate, *Settings);
+	if (Result == EMT2ItemBonusApplyResult::Invalid)
 	{
-		int32 Count = 0;
-		for (const FMT2ItemBonus& Bonus : Target.GetBonuses())
-		{
-			Count += Bonus.IsValid() && Bonus.Kind == Kind ? 1 : 0;
-		}
-		return Count;
-	};
-	const int32 NormalCount = CountKind(EMT2ItemBonusKind::Normal);
-	const int32 RareCount = CountKind(EMT2ItemBonusKind::Rare);
-	bool bValidUse = false;
-	bool bBonusChanged = false;
-
-	if (SourceVnum == Settings->AddNormalBonusItemVnum && NormalCount < Settings->NormalBonusAddLimit)
-	{
-		if (FMath::FRand() <= Settings->AddNormalBonusSuccessChance)
-		{
-			bBonusChanged = MT2ItemBonusUtils::AddRandomBonus(
-				Target, Settings->NormalBonuses, Settings->AddNormalValueLevelWeights,
-				TargetType, EMT2ItemBonusKind::Normal);
-			bValidUse = bBonusChanged;
-		}
-		else
-		{
-			bValidUse = true;
-		}
+		return Result;
 	}
-	else if (SourceVnum == Settings->ChangeNormalBonusesItemVnum && NormalCount > 0)
+	if (Result == EMT2ItemBonusApplyResult::Success)
 	{
-		bValidUse = true;
-		const TArray<FMT2ItemBonus> OriginalBonuses = Target.GetBonuses();
-		Target.EditBonuses().RemoveAll([](const FMT2ItemBonus& Bonus)
-		{
-			return Bonus.Kind == EMT2ItemBonusKind::Normal;
-		});
-		const UMT2ItemEquipmentTemplate* EquipmentTarget = Cast<UMT2ItemEquipmentTemplate>(TargetTemplate);
-		if (EquipmentTarget && EquipmentTarget->BonusAddonType == Settings->DamageAddonType &&
-			NormalCount >= 2)
-		{
-			MT2ItemBonusUtils::AddDamageAddon(Target, Settings->DamageAddonFormula);
-		}
-		while (CountKind(EMT2ItemBonusKind::Normal) < NormalCount)
-		{
-			if (!MT2ItemBonusUtils::AddRandomBonus(
-				Target, Settings->NormalBonuses, Settings->ChangeNormalValueLevelWeights,
-				TargetType, EMT2ItemBonusKind::Normal))
-			{
-				break;
-			}
-		}
-		if (CountKind(EMT2ItemBonusKind::Normal) != NormalCount)
-		{
-			Target.EditBonuses() = OriginalBonuses;
-			bValidUse = false;
-		}
-		else
-		{
-			bBonusChanged = true;
-		}
-	}
-	else if (SourceVnum == Settings->AddFifthBonusItemVnum &&
-		NormalCount == Settings->NormalBonusAddLimit && NormalCount < Settings->NormalBonusMaximum)
-	{
-		bBonusChanged = MT2ItemBonusUtils::AddRandomBonus(
-			Target, Settings->NormalBonuses, Settings->AddNormalValueLevelWeights,
-			TargetType, EMT2ItemBonusKind::Normal);
-		bValidUse = bBonusChanged;
-	}
-	else if (SourceVnum == Settings->AddRareBonusItemVnum && RareCount < Settings->RareBonusMaximum)
-	{
-		bBonusChanged = MT2ItemBonusUtils::AddRandomBonus(
-			Target, Settings->RareBonuses, Settings->RareValueLevelWeights,
-			TargetType, EMT2ItemBonusKind::Rare);
-		bValidUse = bBonusChanged;
-	}
-	else if (SourceVnum == Settings->ChangeRareBonusesItemVnum && RareCount > 0)
-	{
-		bValidUse = true;
-		const TArray<FMT2ItemBonus> OriginalBonuses = Target.GetBonuses();
-		Target.EditBonuses().RemoveAll([](const FMT2ItemBonus& Bonus)
-		{
-			return Bonus.Kind == EMT2ItemBonusKind::Rare;
-		});
-		for (int32 Index = 0; Index < RareCount; ++Index)
-		{
-			if (!MT2ItemBonusUtils::AddRandomBonus(
-				Target, Settings->RareBonuses, Settings->RareValueLevelWeights,
-				TargetType, EMT2ItemBonusKind::Rare))
-			{
-				break;
-			}
-		}
-		if (CountKind(EMT2ItemBonusKind::Rare) != RareCount)
-		{
-			Target.EditBonuses() = OriginalBonuses;
-			bValidUse = false;
-		}
-		else
-		{
-			bBonusChanged = true;
-		}
-	}
-
-	if (!bValidUse)
-	{
-		return EMT2ItemBonusApplyResult::Invalid;
+		TargetContainer[TargetSlot] = MoveTemp(StagedTarget);
 	}
 	if (--Slots[SourceSlot].Count <= 0)
 	{
@@ -156,5 +57,5 @@ EMT2ItemBonusApplyResult UMT2InventoryComponent::ApplyBonusConsumable(
 	{
 		OnEquipmentChanged.Broadcast();
 	}
-	return bBonusChanged ? EMT2ItemBonusApplyResult::Success : EMT2ItemBonusApplyResult::Failed;
+	return Result;
 }

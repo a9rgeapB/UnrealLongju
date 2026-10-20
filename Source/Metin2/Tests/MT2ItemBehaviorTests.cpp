@@ -23,6 +23,8 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "Items/MT2InventoryComponent.h"
+#include "Items/MT2ItemBonusSettings.h"
+#include "Items/MT2ItemBonusUtils.h"
 #include "Items/MT2ItemTemplate.h"
 #include "Items/MT2ItemUtils.h"
 #include "Player/MT2PlayerState.h"
@@ -35,6 +37,12 @@
 #include "Components/BoxComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Items/Templates/MT2ItemRodTemplate.h"
+#include "Items/Templates/MT2ItemWeaponSwordTemplate.h"
+#include "Items/Templates/MT2ItemUseAddAttributeTemplate.h"
+#include "Items/Templates/MT2ItemUseChangeAttributeTemplate.h"
+#include "Items/Templates/MT2ItemUseAddAttribute2Template.h"
+#include "Items/Templates/MT2ItemUseAddRareBonusTemplate.h"
+#include "Items/Templates/MT2ItemUseChangeRareBonusesTemplate.h"
 #include "Quests/MT2QuestExpression.h"
 
 namespace
@@ -45,6 +53,27 @@ namespace
 		for (int32 Value : Values) MT2ItemUtils::SetNumericSocket(Item, Index++, Value);
 		while (Index < 3) MT2ItemUtils::SetNumericSocket(Item, Index++, 0);
 	}
+
+	FMT2ItemBonusDefinition MakeTestBonusDefinition(
+		EMT2ItemBonusType Type, EMT2ItemBonusTarget Target, int32 Value)
+	{
+		FMT2ItemBonusDefinition Definition;
+		Definition.ApplyType = Type;
+		Definition.SelectionWeight = 1;
+		Definition.EligibleItemFlags = static_cast<int32>(Target);
+		Definition.MaxLevelByItemType.Add(Target, 1);
+		Definition.Values.Add(Value);
+		return Definition;
+	}
+
+	void AddTestBonus(FMT2ItemSlot& Item, EMT2ItemBonusType Type, EMT2ItemBonusKind Kind, int32 Value)
+	{
+		FMT2ItemBonus& Bonus = Item.EditBonuses().AddDefaulted_GetRef();
+		Bonus.Type = Type;
+		Bonus.Kind = Kind;
+		Bonus.Value = Value;
+	}
+
 	struct FItemBehaviorWorld
 	{
 		TStrongObjectPtr<UGameInstance> Instance{NewObject<UGameInstance>(GEngine)};
@@ -80,6 +109,206 @@ namespace
 			if (World) { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); }
 		}
 	};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2BonusConsumableItemClassOwnershipTest,
+	"Metin2.Items.Bonuses.ItemClassOwnership",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2BonusConsumableItemClassOwnershipTest::RunTest(const FString&)
+{
+	FItemBehaviorWorld F;
+	if (!F.Registry) return false;
+
+	const UClass* BonusConsumableClass = FindObject<UClass>(nullptr,
+		TEXT("/Script/Metin2.MT2ItemBonusConsumableTemplate"));
+	TestNotNull(TEXT("Bonus-use items have a dedicated behavior base class"), BonusConsumableClass);
+	if (!BonusConsumableClass) return false;
+
+	struct FExpectedItemClass
+	{
+		int32 ItemVnum;
+		const TCHAR* NativeClassPath;
+	};
+	const FExpectedItemClass ExpectedItemClasses[] = {
+		{71085, TEXT("/Script/Metin2.MT2ItemUseAddAttributeTemplate")},
+		{71084, TEXT("/Script/Metin2.MT2ItemUseChangeAttributeTemplate")},
+		{70024, TEXT("/Script/Metin2.MT2ItemUseAddAttribute2Template")},
+		{71051, TEXT("/Script/Metin2.MT2ItemUseAddRareBonusTemplate")},
+		{71052, TEXT("/Script/Metin2.MT2ItemUseChangeRareBonusesTemplate")}
+	};
+
+	for (const FExpectedItemClass& Entry : ExpectedItemClasses)
+	{
+		const UClass* ExpectedClass = FindObject<UClass>(nullptr, Entry.NativeClassPath);
+		TestNotNull(FString::Printf(TEXT("Item %d has a dedicated native template class"), Entry.ItemVnum), ExpectedClass);
+		const TSubclassOf<UMT2ItemTemplate> ImportedClass = F.Registry->ResolveItemTemplateClass(Entry.ItemVnum);
+		const UMT2ItemTemplate* ImportedTemplate = ImportedClass.GetDefaultObject();
+		TestNotNull(FString::Printf(TEXT("Item %d resolves from imported content"), Entry.ItemVnum), ImportedTemplate);
+		if (ExpectedClass && ImportedTemplate)
+		{
+			TestTrue(FString::Printf(TEXT("Item %d uses its behavior-owning native class"), Entry.ItemVnum),
+				ExpectedClass->IsChildOf(BonusConsumableClass) && ImportedTemplate->GetClass()->IsChildOf(ExpectedClass));
+		}
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2AddNormalBonusItemBehaviorTest,
+	"Metin2.Items.Bonuses.AddNormalItemBehavior",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2AddNormalBonusItemBehaviorTest::RunTest(const FString&)
+{
+	TStrongObjectPtr<UMT2ItemBonusSettings> Settings{NewObject<UMT2ItemBonusSettings>()};
+	Settings->AddNormalBonusSuccessChance = 1.0f;
+	Settings->AddNormalValueLevelWeights = {1};
+	Settings->NormalBonuses = {MakeTestBonusDefinition(
+		EMT2ItemBonusType::MaxHP, EMT2ItemBonusTarget::Weapon, 500)};
+
+	const UMT2ItemWeaponSwordTemplate* Weapon =
+		UMT2ItemWeaponSwordTemplate::StaticClass()->GetDefaultObject<UMT2ItemWeaponSwordTemplate>();
+	FMT2ItemSlot Target(10, Weapon->MakeInstanceData());
+	const auto* Item = UMT2ItemUseAddAttributeTemplate::StaticClass()->
+		GetDefaultObject<UMT2ItemUseAddAttributeTemplate>();
+
+	TestTrue(TEXT("Successful add is owned by the add-attribute item class"),
+		Item->ApplyToEquipment(Target, *Weapon, *Settings) == EMT2ItemBonusApplyResult::Success);
+	TestEqual(TEXT("One normal attribute is added"), MT2ItemBonusUtils::CountBonuses(Target, EMT2ItemBonusKind::Normal), 1);
+	TestTrue(TEXT("The configured bonus is applied"), Target.GetBonuses().ContainsByPredicate(
+		[](const FMT2ItemBonus& Bonus)
+		{
+			return Bonus.Type == EMT2ItemBonusType::MaxHP && Bonus.Value == 500 &&
+				Bonus.Kind == EMT2ItemBonusKind::Normal;
+		}));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2ChangeNormalBonusItemBehaviorTest,
+	"Metin2.Items.Bonuses.ChangeNormalItemBehavior",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2ChangeNormalBonusItemBehaviorTest::RunTest(const FString&)
+{
+	TStrongObjectPtr<UMT2ItemBonusSettings> Settings{NewObject<UMT2ItemBonusSettings>()};
+	Settings->ChangeNormalValueLevelWeights = {1};
+	Settings->NormalBonuses = {MakeTestBonusDefinition(
+		EMT2ItemBonusType::MaxHP, EMT2ItemBonusTarget::Weapon, 500)};
+
+	const UMT2ItemWeaponSwordTemplate* Weapon =
+		UMT2ItemWeaponSwordTemplate::StaticClass()->GetDefaultObject<UMT2ItemWeaponSwordTemplate>();
+	FMT2ItemSlot Target(10, Weapon->MakeInstanceData());
+	AddTestBonus(Target, EMT2ItemBonusType::AttackSpeed, EMT2ItemBonusKind::Normal, 5);
+	const auto* Item = UMT2ItemUseChangeAttributeTemplate::StaticClass()->
+		GetDefaultObject<UMT2ItemUseChangeAttributeTemplate>();
+
+	TestTrue(TEXT("Existing normal attributes can be rerolled by the change item class"),
+		Item->ApplyToEquipment(Target, *Weapon, *Settings) == EMT2ItemBonusApplyResult::Success);
+	TestEqual(TEXT("Reroll preserves the number of normal attributes"), MT2ItemBonusUtils::CountBonuses(Target, EMT2ItemBonusKind::Normal), 1);
+	TestTrue(TEXT("Reroll applies the configured replacement"), Target.GetBonuses().ContainsByPredicate(
+		[](const FMT2ItemBonus& Bonus)
+		{
+			return Bonus.Type == EMT2ItemBonusType::MaxHP && Bonus.Value == 500 &&
+				Bonus.Kind == EMT2ItemBonusKind::Normal;
+		}));
+	TestTrue(TEXT("Change-attribute items are identified as randomizers"), Item->IsBonusRandomizer());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2AddFifthNormalBonusItemBehaviorTest,
+	"Metin2.Items.Bonuses.AddFifthNormalItemBehavior",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2AddFifthNormalBonusItemBehaviorTest::RunTest(const FString&)
+{
+	TStrongObjectPtr<UMT2ItemBonusSettings> Settings{NewObject<UMT2ItemBonusSettings>()};
+	Settings->NormalBonusAddLimit = 1;
+	Settings->NormalBonusMaximum = 2;
+	Settings->AddNormalValueLevelWeights = {1};
+	Settings->NormalBonuses = {MakeTestBonusDefinition(
+		EMT2ItemBonusType::MaxHP, EMT2ItemBonusTarget::Weapon, 500)};
+
+	const UMT2ItemWeaponSwordTemplate* Weapon =
+		UMT2ItemWeaponSwordTemplate::StaticClass()->GetDefaultObject<UMT2ItemWeaponSwordTemplate>();
+	FMT2ItemSlot Target(10, Weapon->MakeInstanceData());
+	AddTestBonus(Target, EMT2ItemBonusType::AttackSpeed, EMT2ItemBonusKind::Normal, 5);
+	const auto* Item = UMT2ItemUseAddAttribute2Template::StaticClass()->
+		GetDefaultObject<UMT2ItemUseAddAttribute2Template>();
+
+	TestTrue(TEXT("Fifth bonus item applies after the standard limit"),
+		Item->ApplyToEquipment(Target, *Weapon, *Settings) == EMT2ItemBonusApplyResult::Success);
+	TestEqual(TEXT("Fifth bonus is added without replacing the existing one"),
+		MT2ItemBonusUtils::CountBonuses(Target, EMT2ItemBonusKind::Normal), 2);
+	TestTrue(TEXT("The original normal bonus is retained"), Target.GetBonuses().ContainsByPredicate(
+		[](const FMT2ItemBonus& Bonus)
+		{
+			return Bonus.Type == EMT2ItemBonusType::AttackSpeed && Bonus.Value == 5 &&
+				Bonus.Kind == EMT2ItemBonusKind::Normal;
+		}));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2AddRareBonusItemBehaviorTest,
+	"Metin2.Items.Bonuses.AddRareItemBehavior",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2AddRareBonusItemBehaviorTest::RunTest(const FString&)
+{
+	TStrongObjectPtr<UMT2ItemBonusSettings> Settings{NewObject<UMT2ItemBonusSettings>()};
+	Settings->RareBonusMaximum = 2;
+	Settings->RareValueLevelWeights = {1};
+	Settings->RareBonuses = {MakeTestBonusDefinition(
+		EMT2ItemBonusType::MaxSP, EMT2ItemBonusTarget::Weapon, 50)};
+
+	const UMT2ItemWeaponSwordTemplate* Weapon =
+		UMT2ItemWeaponSwordTemplate::StaticClass()->GetDefaultObject<UMT2ItemWeaponSwordTemplate>();
+	FMT2ItemSlot Target(10, Weapon->MakeInstanceData());
+	const auto* Item = UMT2ItemUseAddRareBonusTemplate::StaticClass()->
+		GetDefaultObject<UMT2ItemUseAddRareBonusTemplate>();
+
+	TestTrue(TEXT("Rare-bonus item applies a configured rare attribute"),
+		Item->ApplyToEquipment(Target, *Weapon, *Settings) == EMT2ItemBonusApplyResult::Success);
+	TestEqual(TEXT("One rare attribute is added"), MT2ItemBonusUtils::CountBonuses(Target, EMT2ItemBonusKind::Rare), 1);
+	TestTrue(TEXT("The added attribute is marked rare"), Target.GetBonuses().ContainsByPredicate(
+		[](const FMT2ItemBonus& Bonus)
+		{
+			return Bonus.Type == EMT2ItemBonusType::MaxSP && Bonus.Value == 50 &&
+				Bonus.Kind == EMT2ItemBonusKind::Rare;
+		}));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2ChangeRareBonusesItemBehaviorTest,
+	"Metin2.Items.Bonuses.ChangeRareItemBehavior",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2ChangeRareBonusesItemBehaviorTest::RunTest(const FString&)
+{
+	TStrongObjectPtr<UMT2ItemBonusSettings> Settings{NewObject<UMT2ItemBonusSettings>()};
+	Settings->RareValueLevelWeights = {1};
+	Settings->RareBonuses = {MakeTestBonusDefinition(
+		EMT2ItemBonusType::MaxSP, EMT2ItemBonusTarget::Weapon, 50)};
+
+	const UMT2ItemWeaponSwordTemplate* Weapon =
+		UMT2ItemWeaponSwordTemplate::StaticClass()->GetDefaultObject<UMT2ItemWeaponSwordTemplate>();
+	FMT2ItemSlot Target(10, Weapon->MakeInstanceData());
+	AddTestBonus(Target, EMT2ItemBonusType::AttackSpeed, EMT2ItemBonusKind::Rare, 5);
+	AddTestBonus(Target, EMT2ItemBonusType::Strength, EMT2ItemBonusKind::Normal, 2);
+	const auto* Item = UMT2ItemUseChangeRareBonusesTemplate::StaticClass()->
+		GetDefaultObject<UMT2ItemUseChangeRareBonusesTemplate>();
+
+	TestTrue(TEXT("Rare-bonus reroll is owned by the change-rare item class"),
+		Item->ApplyToEquipment(Target, *Weapon, *Settings) == EMT2ItemBonusApplyResult::Success);
+	TestEqual(TEXT("Rare reroll preserves the number of rare attributes"),
+		MT2ItemBonusUtils::CountBonuses(Target, EMT2ItemBonusKind::Rare), 1);
+	TestTrue(TEXT("Normal attributes survive rare rerolls"), Target.GetBonuses().ContainsByPredicate(
+		[](const FMT2ItemBonus& Bonus)
+		{
+			return Bonus.Type == EMT2ItemBonusType::Strength && Bonus.Value == 2 &&
+				Bonus.Kind == EMT2ItemBonusKind::Normal;
+		}));
+	TestTrue(TEXT("Rare reroll applies the configured replacement"), Target.GetBonuses().ContainsByPredicate(
+		[](const FMT2ItemBonus& Bonus)
+		{
+			return Bonus.Type == EMT2ItemBonusType::MaxSP && Bonus.Value == 50 &&
+				Bonus.Kind == EMT2ItemBonusKind::Rare;
+		}));
+	TestTrue(TEXT("Rare change items are identified as randomizers"), Item->IsBonusRandomizer());
+	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2TypedItemQuestSocketTest, "Metin2.Items.Authoring.QuestToolSockets",

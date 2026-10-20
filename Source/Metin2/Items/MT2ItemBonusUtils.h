@@ -19,6 +19,7 @@ namespace MT2ItemBonusUtils
 {
 	METIN2_API EMT2ItemBonusTarget ResolveTarget(const UMT2ItemTemplate* Template);
 	METIN2_API int32 RollWeightedIndex(const TArray<int32>& Weights);
+	METIN2_API int32 CountBonuses(const FMT2ItemSlot& Item, EMT2ItemBonusKind Kind);
 	METIN2_API bool HasBonusType(
 		const TArray<FMT2ItemBonus>& Bonuses, int32 Type, EMT2ItemBonusKind Kind);
 	METIN2_API bool AddRandomBonus(

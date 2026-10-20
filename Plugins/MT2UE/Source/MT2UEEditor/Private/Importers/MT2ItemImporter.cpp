@@ -47,6 +47,8 @@
 #include "Items/Templates/MT2ItemTreasureKeyTemplate.h"
 #include "Items/Templates/MT2ItemUniqueTemplate.h"
 #include "Items/Templates/MT2ItemUseBaitTemplate.h"
+#include "Items/Templates/MT2ItemUseAddRareBonusTemplate.h"
+#include "Items/Templates/MT2ItemUseChangeRareBonusesTemplate.h"
 #include "Items/Templates/MT2ItemUseRecipeTemplate.h"
 #include "Items/Templates/MT2ItemUseCreateStoneTemplate.h"
 #include "Items/Templates/MT2ItemUseTemplate.h"
@@ -1018,6 +1020,69 @@ namespace
 		return ResolveMT2ItemTemplateClass(ItemType, LegacySubtype);
 	}
 
+	UClass* ResolveConfiguredRareBonusParentClass(
+		const FMT2ItemDefinition& Definition, bool& bOutConfigurationError)
+	{
+		bOutConfigurationError = false;
+		if (Definition.ItemType != EMT2ItemType::Use ||
+			Definition.SubType.ToLegacy() != static_cast<int32>(EMT2UseSubType::Special))
+		{
+			return nullptr;
+		}
+
+		struct FConfiguredRareBonusItem
+		{
+			const TSoftClassPtr<UMT2ItemTemplate>& ItemTemplate;
+			UClass* BehaviorClass;
+			const TCHAR* SettingName;
+		};
+		const UMT2GameplaySettings& Settings = UMT2GameplaySettings::Get();
+		const FConfiguredRareBonusItem ConfiguredItems[] = {
+			{Settings.RareBonusAdditionItemTemplate, UMT2ItemUseAddRareBonusTemplate::StaticClass(),
+				TEXT("RareBonusAdditionItemTemplate")},
+			{Settings.RareBonusRerollItemTemplate, UMT2ItemUseChangeRareBonusesTemplate::StaticClass(),
+				TEXT("RareBonusRerollItemTemplate")}
+		};
+
+		UClass* MatchedBehaviorClass = nullptr;
+		for (const FConfiguredRareBonusItem& ConfiguredItem : ConfiguredItems)
+		{
+			if (ConfiguredItem.ItemTemplate.IsNull())
+			{
+				continue;
+			}
+
+			UClass* ItemClass = ConfiguredItem.ItemTemplate.LoadSynchronous();
+			const UMT2ItemTemplate* ItemDefaults = ItemClass
+				? ItemClass->GetDefaultObject<UMT2ItemTemplate>() : nullptr;
+			if (!ItemDefaults)
+			{
+				UE_LOG(LogTemp, Error, TEXT("Configured item class %s for %s could not be loaded."),
+					*ConfiguredItem.ItemTemplate.ToString(), ConfiguredItem.SettingName);
+				bOutConfigurationError = true;
+				return nullptr;
+			}
+
+			const int64 FirstVnum = ItemDefaults->Vnum;
+			const int64 LastVnum = FirstVnum + FMath::Max(ItemDefaults->VnumRange, 0);
+			if (Definition.Vnum < FirstVnum || Definition.Vnum > LastVnum)
+			{
+				continue;
+			}
+
+			if (MatchedBehaviorClass)
+			{
+				UE_LOG(LogTemp, Error, TEXT("Item %d matches more than one configured rare-bonus item class."),
+					Definition.Vnum);
+				bOutConfigurationError = true;
+				return nullptr;
+			}
+			MatchedBehaviorClass = ConfiguredItem.BehaviorClass;
+		}
+
+		return MatchedBehaviorClass;
+	}
+
 	bool IsMobLureItem(int32 Vnum)
 	{
 		switch (Vnum)
@@ -1063,6 +1128,13 @@ namespace
 				Definition.Vnum, Definition.SubType.ToLegacy(), static_cast<int32>(Definition.ItemType));
 			return nullptr;
 		}
+		bool bRareBonusOverrideConfigurationError = false;
+		UClass* RareBonusBehaviorClass = ResolveConfiguredRareBonusParentClass(
+			Definition, bRareBonusOverrideConfigurationError);
+		if (bRareBonusOverrideConfigurationError)
+		{
+			return nullptr;
+		}
 
 		UClass* ParentClass = Definition.Vnum >= 50051 && Definition.Vnum <= 50053
 			? UMT2HorseBookItemTemplate::StaticClass()
@@ -1080,7 +1152,10 @@ namespace
 			? UMT2ItemSocketCleanerTemplate::StaticClass()
 			: bIsConfiguredSingleRemovalItem
 			? UMT2ItemMetinRemovalTemplate::StaticClass()
-			: Definition.ItemType == EMT2ItemType::Use && Definition.SubType.ToLegacy() == 10
+			: RareBonusBehaviorClass
+			? RareBonusBehaviorClass
+			: Definition.ItemType == EMT2ItemType::Use &&
+				Definition.SubType.ToLegacy() == static_cast<int32>(EMT2UseSubType::Special)
 			? UMT2ItemAutoRecoveryTemplate::StaticClass()
 			: Definition.Vnum == 25040
 			? UMT2ItemRefinementScrollTemplate::StaticClass()

@@ -391,6 +391,14 @@ public:
 	TSoftClassPtr<UMT2ItemUseTemplate> SingleMetinRemovalItemTemplate = TSoftClassPtr<UMT2ItemUseTemplate>(
 		FSoftObjectPath(TEXT("/Game/Items/Blueprints/BP_Item_71109.BP_Item_71109_C")));
 
+	// These USE_SPECIAL items share one legacy subtype, so the importer uses their item asset
+	// references to assign the dedicated behavior-owning native template classes.
+	UPROPERTY(EditAnywhere, config, Category = "Items|Bonus Consumables")
+	TSoftClassPtr<UMT2ItemTemplate> RareBonusAdditionItemTemplate;
+
+	UPROPERTY(EditAnywhere, config, Category = "Items|Bonus Consumables")
+	TSoftClassPtr<UMT2ItemTemplate> RareBonusRerollItemTemplate;
+
 	// The legacy broken-Metin sentinel is represented at runtime by the actual item class.
 	UPROPERTY(EditAnywhere, config, Category = "Items|Metin Sockets")
 	TSoftClassPtr<UMT2ItemMetinStoneTemplate> BrokenMetinStoneTemplate =

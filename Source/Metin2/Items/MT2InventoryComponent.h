@@ -69,8 +69,8 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
 	bool MoveItem(int32 FromSlot, int32 ToSlot);
 
-	// Server-only. Applies one of the configured bonus consumables at SourceSlot to the equipment
-	// item at TargetSlot. The source is consumed only when the request is valid.
+	// Server-only transaction boundary for an equipment-bonus consumable. The item template owns
+	// its bonus rule; inventory validates and commits its staged result, consumes, and replicates.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Bonuses")
 	EMT2ItemBonusApplyResult ApplyBonusConsumable(
 		int32 SourceSlot, int32 TargetSlot, bool bTargetEquipped = false);
