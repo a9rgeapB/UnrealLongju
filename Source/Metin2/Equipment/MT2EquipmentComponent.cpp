@@ -15,6 +15,7 @@
 #include "Particles/ParticleSystemComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Engine/AssetManager.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
@@ -59,6 +60,17 @@ void UMT2EquipmentComponent::SetVisualComponents(
 	HairMeshComponent = InHairMesh;
 	WeaponMeshComponent = InWeaponMesh;
 	LeftWeaponMeshComponent = InLeftWeaponMesh;
+}
+
+void UMT2EquipmentComponent::SetAccessoryVisualsVisible(bool bVisible)
+{
+	for (UPrimitiveComponent* Visual : {
+		static_cast<UPrimitiveComponent*>(HairMeshComponent.Get()),
+		static_cast<UPrimitiveComponent*>(WeaponMeshComponent.Get()),
+		static_cast<UPrimitiveComponent*>(LeftWeaponMeshComponent.Get())})
+	{
+		if (IsValid(Visual)) Visual->SetVisibility(bVisible, true);
+	}
 }
 
 void UMT2EquipmentComponent::ApplyDefaultHair(const FMT2CharacterAppearance& Appearance)

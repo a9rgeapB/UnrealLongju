@@ -25,6 +25,9 @@ class UInputComponent;
 class USpringArmComponent;
 class UAbilitySystemComponent;
 class AMT2Npc;
+class AMT2Mob;
+class UAnimInstance;
+class USkeletalMesh;
 class AMT2PlayerState;
 class AMT2WorldItem;
 class UMT2AdminCommandComponent;
@@ -306,6 +309,7 @@ protected:
 
 private:
 	friend class FMT2HeldAttackInputTest;
+	friend class FMT2PolymorphBallUseTest;
 	friend class FMT2ObserverReplicationTest;
 	friend class FMT2QuestAlignmentApiTest;
 	friend class FMT2WarriorComboKnockbackTest;
@@ -360,6 +364,15 @@ private:
 
 	UPROPERTY(Transient)
 	TMap<int32, int32> ItemApplyBonuses;
+	UPROPERTY(Transient)
+	TSubclassOf<AMT2Mob> AppliedPolymorphMobClass;
+	UPROPERTY(Transient)
+	TObjectPtr<USkeletalMesh> PrePolymorphMeshAsset;
+	UPROPERTY(Transient)
+	TSubclassOf<UAnimInstance> PrePolymorphAnimClass;
+	int32 AppliedPolymorphMobVnum = 0;
+	FTransform PrePolymorphMeshRelativeTransform;
+	bool bHasPrePolymorphMeshRelativeTransform = false;
 	void RefreshDerivedStats();
 	UFUNCTION()
 	void HandleBasicAttackPerformed(int32 ComboIndex);
@@ -387,6 +400,8 @@ private:
 	// affects ride the identical apply pipeline as item bonuses.
 	UFUNCTION()
 	void HandleStatusEffectsChanged();
+	void RefreshPolymorphAppearance();
+	bool HasPolymorphAppearanceEffect() const;
 
 	UFUNCTION(Server, Reliable)
 	void ServerRequestRespawn(bool bRespawnInTown);

@@ -17,6 +17,7 @@
 #include "Items/Templates/MT2ItemRodTemplate.h"
 #include "Items/Templates/MT2ItemSkillBookTemplate.h"
 #include "Items/Templates/MT2ItemSkillForgetTemplate.h"
+#include "Items/Templates/MT2ItemPolymorphTemplate.h"
 
 
 #include "Core/MT2VnumRegistrySubsystem.h"
@@ -28,9 +29,11 @@
 #include "Items/State/MT2LegacyQuestItemState.h"
 #include "Items/State/MT2MetinEquipmentItemState.h"
 #include "Items/State/MT2AccessoryItemState.h"
+#include "Items/State/MT2PolymorphItemState.h"
 #include "Items/Templates/MT2ItemBlendTemplate.h"
 #include "Items/MT2AccessorySocketRules.h"
 #include "Items/Templates/MT2ItemMetinStoneTemplate.h"
+#include "Mobs/MT2Mob.h"
 
 const UMT2ItemTemplate* MT2ItemUtils::ResolveTemplate(const UObject* WorldContextObject, int32 Vnum)
 {
@@ -117,7 +120,7 @@ bool MT2ItemUtils::UsesNumericSockets(const UMT2ItemTemplate* Template)
 	return Template && !Cast<UMT2ItemEquipmentTemplate>(Template) && !Cast<UMT2ItemRodTemplate>(Template) &&
 		!Cast<UMT2ItemPickTemplate>(Template) && !Cast<UMT2ItemFishTemplate>(Template) &&
 		!Cast<UMT2ItemSkillBookTemplate>(Template) && !Cast<UMT2ItemSkillForgetTemplate>(Template) &&
-		!Cast<UMT2ItemAutoRecoveryTemplate>(Template);
+		!Cast<UMT2ItemAutoRecoveryTemplate>(Template) && !Cast<UMT2ItemPolymorphTemplate>(Template);
 }
 
 int32 MT2ItemUtils::GetNumericSocket(const FMT2ItemInstanceData& Item, int32 Index)
@@ -130,6 +133,15 @@ int32 MT2ItemUtils::GetNumericSocket(const FMT2ItemInstanceData& Item, int32 Ind
 	if (const auto* State = Item.FindState<FMT2FishItemState>()) return Index == 0 ? State->LengthTenths : 0;
 	if (Item.FindState<FMT2SkillBookItemState>()) return Index == 0 ? Item.GetSkillVnum() : 0;
 	if (Item.FindState<FMT2SkillForgetItemState>()) return Index == 0 ? Item.GetSkillVnum() : 0;
+	if (const auto* State = Item.FindState<FMT2PolymorphItemState>())
+	{
+		if (Index == 0)
+		{
+			const AMT2Mob* Target = State->TargetMob ? State->TargetMob->GetDefaultObject<AMT2Mob>() : nullptr;
+			return Target ? Target->GetMobVnum() : 0;
+		}
+		return Index == 1 ? State->RemainingPractice : State->SuccessBonus;
+	}
 	if (const auto* State = Item.FindState<FMT2AutoRecoveryItemState>()) return Index == 0 ? (State->bActive ? 1 : 0)
 		: Index == 1 ? State->MaximumAmount - State->RemainingAmount : State->MaximumAmount;
 	if (const auto* State = Item.FindState<FMT2AccessoryItemState>()) return Index == 0 ? State->Sockets.CurrentGrade
@@ -159,6 +171,28 @@ bool MT2ItemUtils::SetNumericSocket(FMT2ItemInstanceData& Item, int32 Index, int
 	if (auto* State = Item.FindMutableState<FMT2FishItemState>()) { if (Index != 0) return false; State->LengthTenths = Value; return true; }
 	if (Item.FindState<FMT2SkillBookItemState>()) { if (Index != 0) return false; Item.SetSkillVnum(Value); return true; }
 	if (Item.FindState<FMT2SkillForgetItemState>()) { if (Index != 0) return false; Item.SetSkillVnum(Value); return true; }
+	if (auto* State = Item.FindMutableState<FMT2PolymorphItemState>())
+	{
+		if (Index == 1) State->RemainingPractice = FMath::Max(0, Value);
+		else if (Index == 2) State->SuccessBonus = Value;
+		else
+		{
+			const int32 ExistingTargetVnum = GetNumericSocket(Item, 0);
+			if (Value == ExistingTargetVnum) return true;
+
+			// Legacy import/save codecs set socket zero as an integer VNUM and do not have a world
+			// context to resolve that id into a mob class. Keep that compatibility payload opaque;
+			// authoritative inventory edits resolve it to TargetMob before reaching this fallback.
+			const int32 LegacyPractice = State->RemainingPractice;
+			const int32 LegacySuccessBonus = State->SuccessBonus;
+			Item.FamilyState.InitializeAs<FMT2LegacyQuestItemState>();
+			auto& LegacyState = Item.EditState<FMT2LegacyQuestItemState>();
+			LegacyState.SetValue(0, Value);
+			LegacyState.SetValue(1, LegacyPractice);
+			LegacyState.SetValue(2, LegacySuccessBonus);
+		}
+		return true;
+	}
 	if (auto* State = Item.FindMutableState<FMT2AutoRecoveryItemState>())
 	{
 		if (Index == 0) State->bActive = Value != 0 && State->RemainingAmount > 0;

@@ -93,6 +93,22 @@ FMT2PlayerDerivedStats MT2PlayerStatFormula::Calculate(
 	return Result;
 }
 
+FMT2PrimaryStats MT2PlayerStatFormula::CalculatePolymorphStats(EMT2CharacterRace Race,
+	EMT2SkillGroup SkillGroup, const FMT2PrimaryStats& PlayerStats,
+	const FMT2PrimaryStats& MobStats, int32 PowerPercent)
+{
+	const int32 Power = FMath::Max(PowerPercent, 0);
+	FMT2PrimaryStats Result = PlayerStats;
+	const bool bUsesIntelligenceForStrength = Race == EMT2CharacterRace::Shaman ||
+		(Race == EMT2CharacterRace::Sura && SkillGroup == EMT2SkillGroup::Second);
+	Result.Strength = (FMath::Max(MobStats.Strength, 0) * Power) / 100 +
+		(bUsesIntelligenceForStrength ? PlayerStats.Intelligence : PlayerStats.Strength);
+	Result.Constitution = (FMath::Max(MobStats.Constitution, 0) * Power) / 100 + PlayerStats.Constitution;
+	Result.Intelligence = (FMath::Max(MobStats.Intelligence, 0) * Power) / 100 + PlayerStats.Intelligence;
+	Result.Dexterity = (FMath::Max(MobStats.Dexterity, 0) * Power) / 100 + PlayerStats.Dexterity;
+	return Result;
+}
+
 float MT2PlayerStatFormula::CalculateAttackRating(
 	int32 AttackerLevel, int32 AttackerDexterity, int32 DefenderLevel, int32 DefenderDexterity)
 {

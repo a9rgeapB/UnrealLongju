@@ -1,5 +1,8 @@
 #include "Items/Templates/MT2ItemBlendTemplate.h"
 #include "Items/Templates/MT2ItemFishTemplate.h"
+#include "Items/Templates/MT2ItemPolymorphTemplate.h"
+#include "Config/MT2GameplaySettings.h"
+#include "Stats/MT2PlayerStatFormula.h"
 #include "Items/Templates/MT2ItemSkillForgetTemplate.h"
 #include "Items/State/MT2SkillForgetItemState.h"
 #if WITH_DEV_AUTOMATION_TESTS
@@ -14,6 +17,7 @@
 #include "Components/MT2StatusEffectComponent.h"
 #include "Components/MT2StatusEffectDefinition.h"
 #include "Core/MT2VnumRegistrySubsystem.h"
+#include "Mobs/MT2Mob.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -28,6 +32,7 @@
 #include "World/MT2MapAttributes.h"
 #include "World/MT2MapPresentationActor.h"
 #include "Components/BoxComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Items/Templates/MT2ItemRodTemplate.h"
 #include "Quests/MT2QuestExpression.h"
 
@@ -240,6 +245,193 @@ bool FMT2NumericItemSocketsTest::RunTest(const FString&)
 	MT2ItemUtils::NormalizeNumericSockets(Unknown, nullptr);
 	TestEqual(TEXT("Unavailable template never clears unknown socket data"), Unknown.GetMetinSockets().Num(), 1);
 	if (Unknown.GetMetinSockets().Num() == 1) TestEqual(TEXT("Unavailable template preserves original payload"), Unknown.GetMetinSockets()[0].Value, 777);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2PolymorphBallUseTest, "Metin2.Items.Polymorph.BallUse",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2PolymorphBallUseTest::RunTest(const FString&)
+{
+	FItemBehaviorWorld F;
+	if (!TestNotNull(TEXT("Player fixture"), F.Player) || !TestNotNull(TEXT("Inventory fixture"), F.Inventory) || !F.Registry)
+	{
+		return false;
+	}
+	F.Player->DispatchBeginPlay();
+
+	const TSubclassOf<AMT2Mob> TargetMob = F.Registry->ResolveMobClass(101);
+	if (!TestTrue(TEXT("Legacy wolf polymorph target resolves"), TargetMob != nullptr))
+	{
+		return false;
+	}
+	TStrongObjectPtr<UMT2ItemPolymorphTemplate> Ball(NewObject<UMT2ItemPolymorphTemplate>());
+	Ball->Vnum = 70104;
+	Ball->DefaultPolymorphState.TargetMob = TargetMob;
+	Ball->FinalizeFamilyDefaults();
+	FMT2ItemInstanceData Instance = Ball->MakeInstanceData();
+	TestEqual(TEXT("Item template authors the target as a mob class reference"),
+		Instance.GetPolymorphState().TargetMob.Get(), TargetMob.Get());
+	TArray<FMT2ItemSlot> Items;
+	Items.SetNum(UMT2InventoryComponent::SlotCount);
+	Items[0] = FMT2ItemSlot(Ball->Vnum, Instance);
+	F.Inventory->RestoreItems(Items, {});
+
+	const EMT2ItemUseExecution Result = Ball->ExecuteUse(*F.Player, *F.Inventory, 0);
+	TestEqual(TEXT("A valid polymorph ball starts the transformation and requests consumption"),
+		Result, EMT2ItemUseExecution::Consume);
+	const FMT2AffectIdentifier Polymorph =
+		FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Polymorph);
+	const FMT2StatusEffect* Transform = F.Player->GetStatusEffectComponent()->GetEffects().FindByPredicate(
+		[Polymorph](const FMT2StatusEffect& Effect)
+		{
+			return Effect.Type == Polymorph && Effect.ApplyType == EMT2ItemBonusType::None;
+		});
+	if (TestNotNull(TEXT("Transformation is represented by the replicated timed affect"), Transform))
+	{
+		TestEqual(TEXT("Transformation targets the selected mob"), Transform->ApplyValue, 101);
+		TestEqual(TEXT("An untrained ball lasts the legacy five minutes"), Transform->RemainingSeconds, 300);
+	}
+	const FMT2StatusEffect* AttackBonus = F.Player->GetStatusEffectComponent()->GetEffects().FindByPredicate(
+		[Polymorph](const FMT2StatusEffect& Effect)
+		{
+			return Effect.Type == Polymorph && Effect.ApplyType == EMT2ItemBonusType::AttackValue;
+		});
+	if (TestNotNull(TEXT("Ball grants its legacy attack bonus"), AttackBonus))
+	{
+		TestEqual(TEXT("English legacy ball bonus at skill level zero"), AttackBonus->ApplyValue, 200);
+		TestEqual(TEXT("Attack bonus lasts for the transformation"), AttackBonus->RemainingSeconds, 300);
+	}
+	TestEqual(TEXT("Legacy trained ball duration at skill 1"), UMT2ItemPolymorphTemplate::GetBallDurationSeconds(1), 600);
+	TestEqual(TEXT("Legacy perfected ball duration at skill 40"), UMT2ItemPolymorphTemplate::GetBallDurationSeconds(40), 2100);
+	TestEqual(TEXT("Ball attack bonus rises at skill 40"), UMT2ItemPolymorphTemplate::GetBallAttackBonus(40), 300);
+	const AMT2Mob* MobDefaults = TargetMob->GetDefaultObject<AMT2Mob>();
+	if (MobDefaults && MobDefaults->GetMesh() && MobDefaults->GetMesh()->GetSkeletalMeshAsset())
+	{
+		F.Player->RefreshPolymorphAppearance();
+		TestEqual(TEXT("Replicated polymorph affect changes the local player mesh to the selected mob"),
+			F.Player->GetMesh()->GetSkeletalMeshAsset(), MobDefaults->GetMesh()->GetSkeletalMeshAsset());
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2PolymorphCombatScalingTest,
+	"Metin2.Items.Polymorph.CombatScaling",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2PolymorphCombatScalingTest::RunTest(const FString&)
+{
+	FMT2PrimaryStats PlayerStats;
+	PlayerStats.Strength = 25;
+	PlayerStats.Dexterity = 11;
+	PlayerStats.Constitution = 12;
+	PlayerStats.Intelligence = 20;
+	FMT2PrimaryStats MobStats;
+	MobStats.Strength = 101;
+	MobStats.Dexterity = 81;
+	MobStats.Constitution = 61;
+	MobStats.Intelligence = 41;
+
+	const FMT2PrimaryStats Warrior = MT2PlayerStatFormula::CalculatePolymorphStats(
+		EMT2CharacterRace::Warrior, EMT2SkillGroup::First, PlayerStats, MobStats, 50);
+	TestEqual(TEXT("Warrior receives mob strength scaled by the configured poly power"), Warrior.Strength, 75);
+	TestEqual(TEXT("Mob dexterity is scaled using integer legacy arithmetic"), Warrior.Dexterity, 51);
+	TestEqual(TEXT("Mob constitution is scaled using integer legacy arithmetic"), Warrior.Constitution, 42);
+	TestEqual(TEXT("Mob intelligence is scaled using integer legacy arithmetic"), Warrior.Intelligence, 40);
+
+	const FMT2PrimaryStats Shaman = MT2PlayerStatFormula::CalculatePolymorphStats(
+		EMT2CharacterRace::Shaman, EMT2SkillGroup::First, PlayerStats, MobStats, 50);
+	TestEqual(TEXT("Shaman polymorph strength substitutes player intelligence"), Shaman.Strength, 70);
+	const FMT2PrimaryStats SuraSecond = MT2PlayerStatFormula::CalculatePolymorphStats(
+		EMT2CharacterRace::Sura, EMT2SkillGroup::Second, PlayerStats, MobStats, 50);
+	TestEqual(TEXT("Second-specialization Sura polymorph strength substitutes player intelligence"),
+		SuraSecond.Strength, 70);
+
+	const UMT2GameplaySettings& Settings = UMT2GameplaySettings::Get();
+	TestEqual(TEXT("Legacy power table is configurable in Project Settings"),
+		Settings.GetPolymorphPowerPercent(40), 100);
+	TestTrue(TEXT("An out-of-range skill level clamps safely to the configured table"),
+		Settings.GetPolymorphPowerPercent(MAX_int32) >= 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2PolymorphProjectSettingsTest,
+	"Metin2.Items.Polymorph.ProjectSettings",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2PolymorphProjectSettingsTest::RunTest(const FString&)
+{
+	const UMT2GameplaySettings& Settings = UMT2GameplaySettings::Get();
+	TestTrue(TEXT("Polymorph skill is selected by skill asset"),
+		Settings.PolymorphSkillDefinition.ToSoftObjectPath().ToString().Contains(TEXT("DA_Skill_00129")));
+	TestTrue(TEXT("Polymorph book is selected by item class"),
+		Settings.PolymorphBookItemTemplate.ToSoftObjectPath().ToString().Contains(TEXT("BP_Item_50322")));
+	TestEqual(TEXT("Configured Grand Master ball duration is used"),
+		UMT2ItemPolymorphTemplate::GetBallDurationSeconds(40, Settings), 2100);
+	TestEqual(TEXT("Configured book success chance is used"),
+		UMT2ItemPolymorphTemplate::GetBookSuccessChance(20, 10, 5, 3, Settings), 47);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2PolymorphBookUseTest, "Metin2.Items.Polymorph.BookUse",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMT2PolymorphBookUseTest::RunTest(const FString&)
+{
+	FItemBehaviorWorld F;
+	if (!TestNotNull(TEXT("Player fixture"), F.Player) || !TestNotNull(TEXT("Inventory fixture"), F.Inventory) || !F.Registry)
+	{
+		return false;
+	}
+
+	const TSubclassOf<AMT2Mob> TargetMob = F.Registry->ResolveMobClass(101);
+	if (!TestTrue(TEXT("Legacy wolf polymorph target resolves"), TargetMob != nullptr)) return false;
+	const UMT2GameplaySettings& Settings = UMT2GameplaySettings::Get();
+	UClass* ConfiguredBookClass = Settings.GetPolymorphBookItemClass();
+	if (!TestNotNull(TEXT("Configured polymorph book class"), ConfiguredBookClass)) return false;
+	TStrongObjectPtr<UMT2ItemPolymorphTemplate> Book(
+		NewObject<UMT2ItemPolymorphTemplate>(GetTransientPackage(), ConfiguredBookClass));
+	if (!TestNotNull(TEXT("Configured polymorph book instance"), Book.Get())) return false;
+	Book->DefaultPolymorphState.TargetMob = TargetMob;
+	Book->DefaultPolymorphState.RemainingPractice = 4;
+	Book->DefaultPolymorphState.SuccessBonus = 200; // Makes the legacy random check deterministic for this test.
+	Book->FinalizeFamilyDefaults();
+	FMT2ItemInstanceData Instance = Book->MakeInstanceData();
+	TArray<FMT2ItemSlot> Items;
+	Items.SetNum(UMT2InventoryComponent::SlotCount);
+	Items[0] = FMT2ItemSlot(Book->Vnum, Instance);
+	F.Inventory->RestoreItems(Items, {});
+
+	TestEqual(TEXT("Perfect mastery uses its short legacy book duration"),
+		UMT2ItemPolymorphTemplate::GetBookDurationSeconds(EMT2SkillMastery::PerfectMaster), 25);
+	TestEqual(TEXT("Nonpositive chance cannot succeed"),
+		UMT2ItemPolymorphTemplate::GetBookSuccessChance(1, 50, 0, 0), -20);
+	TestEqual(TEXT("Positive legacy chance includes level, item bonus, and skill"),
+		UMT2ItemPolymorphTemplate::GetBookSuccessChance(20, 10, 5, 3), 47);
+
+	TestEqual(TEXT("Successful book transforms without consuming it"),
+		Book->ExecuteUse(*F.Player, *F.Inventory, 0), EMT2ItemUseExecution::Accepted);
+	TestEqual(TEXT("Polymorph book remains in inventory"), F.Inventory->GetSlots()[0].Count, 1);
+	TestEqual(TEXT("Successful read reduces book practice by one"),
+		F.Inventory->GetSlots()[0].GetPolymorphState().RemainingPractice, 3);
+	const FMT2AffectIdentifier Polymorph =
+		FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Polymorph);
+	const FMT2StatusEffect* Transform = F.Player->GetStatusEffectComponent()->GetEffects().FindByPredicate(
+		[Polymorph](const FMT2StatusEffect& Effect)
+		{
+			return Effect.Type == Polymorph && Effect.ApplyType == EMT2ItemBonusType::None;
+		});
+	if (TestNotNull(TEXT("Book transformation is a replicated timed affect"), Transform))
+	{
+		TestEqual(TEXT("Normal mastery duration matches legacy"), Transform->RemainingSeconds, 10);
+		TestEqual(TEXT("Book targets selected mob"), Transform->ApplyValue, 101);
+	}
+	const FMT2StatusEffect* SpeedBonus = F.Player->GetStatusEffectComponent()->GetEffects().FindByPredicate(
+		[Polymorph](const FMT2StatusEffect& Effect)
+		{
+			return Effect.Type == Polymorph && Effect.ApplyType == EMT2ItemBonusType::MovementSpeed;
+		});
+	if (TestNotNull(TEXT("Legacy wolf book grants its mapped movement bonus"), SpeedBonus))
+	{
+		TestEqual(TEXT("Movement bonus combines skill level and item socket bonus"), SpeedBonus->ApplyValue, 200);
+		TestEqual(TEXT("Legacy movement bonus ends one second before the transformation"), SpeedBonus->RemainingSeconds, 9);
+	}
 	return true;
 }
 

@@ -47,6 +47,7 @@
 #include "Config/MT2GameplaySettings.h"
 #include "Network/MT2ReplicationGraph.h"
 #include "Engine/NetDriver.h"
+#include "Engine/SkeletalMesh.h"
 #include "EnhancedInputComponent.h"
 #include "Equipment/MT2EquipmentComponent.h"
 #include "Effects/MT2MotionEffectComponent.h"
@@ -1470,6 +1471,11 @@ void AMT2PlayerCharacter::InitializePlayerState()
 
 void AMT2PlayerCharacter::HandleCharacterAppearanceChanged(const FMT2CharacterAppearance& Appearance)
 {
+	if (HasPolymorphAppearanceEffect())
+	{
+		RefreshDerivedStats();
+		return;
+	}
 	GetAppearanceComponent()->ApplyCharacterAppearance(Appearance);
 	RefreshHairAppearance();
 	RefreshDerivedStats();
@@ -1477,6 +1483,11 @@ void AMT2PlayerCharacter::HandleCharacterAppearanceChanged(const FMT2CharacterAp
 
 void AMT2PlayerCharacter::HandleCharacterAppearanceApplied(const FMT2CharacterAppearance& Appearance)
 {
+	if (HasPolymorphAppearanceEffect())
+	{
+		RefreshPolymorphAppearance();
+		return;
+	}
 	RefreshHairAppearance();
 	HandleEquipmentChanged();
 }
@@ -2749,9 +2760,97 @@ void AMT2PlayerCharacter::RefreshHairAppearance()
 	else GetEquipmentComponent()->ApplyDefaultHair(Appearance);
 }
 
+bool AMT2PlayerCharacter::HasPolymorphAppearanceEffect() const
+{
+	const UMT2StatusEffectComponent* Effects = GetStatusEffectComponent();
+	if (!Effects) return false;
+	const FMT2AffectIdentifier Polymorph =
+		FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Polymorph);
+	return Effects->GetEffects().ContainsByPredicate([Polymorph](const FMT2StatusEffect& Effect)
+		{ return Effect.Type == Polymorph && Effect.ApplyType == EMT2ItemBonusType::None && Effect.ApplyValue > 0; });
+}
+
+void AMT2PlayerCharacter::RefreshPolymorphAppearance()
+{
+	if (GetNetMode() == NM_DedicatedServer || !GetMesh()) return;
+
+	const FMT2StatusEffect* Transform = GetStatusEffectComponent()
+		? GetStatusEffectComponent()->GetEffects().FindByPredicate(
+			[](const FMT2StatusEffect& Effect)
+			{
+				return Effect.Type == FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Polymorph) &&
+					Effect.ApplyType == EMT2ItemBonusType::None && Effect.ApplyValue > 0;
+			})
+		: nullptr;
+
+	if (!Transform)
+	{
+		if (!AppliedPolymorphMobClass) return;
+		AppliedPolymorphMobClass = nullptr;
+		AppliedPolymorphMobVnum = 0;
+		if (bHasPrePolymorphMeshRelativeTransform)
+		{
+			GetMesh()->SetRelativeTransform(PrePolymorphMeshRelativeTransform);
+			bHasPrePolymorphMeshRelativeTransform = false;
+		}
+		GetMesh()->SetAnimInstanceClass(nullptr);
+		GetMesh()->SetSkeletalMesh(PrePolymorphMeshAsset, true);
+		if (PrePolymorphAnimClass)
+		{
+			GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+			GetMesh()->SetAnimInstanceClass(PrePolymorphAnimClass);
+		}
+		PrePolymorphMeshAsset = nullptr;
+		PrePolymorphAnimClass = nullptr;
+		if (const AMT2PlayerState* State = GetPlayerState<AMT2PlayerState>())
+		{
+			GetAppearanceComponent()->ApplyCharacterAppearance(State->GetCharacterAppearance());
+		}
+		if (GetEquipmentComponent()) GetEquipmentComponent()->SetAccessoryVisualsVisible(true);
+		HandleEquipmentChanged();
+		return;
+	}
+	if (AppliedPolymorphMobClass && AppliedPolymorphMobVnum == Transform->ApplyValue)
+	{
+		AMT2Mob* AppliedDefaults = AppliedPolymorphMobClass->GetDefaultObject<AMT2Mob>();
+		USkeletalMeshComponent* AppliedMeshComponent = AppliedDefaults ? AppliedDefaults->GetMesh() : nullptr;
+		if (AppliedMeshComponent && GetMesh()->GetSkeletalMeshAsset() == AppliedMeshComponent->GetSkeletalMeshAsset()) return;
+	}
+
+	UGameInstance* GameInstance = GetGameInstance();
+	UMT2VnumRegistrySubsystem* Registry = GameInstance
+		? GameInstance->GetSubsystem<UMT2VnumRegistrySubsystem>() : nullptr;
+	const TSubclassOf<AMT2Mob> MobClass = Registry ? Registry->ResolveMobClass(Transform->ApplyValue) : nullptr;
+	AMT2Mob* MobDefaults = MobClass ? MobClass->GetDefaultObject<AMT2Mob>() : nullptr;
+	USkeletalMeshComponent* MobMeshComponent = MobDefaults ? MobDefaults->GetMesh() : nullptr;
+	USkeletalMesh* MobMesh = MobMeshComponent ? MobMeshComponent->GetSkeletalMeshAsset() : nullptr;
+	if (!MobMesh) return;
+
+	if (!bHasPrePolymorphMeshRelativeTransform)
+	{
+		PrePolymorphMeshRelativeTransform = GetMesh()->GetRelativeTransform();
+		PrePolymorphMeshAsset = GetMesh()->GetSkeletalMeshAsset();
+		PrePolymorphAnimClass = GetMesh()->GetAnimClass();
+		bHasPrePolymorphMeshRelativeTransform = true;
+	}
+	if (AppliedPolymorphMobClass == MobClass && GetMesh()->GetSkeletalMeshAsset() == MobMesh) return;
+
+	if (GetEquipmentComponent()) GetEquipmentComponent()->SetAccessoryVisualsVisible(false);
+	GetMesh()->SetAnimInstanceClass(nullptr);
+	GetMesh()->EmptyOverrideMaterials();
+	GetMesh()->SetSkeletalMesh(MobMesh, true);
+	GetMesh()->SetRelativeTransform(MobMeshComponent->GetRelativeTransform());
+	if (UClass* MobAnimClass = MobMeshComponent->GetAnimClass())
+	{
+		GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+		GetMesh()->SetAnimInstanceClass(MobAnimClass);
+	}
+	AppliedPolymorphMobClass = MobClass;
+	AppliedPolymorphMobVnum = Transform->ApplyValue;
+}
+
 void AMT2PlayerCharacter::HandleEquipmentChanged()
 {
-	RefreshHairAppearance();
 	if (HasAuthority())
 	{
 		ForceNetUpdate();
@@ -2763,6 +2862,14 @@ void AMT2PlayerCharacter::HandleEquipmentChanged()
 				{ return Slot.Vnum == 70048 && Slot.Count > 0; }));
 		}
 	}
+	if (HasPolymorphAppearanceEffect())
+	{
+		RefreshPolymorphAppearance();
+		RecalculateEquipmentStats();
+		if (SkillVisualEffectComponent) SkillVisualEffectComponent->RefreshEffects();
+		return;
+	}
+	RefreshHairAppearance();
 	// Apply worn weapon/body meshes from the equipment slots, then recompute stat bonuses. WEAR_WEAPON=4,
 	// WEAR_BODY=0 (old client EWearPositions). Armor equips a whole-body skeletal mesh; weapons attach.
 	UGameInstance* GameInstance = GetGameInstance();
@@ -2860,6 +2967,7 @@ void AMT2PlayerCharacter::HandleInventoryChanged()
 
 void AMT2PlayerCharacter::HandleStatusEffectsChanged()
 {
+	RefreshPolymorphAppearance();
 	RecalculateEquipmentStats();
 	if (SkillVisualEffectComponent)
 	{

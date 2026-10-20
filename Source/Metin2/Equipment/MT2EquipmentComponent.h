@@ -38,6 +38,7 @@ public:
 		USkeletalMeshComponent* InHairMesh,
 		UStaticMeshComponent* InWeaponMesh,
 		UStaticMeshComponent* InLeftWeaponMesh);
+	void SetAccessoryVisualsVisible(bool bVisible);
 
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	void ApplyDefaultHair(const FMT2CharacterAppearance& Appearance);

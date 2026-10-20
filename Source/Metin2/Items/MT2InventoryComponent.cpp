@@ -40,8 +40,10 @@
 #include "Items/MT2InventoryLayout.h"
 #include "Items/MT2ItemTemplate.h"
 #include "Items/MT2ItemUtils.h"
+#include "Items/State/MT2PolymorphItemState.h"
 #include "Items/Use/MT2ItemActionTemplate.h"
 #include "Items/MT2WorldItem.h"
+#include "Mobs/MT2Mob.h"
 #include "Net/UnrealNetwork.h"
 #include "Player/MT2PlayerState.h"
 #include "Player/MT2PlayerController.h"
@@ -1035,6 +1037,21 @@ bool UMT2InventoryComponent::SetItemSocketValue(int32 InventorySlot, int32 Socke
 	FMT2ItemSlot& Item = Slots[InventorySlot];
 	const UMT2ItemTemplate* Template = ResolveTemplate(Item.Vnum);
 	MT2ItemUtils::NormalizeNumericSockets(Item, Template);
+	if (SocketIndex == 0)
+	{
+		if (auto* State = Item.FindMutableState<FMT2PolymorphItemState>())
+		{
+			UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+			UMT2VnumRegistrySubsystem* Registry = GameInstance
+				? GameInstance->GetSubsystem<UMT2VnumRegistrySubsystem>() : nullptr;
+			const TSubclassOf<AMT2Mob> TargetMob = Value > 0 && Registry
+				? Registry->ResolveMobClass(Value) : nullptr;
+			if (Value > 0 && !TargetMob) return false;
+			State->TargetMob = TargetMob;
+			OnInventoryChanged.Broadcast();
+			return true;
+		}
+	}
 	if (!MT2ItemUtils::SetNumericSocket(Item, SocketIndex, Value)) return false;
 	OnInventoryChanged.Broadcast();
 	return true;

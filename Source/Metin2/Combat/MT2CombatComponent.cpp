@@ -18,7 +18,9 @@
 #include "AbilitySystemGlobals.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/MT2HealthComponent.h"
+#include "Components/MT2StatusEffectComponent.h"
 #include "Characters/MT2PlayerCharacter.h"
+#include "Core/MT2VnumRegistrySubsystem.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
@@ -31,6 +33,8 @@
 #include "Stats/MT2CombatStatsComponent.h"
 #include "Stats/MT2PlayerStatFormula.h"
 #include "Stats/MT2PrimaryStatsComponent.h"
+#include "Skills/MT2SkillComponent.h"
+#include "Skills/MT2SkillDefinition.h"
 #include "TimerManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMT2Combat, Log, All);
@@ -47,6 +51,52 @@ namespace
 		float Damage = 0.0f;
 		EMT2DamageDisplayType DisplayType = EMT2DamageDisplayType::Normal;
 	};
+
+	struct FResolvedPolymorphCombatState
+	{
+		const AMT2Mob* MobDefaults = nullptr;
+		FMT2PrimaryStats PrimaryStats;
+		int32 PowerPercent = 0;
+		explicit operator bool() const { return MobDefaults != nullptr; }
+	};
+
+	FResolvedPolymorphCombatState ResolvePolymorphCombatState(const AMT2PlayerCharacter* Player)
+	{
+		FResolvedPolymorphCombatState Result;
+		const UMT2StatusEffectComponent* Effects = Player ? Player->GetStatusEffectComponent() : nullptr;
+		const FMT2AffectIdentifier Polymorph =
+			FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Polymorph);
+		const FMT2StatusEffect* Transform = Effects
+			? Effects->GetEffects().FindByPredicate([Polymorph](const FMT2StatusEffect& Effect)
+				{ return Effect.Type == Polymorph && Effect.ApplyType == EMT2ItemBonusType::None; })
+			: nullptr;
+		if (!Transform || Transform->ApplyValue <= 0 || !Player->GetGameInstance())
+		{
+			return Result;
+		}
+
+		UMT2VnumRegistrySubsystem* Registry =
+			Player->GetGameInstance()->GetSubsystem<UMT2VnumRegistrySubsystem>();
+		const TSubclassOf<AMT2Mob> MobClass = Registry
+			? Registry->ResolveMobClass(Transform->ApplyValue) : nullptr;
+		Result.MobDefaults = MobClass ? MobClass->GetDefaultObject<AMT2Mob>() : nullptr;
+		const AMT2PlayerState* State = Player->GetPlayerState<AMT2PlayerState>();
+		const UMT2SkillComponent* Skills = State ? State->GetSkillComponent() : nullptr;
+		const UMT2SkillDefinition* PolymorphSkill = UMT2GameplaySettings::Get().GetPolymorphSkillDefinition();
+		const int32 SkillLevel = Skills && PolymorphSkill && PolymorphSkill->Vnum > 0
+			? Skills->GetSkillLevel(PolymorphSkill->Vnum) : 0;
+		Result.PowerPercent = UMT2GameplaySettings::Get().GetPolymorphPowerPercent(SkillLevel);
+		if (Result.MobDefaults)
+		{
+			const UMT2PrimaryStatsComponent* MobPrimary = Result.MobDefaults->GetPrimaryStatsComponent();
+			const FMT2PrimaryStats MobStats = MobPrimary ? MobPrimary->GetCalculatedStats() : FMT2PrimaryStats();
+			const EMT2SkillGroup Group = Skills ? Skills->GetSkillGroup() : EMT2SkillGroup::None;
+			Result.PrimaryStats = MT2PlayerStatFormula::CalculatePolymorphStats(
+				State ? State->GetCharacterAppearance().Race : EMT2CharacterRace::Warrior,
+				Group, Player->GetCalculatedPrimaryStats(), MobStats, Result.PowerPercent);
+		}
+		return Result;
+	}
 
 	int32 ResolveProcChance(int32 Chance, int32 Resistance, bool bSkillDamage)
 	{
@@ -360,6 +410,11 @@ bool UMT2CombatComponent::ApplyBasicAttackDamage(AActor* TargetActor)
 		return false;
 	}
 
+	const AMT2PlayerCharacter* AttackerPlayer = Cast<AMT2PlayerCharacter>(OwnerActor);
+	const FResolvedPolymorphCombatState AttackerPolymorph = ResolvePolymorphCombatState(AttackerPlayer);
+	const AMT2PlayerCharacter* DefenderPlayer = Cast<AMT2PlayerCharacter>(TargetActor);
+	const FResolvedPolymorphCombatState DefenderPolymorph = ResolvePolymorphCombatState(DefenderPlayer);
+
 	// Base (unarmed) hit plus the equipped weapon's rolled attack, mirroring the old game where the
 	// weapon's effective physical attack (item_proto Value3/Value4 plus Value5 refinement power,
 	// bonuses on equip) adds on top of the character's own attack power. Defense subtracts from the total.
@@ -375,22 +430,41 @@ bool UMT2CombatComponent::ApplyBasicAttackDamage(AActor* TargetActor)
 			}
 		}
 	}
+	if (AttackerPolymorph)
+	{
+		const AMT2PlayerState* State = AttackerPlayer->GetPlayerState<AMT2PlayerState>();
+		const int32 Level = State ? State->GetCharacterLevel() : 1;
+		// Legacy ComputeBattlePoints sets ATT_GRADE to level*2 + polymorph STR*2. Replace
+		// the player's normal stat contribution while retaining item/ball bonuses already in Bonuses.
+		AppliedDamage += static_cast<float>(Level * 2 + AttackerPolymorph.PrimaryStats.Strength * 2)
+			- BasicAttackDamage;
+		if (const UMT2CombatStatsComponent* MobCombat = AttackerPolymorph.MobDefaults->GetCombatStatsComponent())
+		{
+			const FMT2CombatStats MobStats = MobCombat->GetCalculatedStats();
+			const float MobDamage = FMath::FRandRange(MobStats.DamageMin, MobStats.DamageMax);
+			AppliedDamage += MobDamage * static_cast<float>(AttackerPolymorph.PowerPercent) * 0.02f;
+		}
+	}
 
 	// Old CalcAttackRating: DEX and level determine how much of physical attack power survives the
 	// attack/evasion comparison. Keep the level contribution outside the multiplier, as the server did.
-	if (const AMT2PlayerCharacter* AttackerPlayer = Cast<AMT2PlayerCharacter>(OwnerActor))
+	if (AttackerPlayer)
 	{
 		const AMT2PlayerState* AttackerState = AttackerPlayer->GetPlayerState<AMT2PlayerState>();
 		const int32 AttackerLevel = AttackerState ? AttackerState->GetCharacterLevel() : 1;
-		const int32 AttackerDexterity = AttackerPlayer->GetCalculatedPrimaryStats().Dexterity;
+		const int32 AttackerDexterity = AttackerPolymorph
+			? AttackerPolymorph.PrimaryStats.Dexterity
+			: AttackerPlayer->GetCalculatedPrimaryStats().Dexterity;
 		int32 DefenderLevel = 1;
 		int32 DefenderDexterity = 0;
 
-		if (const AMT2PlayerCharacter* DefenderPlayer = Cast<AMT2PlayerCharacter>(TargetActor))
+		if (DefenderPlayer)
 		{
 			const AMT2PlayerState* DefenderState = DefenderPlayer->GetPlayerState<AMT2PlayerState>();
 			DefenderLevel = DefenderState ? DefenderState->GetCharacterLevel() : 1;
-			DefenderDexterity = DefenderPlayer->GetCalculatedPrimaryStats().Dexterity;
+			DefenderDexterity = DefenderPolymorph
+				? DefenderPolymorph.PrimaryStats.Dexterity
+				: DefenderPlayer->GetCalculatedPrimaryStats().Dexterity;
 		}
 		else if (const AMT2Mob* DefenderMob = Cast<AMT2Mob>(TargetActor))
 		{
@@ -411,6 +485,17 @@ bool UMT2CombatComponent::ApplyBasicAttackDamage(AActor* TargetActor)
 	{
 		const UMT2CombatStatsComponent* TargetStats = TargetCharacter->GetCombatStatsComponent();
 		TargetDefense = TargetStats ? TargetStats->GetCalculatedStats().Defense : 0.0f;
+		if (DefenderPlayer)
+		{
+			if (DefenderPolymorph)
+			{
+				const AMT2PlayerState* State = DefenderPlayer->GetPlayerState<AMT2PlayerState>();
+				const int32 Level = State ? State->GetCharacterLevel() : 1;
+				const UMT2CombatStatsComponent* MobCombat = DefenderPolymorph.MobDefaults->GetCombatStatsComponent();
+				const float MobDefense = MobCombat ? MobCombat->GetCalculatedStats().Defense : 0.0f;
+				TargetDefense = static_cast<float>(Level + DefenderPolymorph.PrimaryStats.Constitution) + MobDefense;
+			}
+		}
 		AppliedDamage = FMath::Max(AppliedDamage - TargetDefense, 1.0f);
 	}
 	const FResolvedSpecialDamage SpecialDamage = ResolveSpecialDamage(
@@ -438,9 +523,9 @@ bool UMT2CombatComponent::ApplyBasicAttackDamage(AActor* TargetActor)
 		}
 	}
 	SourceAbilitySystem->ApplyGameplayEffectSpecToTarget(*DamageSpec.Data.Get(), TargetAbilitySystem);
-	if (AMT2PlayerCharacter* AttackerPlayer = Cast<AMT2PlayerCharacter>(OwnerActor))
+	if (AMT2PlayerCharacter* DamageNumberAttacker = Cast<AMT2PlayerCharacter>(OwnerActor))
 	{
-		AttackerPlayer->ClientShowDamageNumber(
+		DamageNumberAttacker->ClientShowDamageNumber(
 			TargetActor, AppliedDamage, SpecialDamage.DisplayType);
 	}
 	if (AMT2PlayerCharacter* VictimPlayer = Cast<AMT2PlayerCharacter>(TargetActor))

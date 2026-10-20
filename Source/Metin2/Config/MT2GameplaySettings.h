@@ -14,6 +14,7 @@
 #include "Engine/DeveloperSettings.h"
 #include "Items/MT2ItemTypes.h"
 #include "Player/MT2PlayerTypes.h"
+#include "Skills/MT2SkillTypes.h"
 #include "Stats/MT2StatTypes.h"
 #include "UI/MT2AtlasTypes.h"
 #include "MT2GameplaySettings.generated.h"
@@ -23,6 +24,9 @@ class UMT2HorseBookItemTemplate;
 class UMT2ItemSkillForgetTemplate;
 class UMT2ItemMetinStoneTemplate;
 class UMT2ItemUseTemplate;
+class UMT2ItemPolymorphTemplate;
+class UMT2SkillDefinition;
+class AMT2Mob;
 class UStaticMesh;
 class UMaterialInterface;
 class UParticleSystem;
@@ -143,6 +147,137 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "Progression",
 		meta = (ClampMin = "0", ToolTip = "Zero uses the last XP-curve key; a positive value overrides the maximum character level."))
 	int32 MaximumCharacterLevel = 0;
+
+	// Legacy aiPolymorphPowerByLevel table; the entry index is the Polymorph skill level (0..40).
+	// Values are percentages of the mob's primary stats and damage used while transformed.
+	UPROPERTY(EditAnywhere, config, Category = "Combat|Polymorph", meta = (ClampMin = "0"))
+	TArray<int32> PolymorphPowerPercentBySkillLevel;
+
+	UPROPERTY(EditAnywhere, config, Category = "Combat|Polymorph", meta = (ClampMin = "0"))
+	int32 PolymorphPowerPercentFallback = 0;
+
+	int32 GetPolymorphPowerPercent(int32 SkillLevel) const
+	{
+		if (PolymorphPowerPercentBySkillLevel.IsEmpty())
+		{
+			return FMath::Max(PolymorphPowerPercentFallback, 0);
+		}
+		const int32 Index = FMath::Clamp(SkillLevel, 0, PolymorphPowerPercentBySkillLevel.Num() - 1);
+		return FMath::Max(PolymorphPowerPercentBySkillLevel[Index], 0);
+	}
+
+	// These are asset references rather than proto IDs so gameplay behavior can be rebound from
+	// Project Settings without editing code. The skill's legacy identity is read from its asset.
+	UPROPERTY(EditAnywhere, config, Category = "Combat|Polymorph")
+	TSoftObjectPtr<UMT2SkillDefinition> PolymorphSkillDefinition;
+
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph")
+	TSoftClassPtr<UMT2ItemPolymorphTemplate> PolymorphBookItemTemplate;
+
+	// Legacy book movement bonus is currently mapped to these two mob classes.
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph")
+	TArray<TSoftClassPtr<AMT2Mob>> PolymorphBookMovementBonusMobClasses;
+
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0", Units = "s"))
+	int32 PolymorphBookNormalMasteryDurationSeconds = 0;
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0", Units = "s"))
+	int32 PolymorphBookMasterMasteryDurationSeconds = 0;
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0", Units = "s"))
+	int32 PolymorphBookGrandMasterMasteryDurationSeconds = 0;
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0", Units = "s"))
+	int32 PolymorphBookPerfectMasteryDurationSeconds = 0;
+
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0", Units = "s"))
+	int32 PolymorphBallBaseDurationSeconds = 0;
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0", Units = "s"))
+	int32 PolymorphBallTrainedSkillDurationBonusSeconds = 0;
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0", Units = "s"))
+	int32 PolymorphBallPerfectMasterSkillDurationBonusSeconds = 0;
+
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0"))
+	int32 PolymorphBallBaseAttackBonus = 0;
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0"))
+	int32 PolymorphBallPerfectMasterAttackBonus = 0;
+
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0"))
+	int32 PolymorphBookBaseSuccessChance = 0;
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0"))
+	int32 PolymorphBookSuccessRollMinimum = 0;
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0"))
+	int32 PolymorphBookSuccessRollMaximum = 0;
+
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0", Units = "s"))
+	int32 PolymorphMinimumEffectDurationSeconds = 0;
+
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0"))
+	int32 PolymorphBallPerfectMasterSkillLevel = 0;
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0"))
+	int32 PolymorphBallTargetLevelBaseOffset = 0;
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0"))
+	int32 PolymorphBallTargetLevelPenaltyNumerator = 0;
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "1"))
+	int32 PolymorphBallTargetLevelPenaltyDivisor = 0;
+
+	UPROPERTY(EditAnywhere, config, Category = "Items|Polymorph", meta = (ClampMin = "0", Units = "s"))
+	int32 PolymorphBookMovementBonusExpirationOffsetSeconds = 0;
+
+	// Resolve the configured skill asset once and retain it on the settings CDO. This keeps the
+	// combat hot path from repeatedly doing synchronous asset resolution.
+	const UMT2SkillDefinition* GetPolymorphSkillDefinition() const;
+	UClass* GetPolymorphBookItemClass() const;
+	int32 GetPolymorphBookDurationSeconds(EMT2SkillMastery Mastery) const
+	{
+		switch (Mastery)
+		{
+		case EMT2SkillMastery::Master: return PolymorphBookMasterMasteryDurationSeconds;
+		case EMT2SkillMastery::GrandMaster: return PolymorphBookGrandMasterMasteryDurationSeconds;
+		case EMT2SkillMastery::PerfectMaster: return PolymorphBookPerfectMasteryDurationSeconds;
+		default: return PolymorphBookNormalMasteryDurationSeconds;
+		}
+	}
+
+	bool IsPolymorphBookMovementBonusMob(const UClass* MobClass) const;
+
+	int32 GetPolymorphBallDurationSeconds(int32 SkillLevel) const
+	{
+		const int32 PerfectMasterSteps = PolymorphBallPerfectMasterSkillLevel > 0
+			? FMath::Max(0, SkillLevel) / PolymorphBallPerfectMasterSkillLevel : 0;
+		const int64 Duration = FMath::Max(PolymorphBallBaseDurationSeconds, 0) + (SkillLevel > 0
+			? int64(FMath::Max(PolymorphBallTrainedSkillDurationBonusSeconds, 0)) +
+				int64(PerfectMasterSteps) * FMath::Max(PolymorphBallPerfectMasterSkillDurationBonusSeconds, 0)
+			: 0);
+		return static_cast<int32>(FMath::Clamp<int64>(Duration, 0, MAX_int32));
+	}
+
+	int32 GetPolymorphBallAttackBonus(int32 SkillLevel) const
+	{
+		const int32 PerfectMasterSteps = PolymorphBallPerfectMasterSkillLevel > 0
+			? FMath::Max(0, SkillLevel) / PolymorphBallPerfectMasterSkillLevel : 0;
+		const int64 AttackBonus = FMath::Max(PolymorphBallBaseAttackBonus, 0) +
+			int64(PerfectMasterSteps) * FMath::Max(PolymorphBallPerfectMasterAttackBonus, 0);
+		return static_cast<int32>(FMath::Clamp<int64>(AttackBonus, 0, MAX_int32));
+	}
+
+	int32 GetPolymorphBookSuccessChance(int32 PlayerLevel, int32 MobLevel,
+		int32 SuccessBonus, int32 SkillLevel) const
+	{
+		const int64 Chance = int64(PlayerLevel) - MobLevel + SuccessBonus +
+			PolymorphBookBaseSuccessChance + SkillLevel;
+		return static_cast<int32>(FMath::Clamp<int64>(Chance, MIN_int32, MAX_int32));
+	}
+
+	int32 GetPolymorphBallMinimumTargetLevel(int32 PlayerLevel) const
+	{
+		const int64 Penalty = PolymorphBallTargetLevelPenaltyDivisor > 0
+			? (int64(PlayerLevel) * FMath::Max(PolymorphBallTargetLevelPenaltyNumerator, 0)) /
+				PolymorphBallTargetLevelPenaltyDivisor : 0;
+		const int64 MinimumLevel = int64(PlayerLevel) + FMath::Max<int64>(0,
+			int64(PolymorphBallTargetLevelBaseOffset) - Penalty);
+		return static_cast<int32>(FMath::Clamp<int64>(MinimumLevel, MIN_int32, MAX_int32));
+	}
+
+	UPROPERTY(Transient)
+	mutable TObjectPtr<UMT2SkillDefinition> CachedPolymorphSkillDefinition;
 
 	UPROPERTY(EditAnywhere, config, Category = "Progression", meta = (ClampMin = "1"))
 	int32 MaximumPrimaryStatValue = 90;
