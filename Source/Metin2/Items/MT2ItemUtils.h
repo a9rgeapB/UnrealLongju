@@ -24,6 +24,7 @@ namespace MT2ItemUtils
 	METIN2_API FText GetDisplayName(const UMT2ItemTemplate* Template, int32 FallbackVnum = 0);
 	METIN2_API bool HaveSameInstanceData(const FMT2ItemSlot& Left, const FMT2ItemSlot& Right);
 	METIN2_API bool IsConsumableHairLook(const UMT2ItemTemplate* Template);
+	METIN2_API bool IsRightClickUseItem(const UMT2ItemTemplate* Template);
 	METIN2_API bool UsesNumericSockets(const UMT2ItemTemplate* Template);
 	METIN2_API int32 GetNumericSocket(const FMT2ItemInstanceData& Item, int32 Index);
 	METIN2_API bool SetNumericSocket(FMT2ItemInstanceData& Item, int32 Index, int32 Value);

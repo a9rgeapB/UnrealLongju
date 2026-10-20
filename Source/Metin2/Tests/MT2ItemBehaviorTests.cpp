@@ -12,6 +12,7 @@
 #include "AbilitySystemComponent.h"
 #include "Abilities/MT2CoreAttributeSet.h"
 #include "Characters/MT2PlayerCharacter.h"
+#include "Player/MT2AdminCommandComponent.h"
 #include "Components/MT2HealthComponent.h"
 #include "Components/MT2ManaComponent.h"
 #include "Components/MT2StatusEffectComponent.h"
@@ -311,6 +312,86 @@ bool FMT2PolymorphBallUseTest::RunTest(const FString&)
 		TestEqual(TEXT("Replicated polymorph affect changes the local player mesh to the selected mob"),
 			F.Player->GetMesh()->GetSkeletalMeshAsset(), MobDefaults->GetMesh()->GetSkeletalMeshAsset());
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2PolymorphRightClickRoutingTest,
+	"Metin2.Items.Polymorph.RightClickRouting",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FMT2PolymorphRightClickRoutingTest::RunTest(const FString&)
+{
+	FItemBehaviorWorld F;
+	if (!TestNotNull(TEXT("Item registry fixture"), F.Registry)) return false;
+	const TSubclassOf<AMT2Mob> TargetMob = F.Registry->ResolveMobClass(101);
+	if (!TestNotNull(TEXT("Per-instance polymorph target resolves"), TargetMob.Get())) return false;
+	for (const int32 ItemVnum : {70104, 50322})
+	{
+		const UMT2ItemPolymorphTemplate* PolymorphItem = Cast<UMT2ItemPolymorphTemplate>(
+			F.Registry->ResolveItemTemplateClass(ItemVnum).GetDefaultObject());
+		if (!TestNotNull(*FString::Printf(TEXT("Imported polymorph item %d resolves"), ItemVnum),
+			PolymorphItem))
+		{
+			continue;
+		}
+		TestTrue(*FString::Printf(TEXT("Imported polymorph item %d is routed to the server use handler"), ItemVnum),
+			MT2ItemUtils::IsRightClickUseItem(PolymorphItem));
+		FMT2ItemInstanceData ItemInstance = PolymorphItem->MakeInstanceData();
+		ItemInstance.EditPolymorphState().TargetMob = TargetMob;
+		TestEqual(*FString::Printf(TEXT("Polymorph item %d stores its target as a mob class reference"), ItemVnum),
+			ItemInstance.GetPolymorphState().TargetMob.Get(), TargetMob.Get());
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMT2AdminPolymorphCommandTest,
+	"Metin2.Admin.PolymorphCommand",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FMT2AdminPolymorphCommandTest::RunTest(const FString&)
+{
+	FItemBehaviorWorld F;
+	if (!TestNotNull(TEXT("Player fixture"), F.Player) || !TestNotNull(TEXT("Mob registry fixture"), F.Registry))
+	{
+		return false;
+	}
+
+	UMT2AdminCommandComponent* AdminCommands = F.Player->FindComponentByClass<UMT2AdminCommandComponent>();
+	UMT2StatusEffectComponent* StatusEffects = F.Player->GetStatusEffectComponent();
+	if (!TestNotNull(TEXT("Admin command component"), AdminCommands) ||
+		!TestNotNull(TEXT("Status effect component"), StatusEffects))
+	{
+		return false;
+	}
+
+	const FMT2AffectIdentifier Polymorph =
+		FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Polymorph);
+	const auto FindTransformation = [StatusEffects, Polymorph]()	{
+		return StatusEffects->GetEffects().FindByPredicate(
+			[Polymorph](const FMT2StatusEffect& Effect)
+			{
+				return Effect.Type == Polymorph && Effect.ApplyType == EMT2ItemBonusType::None;
+			});
+	};
+
+	TestTrue(TEXT("/poly <mob vnum> dispatches"), AdminCommands->Execute(TEXT("/poly 101")));
+	const FMT2StatusEffect* Transformation = FindTransformation();
+	if (TestNotNull(TEXT("Valid mob vnum creates a transformation affect"), Transformation))
+	{
+		TestEqual(TEXT("Transformation targets the requested mob vnum"), Transformation->ApplyValue, 101);
+		TestTrue(TEXT("Direct admin transformation lasts until explicitly cleared"), Transformation->IsInfinite());
+	}
+
+	TestTrue(TEXT("Unknown mob vnum is handled as a recognized command"),
+		AdminCommands->Execute(TEXT("/poly 2147483647")));
+	Transformation = FindTransformation();
+	if (TestNotNull(TEXT("Invalid mob vnum leaves the current transformation unchanged"), Transformation))
+	{
+		TestEqual(TEXT("Invalid target does not replace the active mob"), Transformation->ApplyValue, 101);
+	}
+
+	TestTrue(TEXT("/poly 0 dispatches as the clear command"), AdminCommands->Execute(TEXT("/poly 0")));
+	TestNull(TEXT("/poly 0 removes the transformation"), FindTransformation());
 	return true;
 }
 

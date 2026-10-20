@@ -38,6 +38,7 @@ private:
 	void CmdAddExperience(const TArray<FString>& Args);
 	void CmdAddMoney(const TArray<FString>& Args);
 	void CmdApplyEffect(const TArray<FString>& Args);
+	void CmdPolymorph(const TArray<FString>& Args);
 	void CmdSetSkillGroup(const TArray<FString>& Args);
 	void CmdSetSkill(const TArray<FString>& Args);
 	void CmdSetRace(const TArray<FString>& Args);

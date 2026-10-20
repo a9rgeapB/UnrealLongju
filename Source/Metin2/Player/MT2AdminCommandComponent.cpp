@@ -11,6 +11,7 @@
 
 #include "Characters/MT2PlayerCharacter.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/MT2AffectTypes.h"
 #include "Components/MT2StatusEffectComponent.h"
 #include "Components/MT2HealthComponent.h"
 #include "Components/MT2ManaComponent.h"
@@ -24,6 +25,7 @@
 #include "Items/MT2ItemTemplate.h"
 #include "Items/MT2ItemTypes.h"
 #include "Mobs/MT2Mob.h"
+#include "Mounts/MT2MountComponent.h"
 #include "Net/NetworkProfiler.h"
 #include "Persistence/MT2PersistenceComponent.h"
 #include "Player/MT2PlayerState.h"
@@ -54,6 +56,7 @@ const TArray<UMT2AdminCommandComponent::FCommand>& UMT2AdminCommandComponent::Ge
 {
 	static const TArray<FCommand> Table = {
 		{TEXT("/m"),             2, &UMT2AdminCommandComponent::CmdSpawnMob,      TEXT("/m <vnum> [count] [radius_cm]")},
+		{TEXT("/poly"),          2, &UMT2AdminCommandComponent::CmdPolymorph,    TEXT("/poly <mob_vnum|0>")},
 		{TEXT("/i"),             2, &UMT2AdminCommandComponent::CmdGiveItem,      TEXT("/i <vnum> [count]")},
 		{TEXT("/xp"),            2, &UMT2AdminCommandComponent::CmdAddExperience, TEXT("/xp <positive amount>")},
 		{TEXT("/money"),         2, &UMT2AdminCommandComponent::CmdAddMoney,      TEXT("/money <positive amount>")},
@@ -362,6 +365,65 @@ void UMT2AdminCommandComponent::CmdApplyEffect(const TArray<FString>& Args)
 	Effect.ApplyValue = FCString::Atoi(*Args[2]);
 	Effect.RemainingSeconds = Args.IsValidIndex(3) ? FCString::Atoi(*Args[3]) : -1;
 	StatusEffects->AddEffect(Effect, true);
+}
+
+void UMT2AdminCommandComponent::CmdPolymorph(const TArray<FString>& Args)
+{
+	AMT2PlayerCharacter* Player = GetPlayer();
+	UMT2StatusEffectComponent* StatusEffects = Player ? Player->GetStatusEffectComponent() : nullptr;
+	if (!Player || !Player->HasAuthority() || !StatusEffects)
+	{
+		SendResult(false, TEXT("Player polymorph state is unavailable on the server."));
+		return;
+	}
+
+	int32 RequestedMobVnum = INDEX_NONE;
+	if (Args.Num() != 2 || !LexTryParseString(RequestedMobVnum, *Args[1]) || RequestedMobVnum < 0)
+	{
+		SendResult(false, TEXT("Usage: /poly <mob_vnum|0> (use 0 to revert)."));
+		return;
+	}
+
+	const FMT2AffectIdentifier PolymorphType =
+		FMT2AffectIdentifier::FromBuiltin(EMT2BuiltinAffect::Polymorph);
+	if (RequestedMobVnum == 0)
+	{
+		StatusEffects->RemoveEffectsByType(PolymorphType);
+		SendResult(true, TEXT("Polymorph cleared."));
+		return;
+	}
+
+	UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+	UMT2VnumRegistrySubsystem* Registry = GameInstance
+		? GameInstance->GetSubsystem<UMT2VnumRegistrySubsystem>() : nullptr;
+	const TSubclassOf<AMT2Mob> MobClass = Registry ? Registry->ResolveMobClass(RequestedMobVnum) : nullptr;
+	const AMT2Mob* MobDefaults = MobClass ? MobClass->GetDefaultObject<AMT2Mob>() : nullptr;
+	if (!MobDefaults || MobDefaults->GetMobVnum() <= 0)
+	{
+		SendResult(false, FString::Printf(TEXT("No mob is registered for VNUM %d."), RequestedMobVnum));
+		return;
+	}
+
+	if (UMT2MountComponent* Mount = Player->GetMountComponent(); Mount && Mount->IsMounted())
+	{
+		Mount->ForceDismount();
+	}
+
+	// The legacy /polymorph command was not an item use and had no timer; /poly 0 clears it.
+	StatusEffects->RemoveEffectsByType(PolymorphType);
+	FMT2StatusEffect Transformation;
+	Transformation.Type = PolymorphType;
+	Transformation.ApplyType = EMT2ItemBonusType::None;
+	Transformation.ApplyValue = MobDefaults->GetMobVnum();
+	Transformation.RemainingSeconds = -1;
+	if (!StatusEffects->AddEffect(Transformation))
+	{
+		SendResult(false, FString::Printf(TEXT("Could not transform into mob VNUM %d."), RequestedMobVnum));
+		return;
+	}
+
+	SendResult(true, FString::Printf(TEXT("Transformed into %s (%d). Use /poly 0 to revert."),
+		*MobDefaults->GetMobDisplayName(), MobDefaults->GetMobVnum()));
 }
 
 void UMT2AdminCommandComponent::CmdSetSkillGroup(const TArray<FString>& Args)

@@ -8,6 +8,7 @@
 */
 
 #include "Items/MT2ItemUtils.h"
+#include "Items/Templates/MT2ItemConsumableTemplate.h"
 #include "Items/Templates/MT2ItemAutoRecoveryTemplate.h"
 #include "Items/Templates/MT2ItemCostumeTemplate.h"
 #include "Items/Templates/MT2ItemEquipmentTemplate.h"
@@ -18,6 +19,7 @@
 #include "Items/Templates/MT2ItemSkillBookTemplate.h"
 #include "Items/Templates/MT2ItemSkillForgetTemplate.h"
 #include "Items/Templates/MT2ItemPolymorphTemplate.h"
+#include "Items/Templates/MT2ItemQuestTemplate.h"
 
 
 #include "Core/MT2VnumRegistrySubsystem.h"
@@ -56,6 +58,12 @@ bool MT2ItemUtils::IsConsumableHairLook(const UMT2ItemTemplate* Template)
 	// The client proto classifies classic cosmetic/bonus hairstyles as costumes. They are
 	// consumed looks in this project; separate, newer hair costumes remain wearable.
 	return Costume && Costume->CostumeSubType == EMT2CostumeSubType::Hair && Costume->Vnum >= 73001 && Costume->Vnum <= 75619;
+}
+
+bool MT2ItemUtils::IsRightClickUseItem(const UMT2ItemTemplate* Template)
+{
+	return Cast<UMT2ItemConsumableTemplate>(Template) != nullptr ||
+		Cast<UMT2ItemQuestTemplate>(Template) != nullptr;
 }
 
 int32 MT2ItemUtils::GetInventorySize(const UObject* WorldContextObject, int32 Vnum)

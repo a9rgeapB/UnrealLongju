@@ -436,7 +436,7 @@ void UMT2InventoryWidget::HandleGridSlotRightClicked(int32 SlotIndex, EMT2Invent
 			// A skill book targets its own skill (book Value0): right-click reads it directly.
 			Player->ServerReadSkillBook(SlotIndex);
 		}
-		else if (Cast<UMT2ItemUseTemplate>(Template) || Cast<UMT2ItemQuestTemplate>(Template))
+		else if (MT2ItemUtils::IsRightClickUseItem(Template))
 		{
 			Player->ServerUseInventoryItem(SlotIndex);
 		}
